@@ -17,13 +17,16 @@
 
       <section class="stage" id="createStage">
         <div class="eyebrow">临时 · 匿名 · 无历史</div>
-        <h1>和陌生人，<br /><em>只聊这一会儿。</em></h1>
-        <p class="lede">输入一个暗号进入私密房间。无需账号，不保存消息；最后一人离开，房间就不存在了。</p>
+        <h1>只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
+        <p class="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息；最后一人离开，房间就不存在了。</p>
         <form class="create-card" id="createForm">
-          <label for="roomName">房间暗号 <span>英文字母和数字，至少 8 位</span></label>
-          <input id="roomName" maxlength="64" placeholder="例如：FridayCoffee2026" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+          <label for="roomName">房间暗号 <span>已随机生成；加入别人的房间就粘贴对方的暗号</span></label>
+          <div class="pass-row">
+            <input id="roomName" maxlength="64" placeholder="粘贴暗号，或点「换一个」" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+            <button class="secondary-button" id="newPassButton" type="button">换一个</button>
+          </div>
           <button class="primary-button" id="createButton">进入房间 <span>→</span></button>
-          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越长越难猜；只通过可信渠道分享。</p>
+          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。自己起的暗号容易被猜中，最好用随机生成的。</p>
         </form>
         <div class="principles">
           <div><span>01</span>不需要身份</div>
@@ -34,19 +37,45 @@
 
       <section class="chat-stage hidden" id="chatStage" aria-live="polite">
         <aside class="chat-side">
-          <div class="eyebrow">当前房间</div>
-          <h2 id="chatRoomName"></h2>
+          <div class="side-head">
+            <div><div class="eyebrow">当前房间</div><h2 id="chatRoomName"></h2></div>
+            <button class="leave-button" id="leaveButton" type="button">离开房间</button>
+          </div>
           <div id="memberList"></div>
-          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 8</strong><small>最多 8 人；最后一人离开，会话结束。</small></div>
-          <button class="secondary-button wide" id="copyButton" type="button">复制房间链接</button>
-          <button class="leave-button" id="leaveButton" type="button">离开房间</button>
+          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 8</strong><small id="lockState">最多 8 人；最后一人离开，会话结束。</small></div>
+          <div class="side-actions">
+            <button class="secondary-button" id="copyButton" type="button">复制房间链接</button>
+            <button class="secondary-button" id="lockButton" type="button" disabled>锁定房间</button>
+          </div>
+          <details class="tips">
+            <summary>安全提示</summary>
+            <ul>
+              <li>不要用带「云输入」的输入法打字（如搜狗、百度），它们会把输入内容传到自己的服务器。</li>
+              <li>房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
+              <li>人到齐后点「锁定房间」，之后谁拿到链接都进不来。</li>
+              <li>按 Esc 立即清空屏幕上的消息。</li>
+            </ul>
+          </details>
         </aside>
         <div class="conversation">
-          <div class="conversation-head"><span><b class="secure-dot" id="statusDot"></b><span id="statusText">正在连接…</span></span><span>端对端加密 · 不保存历史</span></div>
+          <div class="conversation-head">
+            <span><b class="secure-dot" id="statusDot"></b><span id="statusText">正在连接…</span></span>
+            <span class="head-tools">
+              <label class="ttl">消息保留
+                <select id="ttlSelect">
+                  <option value="0">不自动删除</option>
+                  <option value="60">1 分钟</option>
+                  <option value="300">5 分钟</option>
+                  <option value="1800">30 分钟</option>
+                </select>
+              </label>
+              <button class="quiet-button" id="clearButton" type="button" title="Esc">清屏</button>
+            </span>
+          </div>
           <div class="messages" id="messages"></div>
           <form class="composer" id="messageForm">
             <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" disabled />
-            <span class="char-count" id="charCount">0 / 500</span>
+            <span class="char-count hidden" id="charCount"></span>
             <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
           </form>
         </div>

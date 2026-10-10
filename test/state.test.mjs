@@ -44,3 +44,35 @@ test('same passphrase, same room and key; the room id reveals neither', async ()
   assert.equal(await open(b.key, sealed), '公网消息测试成功');
   await assert.rejects(open(c.key, sealed));
 });
+
+test('random passphrases are long, valid and different', async () => {
+  const { randomPassphrase } = await import('../dist/state.js');
+  const a = randomPassphrase(), b = randomPassphrase();
+  assert.equal(a.length, 22);
+  assert.equal(checkPassphrase(a), a);
+  assert.notEqual(a, b);
+  assert.doesNotMatch(a, /[IOl01]/);
+});
+
+test('the room code is short and does not contain the passphrase', async () => {
+  const { roomCode } = await import('../dist/state.js');
+  const { roomId } = await deriveRoom('FridayCoffee2026');
+  assert.match(roomCode(roomId), /^[0-9A-F]{4}$/);
+});
+
+test('envelopes: sender, replay and age are checked', async () => {
+  const { envelope, checkEnvelope, MAX_SKEW } = await import('../dist/state.js');
+  const seen = new Set();
+  const now = Date.now();
+  const e = envelope(3, '你好', now);
+  assert.equal(checkEnvelope(e, { from: 2, at: now }, seen), null, 'relay relabelled the sender');
+  assert.equal(checkEnvelope(e, { from: 3, at: now }, seen), '你好');
+  assert.equal(checkEnvelope(e, { from: 3, at: now }, seen), null, 'replayed');
+  assert.equal(checkEnvelope(envelope(3, 'old', now - MAX_SKEW - 1), { from: 3, at: now }, seen), null, 'too old');
+  assert.equal(checkEnvelope('not json', { from: 3, at: now }, seen), null);
+});
+
+test('joins and leaves', async () => {
+  const { joinsAndLeaves } = await import('../dist/state.js');
+  assert.deepEqual(joinsAndLeaves([1, 2, 3], [1, 3, 4]), { joined: [4], left: [2] });
+});

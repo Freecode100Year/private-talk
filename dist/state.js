@@ -40,3 +40,53 @@ export function checkMessage(text) {
 export function visitorName(n, you) {
   return n === you ? `访客 ${n} · 我` : `访客 ${n}`;
 }
+
+// randomPassphrase makes a 22-character passphrase, about 128 bits: far
+// beyond guessing. Letters and digits only, minus look-alikes (I, O, l, 0, 1),
+// so it also survives being read aloud or retyped.
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+export function randomPassphrase(length = 22) {
+  const out = [];
+  const limit = 256 - (256 % ALPHABET.length); // keep every symbol equally likely
+  while (out.length < length) {
+    for (const b of crypto.getRandomValues(new Uint8Array(length * 2))) {
+      if (b < limit && out.length < length) out.push(ALPHABET[b % ALPHABET.length]);
+    }
+  }
+  return out.join('');
+}
+
+// roomCode is what the page shows instead of the passphrase, so a screenshot
+// of the room does not give the room away. Everyone in the same room sees the
+// same code.
+export function roomCode(roomId) {
+  return roomId.slice(0, 4).toUpperCase();
+}
+
+// A message's sender, id and time travel inside the encryption. The relay
+// labels each message with who sent it; the page shows a message only when
+// that label matches the sealed one, it has not seen the id before, and the
+// message is not old, so a tampering relay cannot reattribute or replay.
+export const MAX_SKEW = 10 * 60 * 1000;
+
+export function envelope(from, text, now = Date.now()) {
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+  return JSON.stringify({ from, id, t: now, text });
+}
+
+export function checkEnvelope(plain, relayed, seen) {
+  let e;
+  try { e = JSON.parse(plain); } catch { return null; }
+  if (!e || typeof e.text !== 'string' || typeof e.id !== 'string' || typeof e.t !== 'number') return null;
+  if (e.from !== relayed.from || Math.abs(relayed.at - e.t) > MAX_SKEW || seen.has(e.id)) return null;
+  seen.add(e.id);
+  return e.text;
+}
+
+// joinsAndLeaves compares two member lists.
+export function joinsAndLeaves(before, after) {
+  return {
+    joined: after.filter((n) => !before.includes(n)),
+    left: before.filter((n) => !after.includes(n))
+  };
+}

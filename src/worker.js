@@ -2,12 +2,27 @@
 // messages between the people connected to it. It never stores anything: no
 // history, no names, no keys. Rooms are addressed by a hash derived from the
 // passphrase in the browser; the passphrase itself never reaches the server.
+// The little state a room has (visitor numbers, the lock) lives on the open
+// connections and vanishes with the last of them.
 import { DurableObject } from 'cloudflare:workers';
 
-export const MAX_MEMBERS = 8;
+const MAX_MEMBERS = 8;
 const MAX_FRAME = 4096;           // an encrypted 2048-byte message is well under this
 const RATE_PER_10S = 20;          // messages per connection per 10 seconds
 const ROOM_ID = /^[0-9a-f]{64}$/;
+
+// Close codes the page understands. A refused connection is accepted and
+// closed at once, because a plain HTTP error never reaches the page's script.
+const CLOSE_FULL = 4001;
+const CLOSE_LOCKED = 4002;
+const CLOSE_BUSY = 4003;
+
+function refuse(code, reason) {
+  const [client, server] = Object.values(new WebSocketPair());
+  server.accept();
+  server.close(code, reason);
+  return new Response(null, { status: 101, webSocket: client });
+}
 
 export default {
   async fetch(request, env) {
@@ -18,19 +33,32 @@ export default {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
     const origin = request.headers.get('Origin');
     if (origin !== url.origin) return new Response('forbidden', { status: 403 });
+    // Joins per address per minute, counted in memory at the edge and never
+    // written anywhere: enough to stop a script opening rooms in bulk.
+    if (env.JOIN_LIMIT) {
+      const { success } = await env.JOIN_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' });
+      if (!success) return refuse(CLOSE_BUSY, 'too many joins');
+    }
     return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(request);
   }
 };
 
 export class Room extends DurableObject {
   async fetch() {
-    const taken = new Set(this.ctx.getWebSockets().map((ws) => ws.deserializeAttachment()?.n));
-    if (taken.size >= MAX_MEMBERS) return new Response('room full', { status: 409 });
-    let n = 1;
-    while (taken.has(n)) n++;
+    const peers = this.ctx.getWebSockets();
+    const states = peers.map((ws) => ws.deserializeAttachment()).filter(Boolean);
+    if (states.some((a) => a.locked)) return refuse(CLOSE_LOCKED, 'locked');
+    if (peers.length >= MAX_MEMBERS) return refuse(CLOSE_FULL, 'room full');
+    // Numbers are never handed out twice while the room exists, so a newcomer
+    // cannot inherit the name of someone who just left.
+    const n = Math.max(0, ...states.map((a) => a.last ?? a.n)) + 1;
+    for (const ws of peers) {
+      const a = ws.deserializeAttachment();
+      if (a) { a.last = n; ws.serializeAttachment(a); }
+    }
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ n, window: 0, count: 0 });
+    server.serializeAttachment({ n, last: n, locked: false, window: 0, count: 0 });
     server.send(JSON.stringify({ type: 'hello', you: n }));
     this.members();
     return new Response(null, { status: 101, webSocket: client });
@@ -45,21 +73,33 @@ export class Room extends DurableObject {
     ws.serializeAttachment(a);
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
+    if (msg.type === 'lock' && typeof msg.locked === 'boolean') return this.lock(msg.locked, a.n);
     if (msg.type !== 'msg' || typeof msg.iv !== 'string' || typeof msg.ct !== 'string') return;
-    const out = JSON.stringify({ type: 'msg', from: a.n, at: Date.now(), iv: msg.iv, ct: msg.ct });
-    for (const peer of this.ctx.getWebSockets()) {
-      try { peer.send(out); } catch {}
-    }
+    this.broadcast({ type: 'msg', from: a.n, at: Date.now(), iv: msg.iv, ct: msg.ct });
   }
 
   async webSocketClose(ws) { ws.close(); this.members(ws); }
   async webSocketError(ws) { this.members(ws); }
 
+  lock(locked, by) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment();
+      if (a) { a.locked = locked; ws.serializeAttachment(a); }
+    }
+    this.broadcast({ type: 'lock', locked, by });
+  }
+
   members(leaving) {
     const peers = this.ctx.getWebSockets().filter((ws) => ws !== leaving);
-    const list = peers.map((ws) => ws.deserializeAttachment()?.n).filter(Boolean).sort((x, y) => x - y);
-    const out = JSON.stringify({ type: 'members', members: list, max: MAX_MEMBERS });
-    for (const peer of peers) {
+    const states = peers.map((ws) => ws.deserializeAttachment()).filter(Boolean);
+    const list = states.map((a) => a.n).sort((x, y) => x - y);
+    this.broadcast({ type: 'members', members: list, max: MAX_MEMBERS, locked: states.some((a) => a.locked) }, leaving);
+  }
+
+  broadcast(obj, skip) {
+    const out = JSON.stringify(obj);
+    for (const peer of this.ctx.getWebSockets()) {
+      if (peer === skip) continue;
       try { peer.send(out); } catch {}
     }
   }

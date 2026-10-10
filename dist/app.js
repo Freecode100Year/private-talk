@@ -1,11 +1,22 @@
-import { MAX_MEMBERS, checkPassphrase, checkMessage, passphraseFromHash, roomLink, visitorName } from './state.js';
+import {
+  MAX_MEMBERS, MAX_TEXT_CHARS, MAX_TEXT_BYTES, checkPassphrase, checkMessage, passphraseFromHash, roomLink,
+  visitorName, randomPassphrase, roomCode, envelope, checkEnvelope, joinsAndLeaves
+} from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 
 const $ = (id) => document.getElementById(id);
+const CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003;
+
 let ws = null;
 let key = null;
 let pass = null;
+let roomId = null;
 let you = 0;
+let present = null;     // member numbers last seen, null before the first list
+let seen = new Set();   // message ids already shown
+let joinedOnce = false; // whether this visit has been in the room at all
+let retries = 0;
+let retryTimer = 0;
 
 const time = (ms) => new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
@@ -19,19 +30,27 @@ function status(text, ok) {
   $('statusDot').classList.toggle('off', !ok);
   $('messageInput').disabled = !ok;
   $('sendButton').disabled = !ok;
+  $('lockButton').disabled = !ok;
+}
+
+function scrollDown() {
+  $('messages').scrollTop = $('messages').scrollHeight;
 }
 
 function system(text) {
   const div = document.createElement('div');
   div.className = 'system-message';
   div.textContent = text;
+  div.dataset.shown = Date.now();
   $('messages').append(div);
+  scrollDown();
 }
 
 function bubble(from, at, text) {
   const mine = from === you;
   const row = document.createElement('div');
-  row.className = mine ? 'message outgoing' : 'message incoming';
+  row.className = `message ${mine ? 'outgoing' : 'incoming'} c${from % 8}`;
+  row.dataset.shown = Date.now();
   const body = document.createElement('div');
   const who = document.createElement('small');
   who.className = 'who';
@@ -41,7 +60,7 @@ function bubble(from, at, text) {
   body.append(who, p);
   row.append(body);
   $('messages').append(row);
-  $('messages').scrollTop = $('messages').scrollHeight;
+  scrollDown();
 }
 
 function members(list) {
@@ -51,62 +70,136 @@ function members(list) {
     div.className = 'member';
     div.innerHTML = '<span class="avatar"></span><span></span><i></i>';
     div.children[0].textContent = n;
-    div.children[0].classList.toggle('other', n !== you);
+    div.children[0].classList.add(`c${n % 8}`);
+    div.children[0].classList.toggle('me', n === you);
     div.children[1].textContent = visitorName(n, you);
     return div;
   }));
+  if (present) {
+    const { joined, left } = joinsAndLeaves(present, list);
+    for (const n of joined) if (n !== you) system(`访客 ${n} 进入了房间`);
+    for (const n of left) system(`访客 ${n} 离开了房间`);
+  } else if (list.length > 1) {
+    system(`房间里现在有 ${list.length} 人：${list.filter((n) => n !== you).map((n) => `访客 ${n}`).join('、')} 和你。`);
+  }
+  present = list;
+}
+
+function lockState(locked) {
+  $('lockButton').textContent = locked ? '解除锁定' : '锁定房间';
+  $('lockButton').dataset.locked = locked ? '1' : '';
+  $('lockState').textContent = locked ? '🔒 已锁定：新的人进不来。' : '最多 8 人；最后一人离开，会话结束。';
+  $('chatStage').classList.toggle('locked', locked);
+}
+
+function clearScreen() {
+  $('messages').replaceChildren();
 }
 
 async function join(p) {
   pass = p;
   // Keep the passphrase out of the address bar and the browser history.
   history.replaceState(null, '', location.pathname);
-  $('chatRoomName').textContent = pass;
-  $('messages').replaceChildren();
+  clearScreen();
   members([]);
+  present = null;
+  joinedOnce = false;
+  lockState(false);
   show('chat');
+  $('chatRoomName').textContent = '…';
   status('正在生成密钥…', false);
   const room = await deriveRoom(pass);
+  if (pass !== p) return; // left while the key was being made
   key = room.key;
-  status('正在连接…', false);
+  roomId = room.roomId;
+  $('chatRoomName').textContent = `房间 ${roomCode(roomId)}`;
+  connect();
+}
+
+function connect() {
+  clearTimeout(retryTimer);
+  status(joinedOnce ? '正在重新连接…' : '正在连接…', false);
   let opened = false;
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${room.roomId}`);
-  ws.onopen = () => { opened = true; };
-  ws.onmessage = async (e) => {
+  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${roomId}`);
+  ws = sock;
+  sock.onopen = () => { opened = true; };
+  sock.onmessage = async (e) => {
+    if (ws !== sock) return;
     const msg = JSON.parse(e.data);
     if (msg.type === 'hello') {
       you = msg.you;
+      retries = 0;
+      present = null;
       status('已连接', true);
-      system('已进入房间。新加入的人看不到之前的消息。');
+      system(joinedOnce
+        ? `已重新连接，你现在是访客 ${you}。断线期间的消息收不到。`
+        : '已进入房间。新加入的人看不到之前的消息。');
+      joinedOnce = true;
       $('messageInput').focus();
     } else if (msg.type === 'members') {
       members(msg.members);
+      lockState(msg.locked);
+    } else if (msg.type === 'lock') {
+      lockState(msg.locked);
+      const who = msg.by === you ? '你' : `访客 ${msg.by}`;
+      system(msg.locked ? `${who}锁定了房间，新的人进不来了。` : `${who}解除了锁定。`);
     } else if (msg.type === 'msg') {
-      try {
-        bubble(msg.from, msg.at, await open(key, msg));
-      } catch {
-        system('收到一条无法解密的消息，已忽略。');
-      }
+      let text = null;
+      try { text = checkEnvelope(await open(key, msg), msg, seen); } catch {}
+      if (text === null) system('收到一条无法解密或来源对不上的消息，已忽略。');
+      else bubble(msg.from, msg.at, text);
     }
   };
-  ws.onclose = (e) => {
-    if (ws !== e.target) return;
-    status(opened ? '连接已断开' : '无法进入：房间已满（8 人）或网络不通', false);
-    if (opened) system(e.code === 1008 ? '发送太快，连接被断开。' : '连接已断开。重新进入请点“复制房间链接”后打开。');
+  sock.onclose = (e) => {
+    if (ws !== sock) return; // left, or replaced by a newer connection
+    if (e.code === CLOSE_FULL) return stop('房间已满（8 人）');
+    if (e.code === CLOSE_BUSY) return stop('进入次数太多，请稍后再试');
+    if (e.code === CLOSE_LOCKED) {
+      if (!joinedOnce) return stop('房间已锁定，进不去');
+      status('房间已锁定，等房间里的人解除锁定…', false);
+      return retry(10000);
+    }
+    if (e.code === 1008) system('发送太快，连接被断开。');
+    else if (opened) system('连接断开了，正在重连…');
+    retry(Math.min(15000, 1000 * 2 ** retries++));
   };
 }
 
+function retry(delay) {
+  status('连接已断开，正在重连…', false);
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(connect, delay);
+}
+
+function stop(text) {
+  status(text, false);
+  system(`${text}。`);
+  ws = null;
+}
+
 function leave() {
+  clearTimeout(retryTimer);
   const old = ws;
   ws = null;
   old?.close();
-  key = null;
-  pass = null;
+  key = pass = roomId = null;
   you = 0;
-  $('messages').replaceChildren();
-  $('roomName').value = '';
+  present = null;
+  seen = new Set();
+  clearScreen();
+  $('roomName').value = randomPassphrase();
   show('create');
 }
+
+// Messages older than the chosen time are removed from the screen.
+setInterval(() => {
+  const ttl = Number($('ttlSelect').value) * 1000;
+  if (!ttl) return;
+  const cutoff = Date.now() - ttl;
+  for (const el of [...$('messages').children]) {
+    if (Number(el.dataset.shown) < cutoff) el.remove();
+  }
+}, 2000);
 
 $('createForm').addEventListener('submit', (event) => {
   event.preventDefault();
@@ -119,27 +212,62 @@ $('createForm').addEventListener('submit', (event) => {
   }
 });
 $('roomName').addEventListener('input', () => $('roomName').setCustomValidity(''));
+$('newPassButton').addEventListener('click', () => {
+  $('roomName').value = randomPassphrase();
+  $('roomName').setCustomValidity('');
+});
 $('leaveButton').addEventListener('click', leave);
+$('clearButton').addEventListener('click', clearScreen);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && pass) clearScreen();
+});
+$('lockButton').addEventListener('click', () => {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'lock', locked: !$('lockButton').dataset.locked }));
+});
 $('copyButton').addEventListener('click', async (event) => {
   const button = event.currentTarget;
   await navigator.clipboard.writeText(roomLink(location.origin, pass));
-  button.textContent = '已复制';
-  setTimeout(() => { button.textContent = '复制房间链接'; }, 1300);
+  button.textContent = '已复制，发出后请清空剪贴板';
+  setTimeout(() => { button.textContent = '复制房间链接'; }, 2500);
 });
 $('messageInput').addEventListener('input', () => {
   const v = $('messageInput').value;
-  $('charCount').textContent = `${Array.from(v).length} / 500 · ${new TextEncoder().encode(v).byteLength} / 2048 B`;
+  const chars = Array.from(v).length;
+  const bytes = new TextEncoder().encode(v).byteLength;
+  // Only worth showing near the limits.
+  const near = chars > MAX_TEXT_CHARS - 100 || bytes > MAX_TEXT_BYTES - 300;
+  $('charCount').classList.toggle('hidden', !near);
+  $('charCount').textContent = bytes > MAX_TEXT_BYTES ? '太长了' : `还能写 ${MAX_TEXT_CHARS - chars} 字`;
 });
 $('messageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = checkMessage($('messageInput').value);
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'msg', ...(await seal(key, text)) }));
+  ws.send(JSON.stringify({ type: 'msg', ...(await seal(key, envelope(you, text))) }));
   $('messageInput').value = '';
   $('messageInput').dispatchEvent(new Event('input'));
 });
-window.addEventListener('pagehide', () => ws?.close());
+// Phones drop connections in the background; reconnect as soon as the page
+// is looked at again.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pass && roomId && ws && ws.readyState > WebSocket.OPEN) connect();
+});
+window.addEventListener('pagehide', () => { const old = ws; ws = null; old?.close(); });
+window.addEventListener('pageshow', (event) => { if (event.persisted && pass && roomId) connect(); });
+
+// A room link pasted into a tab that already shows this page only changes
+// the fragment, which does not reload it.
+window.addEventListener('hashchange', () => {
+  const p = passphraseFromHash(location.hash);
+  if (!p) return;
+  if (pass) leave();
+  join(p);
+});
 
 const fromLink = passphraseFromHash(location.hash);
 if (fromLink) join(fromLink);
-else history.replaceState(null, '', location.pathname);
+else {
+  history.replaceState(null, '', location.pathname);
+  $('roomName').value = randomPassphrase();
+}
