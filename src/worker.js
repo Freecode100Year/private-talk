@@ -6,7 +6,7 @@
 // connections and vanishes with the last of them.
 import { DurableObject } from 'cloudflare:workers';
 
-const MAX_MEMBERS = 8;
+const MAX_MEMBERS = 10;          // visitors are numbered 1️⃣ to 🔟
 const MAX_FRAME = 4096;           // an encrypted 2048-byte message is well under this
 const RATE_PER_10S = 20;          // messages per connection per 10 seconds
 const ROOM_ID = /^[0-9a-f]{64}$/;
@@ -49,16 +49,22 @@ export class Room extends DurableObject {
     const states = peers.map((ws) => ws.deserializeAttachment()).filter(Boolean);
     if (states.some((a) => a.locked)) return refuse(CLOSE_LOCKED, 'locked');
     if (peers.length >= MAX_MEMBERS) return refuse(CLOSE_FULL, 'room full');
-    // Numbers are never handed out twice while the room exists, so a newcomer
-    // cannot inherit the name of someone who just left.
-    const n = Math.max(0, ...states.map((a) => a.last ?? a.n)) + 1;
+    // Numbers run 1 to 10. Unused numbers go first; after that, the one freed
+    // longest ago, so a newcomer does not straight away take the name of
+    // someone who just left. Every connection carries the same bookkeeping.
+    const book = states[0] ?? { last: 0, freed: [] };
+    const freed = (book.freed ?? []).filter((x) => !states.some((a) => a.n === x));
+    const inUse = new Set(states.map((a) => a.n));
+    const firstFree = () => { let x = 1; while (inUse.has(x)) x++; return x; };
+    const n = book.last < MAX_MEMBERS ? book.last + 1 : freed.shift() ?? firstFree();
+    const last = Math.max(book.last, n);
     for (const ws of peers) {
       const a = ws.deserializeAttachment();
-      if (a) { a.last = n; ws.serializeAttachment(a); }
+      if (a) { a.last = last; a.freed = freed; ws.serializeAttachment(a); }
     }
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ n, last: n, locked: false, window: 0, count: 0 });
+    server.serializeAttachment({ n, last, freed, locked: false, window: 0, count: 0 });
     server.send(JSON.stringify({ type: 'hello', you: n }));
     this.members();
     return new Response(null, { status: 101, webSocket: client });
@@ -78,8 +84,19 @@ export class Room extends DurableObject {
     this.broadcast({ type: 'msg', from: a.n, at: Date.now(), iv: msg.iv, ct: msg.ct });
   }
 
-  async webSocketClose(ws) { ws.close(); this.members(ws); }
-  async webSocketError(ws) { this.members(ws); }
+  async webSocketClose(ws) { this.release(ws); ws.close(); this.members(ws); }
+  async webSocketError(ws) { this.release(ws); this.members(ws); }
+
+  // release queues a leaving visitor's number behind the others already free.
+  release(leaving) {
+    const gone = leaving.deserializeAttachment()?.n;
+    if (!gone) return;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === leaving) continue;
+      const a = ws.deserializeAttachment();
+      if (a && !a.freed?.includes(gone)) { a.freed = [...(a.freed ?? []), gone]; ws.serializeAttachment(a); }
+    }
+  }
 
   lock(locked, by) {
     for (const ws of this.ctx.getWebSockets()) {

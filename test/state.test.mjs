@@ -28,8 +28,9 @@ test('message limits: 500 characters and 2048 bytes', () => {
 });
 
 test('visitor names', () => {
-  assert.equal(visitorName(2, 2), '访客 2 · 我');
-  assert.equal(visitorName(1, 2), '访客 1');
+  assert.equal(visitorName(2, 2), '2️⃣ 我');
+  assert.equal(visitorName(1, 2), '1️⃣');
+  assert.equal(visitorName(10, 2), '🔟');
 });
 
 test('same passphrase, same room and key; the room id reveals neither', async () => {

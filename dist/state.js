@@ -1,5 +1,5 @@
 // Rules shared by the page and the tests.
-export const MAX_MEMBERS = 8;
+export const MAX_MEMBERS = 10;
 export const MAX_TEXT_CHARS = 500;
 export const MAX_TEXT_BYTES = 2048;
 export const MIN_PASSPHRASE = 8;
@@ -37,8 +37,15 @@ export function checkMessage(text) {
   return clean;
 }
 
+// Visitors are numbered 1️⃣ to 🔟.
+export const BADGES = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+export function badge(n) {
+  return BADGES[n - 1] ?? `#${n}`;
+}
+
 export function visitorName(n, you) {
-  return n === you ? `访客 ${n} · 我` : `访客 ${n}`;
+  return n === you ? `${badge(n)} 我` : badge(n);
 }
 
 // randomPassphrase makes a 22-character passphrase, about 128 bits: far

@@ -1,6 +1,6 @@
 import {
   MAX_MEMBERS, MAX_TEXT_CHARS, MAX_TEXT_BYTES, checkPassphrase, checkMessage, passphraseFromHash, roomLink,
-  visitorName, randomPassphrase, roomCode, envelope, checkEnvelope, joinsAndLeaves
+  visitorName, badge, randomPassphrase, roomCode, envelope, checkEnvelope, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 
@@ -49,7 +49,7 @@ function system(text) {
 function bubble(from, at, text) {
   const mine = from === you;
   const row = document.createElement('div');
-  row.className = `message ${mine ? 'outgoing' : 'incoming'} c${from % 8}`;
+  row.className = `message ${mine ? 'outgoing' : 'incoming'} c${from}`;
   row.dataset.shown = Date.now();
   const body = document.createElement('div');
   const who = document.createElement('small');
@@ -69,18 +69,18 @@ function members(list) {
     const div = document.createElement('div');
     div.className = 'member';
     div.innerHTML = '<span class="avatar"></span><span></span><i></i>';
-    div.children[0].textContent = n;
-    div.children[0].classList.add(`c${n % 8}`);
+    div.children[0].textContent = badge(n);
+    div.children[0].classList.add(`c${n}`);
     div.children[0].classList.toggle('me', n === you);
     div.children[1].textContent = visitorName(n, you);
     return div;
   }));
   if (present) {
     const { joined, left } = joinsAndLeaves(present, list);
-    for (const n of joined) if (n !== you) system(`访客 ${n} 进入了房间`);
-    for (const n of left) system(`访客 ${n} 离开了房间`);
+    for (const n of joined) if (n !== you) system(`${badge(n)} 进入了房间`);
+    for (const n of left) system(`${badge(n)} 离开了房间`);
   } else if (list.length > 1) {
-    system(`房间里现在有 ${list.length} 人：${list.filter((n) => n !== you).map((n) => `访客 ${n}`).join('、')} 和你。`);
+    system(`房间里现在有 ${list.length} 人：${list.filter((n) => n !== you).map(badge).join(' ')} 和你。`);
   }
   present = list;
 }
@@ -88,7 +88,7 @@ function members(list) {
 function lockState(locked) {
   $('lockButton').textContent = locked ? '解除锁定' : '锁定房间';
   $('lockButton').dataset.locked = locked ? '1' : '';
-  $('lockState').textContent = locked ? '🔒 已锁定：新的人进不来。' : '最多 8 人；最后一人离开，会话结束。';
+  $('lockState').textContent = locked ? '🔒 已锁定：新的人进不来。' : '最多 10 人；最后一人离开，会话结束。';
   $('chatStage').classList.toggle('locked', locked);
 }
 
@@ -132,7 +132,7 @@ function connect() {
       present = null;
       status('已连接', true);
       system(joinedOnce
-        ? `已重新连接，你现在是访客 ${you}。断线期间的消息收不到。`
+        ? `已重新连接，你现在是 ${badge(you)}。断线期间的消息收不到。`
         : '已进入房间。新加入的人看不到之前的消息。');
       joinedOnce = true;
       $('messageInput').focus();
@@ -141,8 +141,8 @@ function connect() {
       lockState(msg.locked);
     } else if (msg.type === 'lock') {
       lockState(msg.locked);
-      const who = msg.by === you ? '你' : `访客 ${msg.by}`;
-      system(msg.locked ? `${who}锁定了房间，新的人进不来了。` : `${who}解除了锁定。`);
+      const who = msg.by === you ? '你' : badge(msg.by);
+      system(msg.locked ? `${who} 锁定了房间，新的人进不来了。` : `${who} 解除了锁定。`);
     } else if (msg.type === 'msg') {
       let text = null;
       try { text = checkEnvelope(await open(key, msg), msg, seen); } catch {}
@@ -152,7 +152,7 @@ function connect() {
   };
   sock.onclose = (e) => {
     if (ws !== sock) return; // left, or replaced by a newer connection
-    if (e.code === CLOSE_FULL) return stop('房间已满（8 人）');
+    if (e.code === CLOSE_FULL) return stop('房间已满（10 人）');
     if (e.code === CLOSE_BUSY) return stop('进入次数太多，请稍后再试');
     if (e.code === CLOSE_LOCKED) {
       if (!joinedOnce) return stop('房间已锁定，进不去');
