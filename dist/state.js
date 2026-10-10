@@ -1,38 +1,42 @@
-const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const MAX_TEXT_CHARS = 500;
-const MAX_TEXT_BYTES = 2048;
+// Rules shared by the page and the tests.
+export const MAX_MEMBERS = 8;
+export const MAX_TEXT_CHARS = 500;
+export const MAX_TEXT_BYTES = 2048;
+export const MIN_PASSPHRASE = 8;
 
-function codePart() {
-  return Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+// The passphrase is the only credential: whoever knows it is in the room, and
+// it is also what the messages are encrypted with. Letters and digits keep it
+// easy to share in a link.
+export function checkPassphrase(input) {
+  const pass = input.trim();
+  if (!pass) throw new Error('请输入房间暗号');
+  if (!/^[A-Za-z0-9]+$/.test(pass)) throw new Error('房间暗号只能使用英文字母和数字');
+  if (pass.length < MIN_PASSPHRASE) throw new Error(`房间暗号至少 ${MIN_PASSPHRASE} 位`);
+  return pass;
 }
 
-export function createRoom(title) {
-  const cleanTitle = title.trim();
-  if (!cleanTitle) {
-    throw new Error('Room passphrase is required');
+// The passphrase travels after "#", which browsers never send to the server.
+export function roomLink(origin, pass) {
+  return `${origin}/#${pass}`;
+}
+
+export function passphraseFromHash(hash) {
+  try {
+    return checkPassphrase(decodeURIComponent(hash.replace(/^#/, '')));
+  } catch {
+    return null;
   }
-  if (!/^[A-Za-z0-9]+$/.test(cleanTitle)) {
-    throw new Error('Room passphrase must contain only English letters and digits');
-  }
-  const inviteCode = `${codePart()}-${codePart()}`;
-  return {
-    title: cleanTitle,
-    inviteCode,
-    sharePath: `private.talk/room/${encodeURIComponent(cleanTitle)}?invite=${inviteCode}`,
-    expiresInMinutes: null,
-    expiresWhenEmpty: true,
-    maxParticipants: 8,
-    maxTextChars: MAX_TEXT_CHARS
-  };
 }
 
-export function nextStep(step) {
-  return ({ create: 'invite', invite: 'chat' })[step] ?? 'create';
+// checkMessage returns the text to send, or null when it is empty or too long.
+export function checkMessage(text) {
+  const clean = text.trim();
+  if (!clean) return null;
+  if (Array.from(clean).length > MAX_TEXT_CHARS) return null;
+  if (new TextEncoder().encode(clean).byteLength > MAX_TEXT_BYTES) return null;
+  return clean;
 }
 
-export function sendDemoMessage(messages, text) {
-  const cleanText = text.trim();
-  const textBytes = new TextEncoder().encode(cleanText).byteLength;
-  if (Array.from(cleanText).length > MAX_TEXT_CHARS || textBytes > MAX_TEXT_BYTES) return messages;
-  return cleanText ? [...messages, { sender: '我', text: cleanText, time: '刚刚' }] : messages;
+export function visitorName(n, you) {
+  return n === you ? `访客 ${n} · 我` : `访客 ${n}`;
 }

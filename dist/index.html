@@ -3,78 +3,55 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="匿名临时私密沟通的交互演示" />
-    <title>隐匿对话 · 演示</title>
+    <meta name="description" content="匿名、临时、端对端加密的私密对话，不保存历史" />
+    <meta name="referrer" content="no-referrer" />
+    <title>隐匿对话</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="回到开始"><span class="brand-mark">⌁</span>隐匿对话</a>
-        <span class="demo-badge">交互演示</span>
-        <button class="quiet-button" id="resetButton">重新开始</button>
+        <a class="brand" href="/" aria-label="回到开始"><span class="brand-mark">⌁</span>隐匿对话</a>
+        <span class="demo-badge">临时 · 匿名 · 端对端加密</span>
       </header>
-
-      <section class="notice" aria-label="演示提示">
-        <span>◎</span> 这是交互原型：不会建立真实连接、发送消息或使用真实加密。
-      </section>
 
       <section class="stage" id="createStage">
         <div class="eyebrow">临时 · 匿名 · 无历史</div>
         <h1>和陌生人，<br /><em>只聊这一会儿。</em></h1>
-        <p class="lede">创建一间即将消失的私密会话。无需账号，不保留消息记录。</p>
-        <div class="create-card">
-          <label for="roomName">输入房间暗号 <span>英文字母和数字 · 唯一凭据</span></label>
-          <input id="roomName" maxlength="28" pattern="[A-Za-z0-9]+" placeholder="例如：FridayCoffee2026" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-          <button class="primary-button" id="createButton">生成私密邀请 <span>→</span></button>
-          <p class="fine-print">暗号仅可使用英文字母和数字，且会显示在邀请链接中：完整链接就是唯一凭据。请仅通过可信渠道分享；无人打开时房间不存在。</p>
-        </div>
+        <p class="lede">输入一个暗号进入私密房间。无需账号，不保存消息；最后一人离开，房间就不存在了。</p>
+        <form class="create-card" id="createForm">
+          <label for="roomName">房间暗号 <span>英文字母和数字，至少 8 位</span></label>
+          <input id="roomName" maxlength="64" placeholder="例如：FridayCoffee2026" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+          <button class="primary-button" id="createButton">进入房间 <span>→</span></button>
+          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越长越难猜；只通过可信渠道分享。</p>
+        </form>
         <div class="principles">
           <div><span>01</span>不需要身份</div>
           <div><span>02</span>不保存历史</div>
-          <div><span>03</span>随时离开</div>
-        </div>
-      </section>
-
-      <section class="stage hidden" id="inviteStage" aria-live="polite">
-        <div class="eyebrow">步骤 1 / 2</div>
-        <h2>把邀请交给对方</h2>
-        <p class="lede">仅通过你信任的渠道分享。链接泄露时，请重新创建会话。</p>
-        <div class="invite-card">
-          <div class="room-label" id="roomTitle">房间暗号</div>
-          <div class="invite-link"><strong id="inviteLink">private.talk/room/房间暗号?invite=ABCD-1234</strong><button id="copyButton" aria-label="复制邀请">复制</button></div>
-          <div class="expires"><span class="pulse"></span> 链接不会占用会话；有人打开时激活，最后一人离开即销毁</div>
-        </div>
-        <div class="action-row">
-          <button class="secondary-button" id="backToCreate">上一步</button>
-          <button class="primary-button" id="toVerify">开始匿名对话 <span>→</span></button>
+          <div><span>03</span>端对端加密</div>
         </div>
       </section>
 
       <section class="chat-stage hidden" id="chatStage" aria-live="polite">
         <aside class="chat-side">
-          <div class="eyebrow">临时会话</div>
-          <h2 id="chatRoomName">房间暗号</h2>
-          <div class="member"><span class="avatar">我</span><span>匿名访客</span><i></i></div>
-          <div class="member"><span class="avatar other">陌</span><span>另一位访客</span><i></i></div>
-          <div class="expire-card"><span>会话状态</span><strong>2 / 8 人在线</strong><small>最多 8 人；最后一人离开后，会话与消息立即销毁。</small></div>
-          <button class="leave-button" id="leaveButton">结束并销毁会话</button>
+          <div class="eyebrow">当前房间</div>
+          <h2 id="chatRoomName"></h2>
+          <div id="memberList"></div>
+          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 8</strong><small>最多 8 人；最后一人离开，会话结束。</small></div>
+          <button class="secondary-button wide" id="copyButton" type="button">复制房间链接</button>
+          <button class="leave-button" id="leaveButton" type="button">离开房间</button>
         </aside>
         <div class="conversation">
-          <div class="conversation-head"><span><b class="secure-dot"></b> 已建立的匿名私密会话</span><span>最多 8 人 · 不保存历史</span></div>
-          <div class="messages" id="messages">
-            <div class="system-message">连接已建立。离开后不会保留消息。</div>
-            <div class="message incoming"><span class="avatar other">陌</span><div><p>你好，连接成功。</p><small>刚刚</small></div></div>
-          </div>
+          <div class="conversation-head"><span><b class="secure-dot" id="statusDot"></b><span id="statusText">正在连接…</span></span><span>端对端加密 · 不保存历史</span></div>
+          <div class="messages" id="messages"></div>
           <form class="composer" id="messageForm">
-            <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" />
+            <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" disabled />
             <span class="char-count" id="charCount">0 / 500</span>
-            <button class="send-button" aria-label="发送消息">↑</button>
+            <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
           </form>
         </div>
       </section>
     </main>
-    <template id="messageTemplate"><div class="message outgoing"><div><p></p><small>刚刚</small></div><span class="avatar">我</span></div></template>
     <script type="module" src="app.js"></script>
   </body>
 </html>
