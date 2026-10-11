@@ -65,7 +65,7 @@ export class Room extends DurableObject {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ n, last, freed, locked: false, window: 0, count: 0 });
-    server.send(JSON.stringify({ type: 'hello', you: n }));
+    server.send(JSON.stringify({ type: 'hello', you: n, now: Date.now() }));
     this.members();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -84,7 +84,11 @@ export class Room extends DurableObject {
     this.broadcast({ type: 'msg', from: a.n, at: Date.now(), iv: msg.iv, ct: msg.ct });
   }
 
-  async webSocketClose(ws) { this.release(ws); ws.close(); this.members(ws); }
+  async webSocketClose(ws) {
+    this.release(ws);
+    try { ws.close(); } catch {} // may already be closed
+    this.members(ws);
+  }
   async webSocketError(ws) { this.release(ws); this.members(ws); }
 
   // release queues a leaving visitor's number behind the others already free.

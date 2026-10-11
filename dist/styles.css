@@ -42,9 +42,13 @@ button,input { font:inherit; } button { cursor:pointer; }
 .avatar.me { background:#ece8ff; box-shadow:0 0 0 2px var(--purple); border-radius:8px; }
 .incoming > div { border-left:3px solid var(--c, #c9c6d1); }
 .message .who { font-size:13px; }
+.repo-link { margin-left:auto; color:#5848a7; font-size:13px; font-weight:650; text-decoration:none; border-bottom:1px solid #cfc7f5; }
+.repo-link:hover { color:var(--purple); border-color:var(--purple); }
+.message p { overflow-wrap:anywhere; white-space:pre-wrap; }
 @media (max-width:680px) {
   .shell { width:min(100% - 16px,1120px); padding:8px 0 12px; min-height:auto; }
-  .topbar { height:44px; }
+  .topbar { height:44px; gap:10px; }
+  .demo-badge { display:none; }
   .stage { margin-top:36px; }
   .chat-stage { grid-template-columns:1fr; grid-template-rows:auto 1fr; border-radius:16px; margin-top:10px; height:calc(100dvh - 72px); min-height:420px; }
   .chat-side { border-right:0; border-bottom:1px solid var(--line); padding:12px 14px; gap:10px; overflow:visible; }

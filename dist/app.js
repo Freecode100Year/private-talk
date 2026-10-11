@@ -17,6 +17,8 @@ let seen = new Set();   // message ids already shown
 let joinedOnce = false; // whether this visit has been in the room at all
 let retries = 0;
 let retryTimer = 0;
+let joining = 0;        // bumps on every join and leave, to drop stale ones
+let clockSkew = 0;      // server time minus this device's, from the last hello
 
 const time = (ms) => new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
@@ -33,8 +35,11 @@ function status(text, ok) {
   $('lockButton').disabled = !ok;
 }
 
-function scrollDown() {
-  $('messages').scrollTop = $('messages').scrollHeight;
+// Follow new messages, unless the reader has scrolled up to read older ones.
+function scrollDown(force) {
+  const m = $('messages');
+  const near = m.scrollHeight - m.scrollTop - m.clientHeight < 120;
+  if (force || near) m.scrollTop = m.scrollHeight;
 }
 
 function system(text) {
@@ -59,8 +64,9 @@ function bubble(from, at, text) {
   p.textContent = text;
   body.append(who, p);
   row.append(body);
+  const follow = $('messages').scrollHeight - $('messages').scrollTop - $('messages').clientHeight < 120;
   $('messages').append(row);
-  scrollDown();
+  scrollDown(mine || follow);
 }
 
 function members(list) {
@@ -97,7 +103,9 @@ function clearScreen() {
 }
 
 async function join(p) {
+  const ticket = ++joining;
   pass = p;
+  retries = 0;
   // Keep the passphrase out of the address bar and the browser history.
   history.replaceState(null, '', location.pathname);
   clearScreen();
@@ -109,7 +117,7 @@ async function join(p) {
   $('chatRoomName').textContent = '…';
   status('正在生成密钥…', false);
   const room = await deriveRoom(pass);
-  if (pass !== p) return; // left while the key was being made
+  if (ticket !== joining) return; // left or switched rooms while the key was being made
   key = room.key;
   roomId = room.roomId;
   $('chatRoomName').textContent = `房间 ${roomCode(roomId)}`;
@@ -125,9 +133,14 @@ function connect() {
   sock.onopen = () => { opened = true; };
   sock.onmessage = async (e) => {
     if (ws !== sock) return;
-    const msg = JSON.parse(e.data);
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
     if (msg.type === 'hello') {
       you = msg.you;
+      // Messages carry the time they were sent and are refused when it is far
+      // from the server's; going by the server's clock keeps a device whose
+      // clock is wrong from having everything it sends refused.
+      if (typeof msg.now === 'number') clockSkew = msg.now - Date.now();
       retries = 0;
       present = null;
       status('已连接', true);
@@ -178,6 +191,7 @@ function stop(text) {
 }
 
 function leave() {
+  joining++;
   clearTimeout(retryTimer);
   const old = ws;
   ws = null;
@@ -227,8 +241,12 @@ $('lockButton').addEventListener('click', () => {
 });
 $('copyButton').addEventListener('click', async (event) => {
   const button = event.currentTarget;
-  await navigator.clipboard.writeText(roomLink(location.origin, pass));
-  button.textContent = '已复制，发出后请清空剪贴板';
+  try {
+    await navigator.clipboard.writeText(roomLink(location.origin, pass));
+    button.textContent = '已复制，发出后请清空剪贴板';
+  } catch {
+    button.textContent = '复制失败：浏览器不允许访问剪贴板';
+  }
   setTimeout(() => { button.textContent = '复制房间链接'; }, 2500);
 });
 $('messageInput').addEventListener('input', () => {
@@ -244,7 +262,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = checkMessage($('messageInput').value);
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'msg', ...(await seal(key, envelope(you, text))) }));
+  ws.send(JSON.stringify({ type: 'msg', ...(await seal(key, envelope(you, text, Date.now() + clockSkew))) }));
   $('messageInput').value = '';
   $('messageInput').dispatchEvent(new Event('input'));
 });
