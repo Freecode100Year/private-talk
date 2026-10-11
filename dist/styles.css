@@ -69,7 +69,8 @@ button,input { font:inherit; } button { cursor:pointer; }
   .member span:nth-child(2),.member i { display:none; }
   .expire-card { grid-template-columns:auto auto 1fr; align-items:center; gap:8px; padding:8px 12px; }
   .expire-card strong { font-size:16px; }
-  .expire-card small { text-align:right; }
+  .expire-card small { text-align:right; display:none; }
+  .chat-stage.locked .expire-card small { display:block; }
   .side-actions { grid-template-columns:1fr 1fr; }
   .side-actions .secondary-button { padding:10px 8px; font-size:13px; }
   .conversation-head { min-height:46px; padding:0 12px; font-size:12px; }
