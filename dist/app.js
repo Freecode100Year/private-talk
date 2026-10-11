@@ -1,5 +1,5 @@
 import {
-  MAX_MEMBERS, MAX_TEXT_CHARS, MAX_TEXT_BYTES, checkPassphrase, checkMessage, passphraseFromHash, roomLink,
+  MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, checkPassphrase, checkMessage, passphraseFromHash, roomLink,
   visitorName, badge, randomPassphrase, roomCode, envelope, checkEnvelope, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
@@ -18,7 +18,11 @@ let joinedOnce = false; // whether this visit has been in the room at all
 let retries = 0;
 let retryTimer = 0;
 let joining = 0;        // bumps on every join and leave, to drop stale ones
-let clockSkew = 0;      // server time minus this device's, from the last hello
+let clockSkew = 0;
+let online = false;
+let cooldownUntil = 0;  // no sending before this time
+let cooldownTimer = 0;
+let lastSent = '';     // put back in the box if the server says it came too soon      // server time minus this device's, from the last hello
 
 const time = (ms) => new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
@@ -31,8 +35,26 @@ function status(text, ok) {
   $('statusText').textContent = text;
   $('statusDot').classList.toggle('off', !ok);
   $('messageInput').disabled = !ok;
-  $('sendButton').disabled = !ok;
   $('lockButton').disabled = !ok;
+  online = ok;
+  sendButton();
+}
+
+// The send button counts down the three seconds between messages.
+function sendButton() {
+  clearTimeout(cooldownTimer);
+  const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+  const button = $('sendButton');
+  button.disabled = !online || left > 0;
+  button.textContent = left > 0 ? String(left) : '↑';
+  button.classList.toggle('counting', left > 0);
+  button.setAttribute('aria-label', left > 0 ? `${left} 秒后可以发送` : '发送消息');
+  if (left > 0) cooldownTimer = setTimeout(sendButton, (cooldownUntil - Date.now()) % 1000 || 1000);
+}
+
+function cooldown(ms) {
+  cooldownUntil = Date.now() + ms;
+  sendButton();
 }
 
 // Follow new messages, unless the reader has scrolled up to read older ones.
@@ -94,7 +116,7 @@ function members(list) {
 function lockState(locked) {
   $('lockButton').textContent = locked ? '解除锁定' : '锁定房间';
   $('lockButton').dataset.locked = locked ? '1' : '';
-  $('lockState').textContent = locked ? '🔒 已锁定：新的人进不来。' : '最多 10 人；最后一人离开，会话结束。';
+  $('lockState').textContent = locked ? '🔒 已锁定：新的人进不来。' : '最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。';
   $('chatStage').classList.toggle('locked', locked);
 }
 
@@ -152,6 +174,10 @@ function connect() {
     } else if (msg.type === 'members') {
       members(msg.members);
       lockState(msg.locked);
+    } else if (msg.type === 'wait') {
+      cooldown(msg.ms);
+      if (!$('messageInput').value) $('messageInput').value = lastSent;
+      system(`每 ${SEND_GAP_SECONDS} 秒只能发一条，刚才那条没有发出去，已放回输入框。`);
     } else if (msg.type === 'lock') {
       lockState(msg.locked);
       const who = msg.by === you ? '你' : badge(msg.by);
@@ -261,7 +287,9 @@ $('messageInput').addEventListener('input', () => {
 $('messageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = checkMessage($('messageInput').value);
-  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil) return;
+  cooldown(SEND_GAP_SECONDS * 1000);
+  lastSent = text;
   ws.send(JSON.stringify({ type: 'msg', ...(await seal(key, envelope(you, text, Date.now() + clockSkew))) }));
   $('messageInput').value = '';
   $('messageInput').dispatchEvent(new Event('input'));

@@ -3,12 +3,16 @@
 // history, no names, no keys. Rooms are addressed by a hash derived from the
 // passphrase in the browser; the passphrase itself never reaches the server.
 // The little state a room has (visitor numbers, the lock) lives on the open
-// connections and vanishes with the last of them.
+// connections and vanishes with the last of them. The passphrase never
+// expires: whoever opens it again later brings the room back, empty.
+// Each person may send one message every three seconds.
 import { DurableObject } from 'cloudflare:workers';
 
 const MAX_MEMBERS = 10;          // visitors are numbered 1️⃣ to 🔟
 const MAX_FRAME = 4096;           // an encrypted 2048-byte message is well under this
-const RATE_PER_10S = 20;          // messages per connection per 10 seconds
+const RATE_PER_10S = 20;          // frames of any kind per connection per 10 seconds
+const SEND_GAP = 3000;            // at least this long between one person's messages
+const GAP_SLACK = 250;            // allowance for network jitter
 const ROOM_ID = /^[0-9a-f]{64}$/;
 
 // Close codes the page understands. A refused connection is accepted and
@@ -81,7 +85,12 @@ export class Room extends DurableObject {
     try { msg = JSON.parse(raw); } catch { return; }
     if (msg.type === 'lock' && typeof msg.locked === 'boolean') return this.lock(msg.locked, a.n);
     if (msg.type !== 'msg' || typeof msg.iv !== 'string' || typeof msg.ct !== 'string') return;
-    this.broadcast({ type: 'msg', from: a.n, at: Date.now(), iv: msg.iv, ct: msg.ct });
+    const at = Date.now();
+    const wait = (a.sent ?? 0) + SEND_GAP - GAP_SLACK - at;
+    if (wait > 0) return ws.send(JSON.stringify({ type: 'wait', ms: wait + GAP_SLACK }));
+    a.sent = at;
+    ws.serializeAttachment(a);
+    this.broadcast({ type: 'msg', from: a.n, at, iv: msg.iv, ct: msg.ct });
   }
 
   async webSocketClose(ws) {

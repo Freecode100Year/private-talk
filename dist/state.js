@@ -3,6 +3,7 @@ export const MAX_MEMBERS = 10;
 export const MAX_TEXT_CHARS = 500;
 export const MAX_TEXT_BYTES = 2048;
 export const MIN_PASSPHRASE = 8;
+export const SEND_GAP_SECONDS = 3;
 
 // The passphrase is the only credential: whoever knows it is in the room, and
 // it is also what the messages are encrypted with. Letters and digits keep it

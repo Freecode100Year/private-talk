@@ -19,7 +19,7 @@
       <section class="stage" id="createStage">
         <div class="eyebrow">临时 · 匿名 · 无历史</div>
         <h1>只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
-        <p class="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息；最后一人离开，房间就不存在了。</p>
+        <p class="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
         <form class="create-card" id="createForm">
           <label for="roomName">房间暗号 <span>已随机生成；加入别人的房间就粘贴对方的暗号</span></label>
           <div class="pass-row">
@@ -43,7 +43,7 @@
             <button class="leave-button" id="leaveButton" type="button">离开房间</button>
           </div>
           <div id="memberList"></div>
-          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 10</strong><small id="lockState">最多 10 人；最后一人离开，会话结束。</small></div>
+          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 10</strong><small id="lockState">最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。</small></div>
           <div class="side-actions">
             <button class="secondary-button" id="copyButton" type="button">复制房间链接</button>
             <button class="secondary-button" id="lockButton" type="button" disabled>锁定房间</button>

@@ -45,6 +45,7 @@ button,input { font:inherit; } button { cursor:pointer; }
 .repo-link { margin-left:auto; color:#5848a7; font-size:13px; font-weight:650; text-decoration:none; border-bottom:1px solid #cfc7f5; }
 .repo-link:hover { color:var(--purple); border-color:var(--purple); }
 .message p { overflow-wrap:anywhere; white-space:pre-wrap; }
+.send-button.counting { background:#c9c3e8; font-size:16px; font-weight:800; cursor:wait; }
 @media (max-width:680px) {
   .shell { width:min(100% - 16px,1120px); padding:8px 0 12px; min-height:auto; }
   .topbar { height:44px; gap:10px; }
