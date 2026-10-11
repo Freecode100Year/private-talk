@@ -16,7 +16,7 @@ export const CLOSE_BUSY = 4003;
 
 // The answer to /bye tells the browser to wipe everything it keeps for this
 // site, and to forget any network error logging policy.
-export const BYE_HEADERS = { 'Clear-Site-Data': '"cache", "cookies", "storage"', 'Cache-Control': 'no-store', NEL: '{"max_age":0}' };
+export const BYE_HEADERS = { 'Clear-Site-Data': '"cache", "storage"', 'Cache-Control': 'no-store', NEL: '{"max_age":0}' };
 
 // nextNumber picks a newcomer's number. Numbers run 1 to 10. Unused numbers
 // go first; after that, the one freed longest ago, so a newcomer does not
