@@ -1,8 +1,9 @@
 import {
   MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, MAX_SKEW, checkPassphrase, isShortPassphrase, checkMessage,
-  passphraseFromHash, roomLink, visitorName, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, joinsAndLeaves
+  passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
+import { t, apply, lang, setLang, LANGS } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003;
@@ -42,15 +43,18 @@ let compositionEnded = 0;
 // replayed message is not shown again. Ids only, never text.
 const seen = newSeen();
 
-const time = (ms) => new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+const time = (ms) => new Date(ms).toLocaleTimeString(t('html.lang'), { hour: '2-digit', minute: '2-digit' });
+const nameOf = (n) => (n === you ? `${badge(n)} ${t('me')}` : badge(n));
 
 function show(stage) {
   $('createStage').classList.toggle('hidden', stage !== 'create');
   $('chatStage').classList.toggle('hidden', stage !== 'chat');
 }
 
-function status(text, ok) {
-  $('statusText').textContent = text;
+let statusKey = '';
+function status(key, ok) {
+  statusKey = key;
+  $('statusText').textContent = key ? t(key) : '';
   $('statusDot').classList.toggle('off', !ok);
   $('messageInput').disabled = !ok;
   $('lockButton').disabled = !ok;
@@ -66,7 +70,7 @@ function sendButton() {
   button.disabled = !online || left > 0;
   button.textContent = left > 0 ? String(left) : '↑';
   button.classList.toggle('counting', left > 0);
-  button.setAttribute('aria-label', left > 0 ? `${left} 秒后可以发送` : '发送消息');
+  button.setAttribute('aria-label', left > 0 ? t('send.wait', { s: left }) : t('send.aria'));
   if (left > 0) cooldownTimer = setTimeout(sendButton, (cooldownUntil - Date.now()) % 1000 || 1000);
 }
 
@@ -103,7 +107,7 @@ function bubble(from, at, text) {
   const body = document.createElement('div');
   const who = document.createElement('small');
   who.className = 'who';
-  who.textContent = `${visitorName(from, you)} · ${time(at)}`;
+  who.textContent = `${nameOf(from)} · ${time(at)}`;
   const p = document.createElement('p');
   p.textContent = text;
   body.append(who, p);
@@ -120,27 +124,25 @@ function members(list, nowAway = []) {
     div.children[0].textContent = badge(n);
     div.children[0].classList.add(`c${n}`);
     div.children[0].classList.toggle('me', n === you);
-    div.children[1].textContent = gone ? `${badge(n)} 掉线中` : visitorName(n, you);
+    div.children[1].textContent = gone ? t('member.away', { b: badge(n) }) : nameOf(n);
     return div;
   };
   $('memberList').replaceChildren(...list.map((n) => entry(n, false)), ...nowAway.map((n) => entry(n, true)));
   if (present) {
     const { joined, left } = joinsAndLeaves(present, list);
-    for (const n of joined) if (n !== you) system(away.includes(n) ? `${badge(n)} 回来了` : `${badge(n)} 进入了房间`);
-    for (const n of left) system(nowAway.includes(n) ? `${badge(n)} 掉线了，2 分钟内回来仍是 ${badge(n)}` : `${badge(n)} 离开了房间`);
+    for (const n of joined) if (n !== you) system(t(away.includes(n) ? 'sys.back' : 'sys.joined', { b: badge(n) }));
+    for (const n of left) system(t(nowAway.includes(n) ? 'sys.dropped' : 'sys.left', { b: badge(n) }));
   } else if (list.length > 1) {
-    system(`房间里现在有 ${list.length} 人：${list.filter((n) => n !== you).map(badge).join(' ')} 和你。`);
+    system(t('sys.present', { count: list.length, others: list.filter((n) => n !== you).map(badge).join(' ') }));
   }
   present = list;
   away = nowAway;
 }
 
 function lockState(locked) {
-  $('lockButton').textContent = locked ? '解除锁定' : '锁定房间';
+  $('lockButton').textContent = t(locked ? 'unlock' : 'lock');
   $('lockButton').dataset.locked = locked ? '1' : '';
-  $('lockState').textContent = locked
-    ? '🔒 已锁定：新的人进不来；掉线的人 2 分钟内还能回来。'
-    : '最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。';
+  $('lockState').textContent = t(locked ? 'note.locked' : 'note.open');
   $('chatStage').classList.toggle('locked', locked);
 }
 
@@ -183,18 +185,18 @@ async function join(p) {
   lockState(false);
   show('chat');
   $('chatRoomName').textContent = '…';
-  status('正在生成密钥…', false);
+  status('status.keys', false);
   const room = await deriveRoom(pass);
   if (ticket !== session) return; // left or switched rooms while the key was being made
   key = room.key;
   roomId = room.roomId;
-  $('chatRoomName').textContent = `房间 ${roomCode(roomId)}`;
+  $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
   connect();
 }
 
 function connect() {
   clearTimeout(retryTimer);
-  status(joinedOnce ? '正在重新连接…' : '正在连接…', false);
+  status(joinedOnce ? 'status.reconnecting' : 'status.connecting', false);
   let opened = false;
   const query = resume ? `?resume=${resume}` : '';
   const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${roomId}${query}`);
@@ -212,15 +214,15 @@ function connect() {
   };
   sock.onclose = (e) => {
     if (ws !== sock) return; // left, or replaced by a newer connection
-    if (e.code === CLOSE_FULL) return stop('房间已满（10 人）');
-    if (e.code === CLOSE_BUSY) return stop('进入次数太多，请稍后再试');
+    if (e.code === CLOSE_FULL) return stop('stop.full');
+    if (e.code === CLOSE_BUSY) return stop('stop.busy');
     if (e.code === CLOSE_LOCKED) {
-      if (!joinedOnce) return stop('房间已锁定，进不去');
-      status('房间已锁定，掉线超过 2 分钟，等房间里的人解除锁定…', false);
+      if (!joinedOnce) return stop('stop.locked');
+      status('status.lockedWait', false);
       return retry(10000);
     }
-    if (e.code === 1008) system('发送太快或数据有误，连接被断开。');
-    else if (opened) system('连接断开了，正在重连…');
+    if (e.code === 1008) system(t('sys.tooFast'));
+    else if (opened) system(t('sys.dropReconnect'));
     retry(Math.min(15000, 1000 * 2 ** retries++));
   };
 }
@@ -238,13 +240,13 @@ async function handle(data, sock, started) {
     if (typeof msg.now === 'number') clockSkew = msg.now - Date.now();
     retries = 0;
     present = null;
-    status('已连接', true);
-    if (!joinedOnce) system('已进入房间。新加入的人看不到之前的消息。');
-    else if (before === you) system(`已重新连接，你还是 ${badge(you)}。断线期间的消息收不到。`);
-    else system(`已重新连接，你现在是 ${badge(you)}。断线期间的消息收不到。`);
-    if (!joinedOnce && isShortPassphrase(pass)) system('提醒：这个暗号很短，别人可能猜中并进来看到消息。重要的谈话请用随机生成的暗号。');
+    status('status.connected', true);
+    if (!joinedOnce) system(t('sys.entered'));
+    else if (before === you) system(t('sys.reconnectedSame', { b: badge(you) }));
+    else system(t('sys.reconnectedNew', { b: badge(you) }));
+    if (!joinedOnce && isShortPassphrase(pass)) system(t('sys.shortPass'));
     if (!joinedOnce && Math.abs(clockSkew) > MAX_SKEW / 2) {
-      system(`提醒：这台设备的时间和服务器相差约 ${Math.round(Math.abs(clockSkew) / 60000)} 分钟，请在系统设置里校准时间。`);
+      system(t('sys.clock', { min: Math.round(Math.abs(clockSkew) / 60000) }));
     }
     joinedOnce = true;
     startHeartbeat();
@@ -257,11 +259,11 @@ async function handle(data, sock, started) {
     const text = pending?.text;
     if (pending) { clearTimeout(pending.timer); pending = null; }
     giveBack(text);
-    system(`每 ${SEND_GAP_SECONDS} 秒只能发一条，刚才那条没有发出去，已放回输入框。`);
+    system(t('sys.wait', { s: SEND_GAP_SECONDS }));
   } else if (msg.type === 'lock') {
     lockState(!!msg.locked);
-    const who = msg.by === you ? '你' : badge(msg.by);
-    system(msg.locked ? `${who} 锁定了房间，新的人进不来了。` : `${who} 解除了锁定。`);
+    const who = msg.by === you ? t('you') : badge(msg.by);
+    system(t(msg.locked ? 'sys.locked' : 'sys.unlocked', { who }));
   } else if (msg.type === 'msg') {
     let got = null;
     try {
@@ -275,7 +277,7 @@ async function handle(data, sock, started) {
     }
     if (!got) {
       // One notice at most every ten seconds, however many bad messages come.
-      if (Date.now() - lastBadNotice > 10000) system('收到无法解密或来源对不上的消息，已忽略。');
+      if (Date.now() - lastBadNotice > 10000) system(t('sys.bad'));
       lastBadNotice = Date.now();
       return;
     }
@@ -292,7 +294,7 @@ function startHeartbeat() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     if (Date.now() - lastHeard > SILENCE) {
       const dead = ws;
-      system('连接没有响应，正在重连…');
+      system(t('sys.silent'));
       connect();
       try { dead.close(); } catch {}
       return;
@@ -302,15 +304,15 @@ function startHeartbeat() {
 }
 
 function retry(delay) {
-  status('连接已断开，正在重连…', false);
+  status('status.lost', false);
   clearTimeout(retryTimer);
   // A little randomness so a room's members don't all come back at once.
   retryTimer = setTimeout(connect, delay * (0.75 + Math.random() * 0.5));
 }
 
-function stop(text) {
-  status(text, false);
-  system(`${text}。`);
+function stop(key) {
+  status(key, false);
+  system(t(key));
   clearInterval(heartbeatTimer);
   ws = null;
 }
@@ -353,7 +355,7 @@ $('createForm').addEventListener('submit', (event) => {
   try {
     join(checkPassphrase(input.value));
   } catch (error) {
-    input.setCustomValidity(error.message);
+    input.setCustomValidity(error.code ? t(`err.${error.code}`, { max: 64 }) : error.message);
     input.reportValidity();
   }
 });
@@ -378,11 +380,11 @@ $('copyButton').addEventListener('click', async (event) => {
   const button = event.currentTarget;
   try {
     await navigator.clipboard.writeText(roomLink(location.origin, pass));
-    button.textContent = '已复制，发出后请清空剪贴板';
+    button.textContent = t('copied');
   } catch {
-    button.textContent = '复制失败：浏览器不允许访问剪贴板';
+    button.textContent = t('copyFail');
   }
-  setTimeout(() => { button.textContent = '复制房间链接'; }, 2500);
+  setTimeout(() => { button.textContent = t('copy'); }, 2500);
 });
 $('messageInput').addEventListener('input', () => {
   inputVersion++;
@@ -392,7 +394,7 @@ $('messageInput').addEventListener('input', () => {
   // Only worth showing near the limits.
   const near = chars > MAX_TEXT_CHARS - 100 || bytes > MAX_TEXT_BYTES - 300;
   $('charCount').classList.toggle('hidden', !near);
-  $('charCount').textContent = chars > MAX_TEXT_CHARS || bytes > MAX_TEXT_BYTES ? '太长了，发不出去' : `还能写 ${MAX_TEXT_CHARS - chars} 字`;
+  $('charCount').textContent = chars > MAX_TEXT_CHARS || bytes > MAX_TEXT_BYTES ? t('count.tooLong') : t('count.left', { n: MAX_TEXT_CHARS - chars });
 });
 // Enter that confirms a Chinese input method's choice must not send.
 $('messageInput').addEventListener('compositionstart', () => { composing = true; });
@@ -411,7 +413,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   if (ws !== sock || sock.readyState !== WebSocket.OPEN) {
     cooldownUntil = 0;
     sendButton();
-    system('没有发出去：连接断开了，内容还在输入框里。');
+    system(t('sys.notSent'));
     return;
   }
   sock.send(frame);
@@ -421,7 +423,7 @@ $('messageForm').addEventListener('submit', async (event) => {
     timer: setTimeout(() => {
       if (pending?.id !== id) return;
       pending = null;
-      system('刚才那条消息没有收到服务器确认，可能没有发出去，已放回输入框。');
+      system(t('sys.noAck'));
       giveBack(text);
     }, ACK_WAIT)
   };
@@ -471,6 +473,21 @@ window.addEventListener('hashchange', () => {
   if (pass) leave();
   join(p);
 });
+
+// Interface language: the browser's, unless switched in the header.
+function translate() {
+  apply();
+  // The how-to shows this site's own address, so self-hosted copies are right too.
+  for (const el of document.querySelectorAll('.origin-hash')) el.textContent = `${location.origin}/#`;
+  for (const el of document.querySelectorAll('.origin-example')) el.textContent = `${location.origin}/#${t('howto.examplePass')}`;
+  if (roomId) $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
+  lockState(!!$('lockButton').dataset.locked);
+  $('statusText').textContent = statusKey ? t(statusKey) : '';
+  sendButton();
+}
+$('langSelect').replaceChildren(...Object.entries(LANGS).map(([value, label]) => new Option(label, value, false, value === lang())));
+$('langSelect').addEventListener('change', (event) => { setLang(event.target.value); translate(); });
+translate();
 
 const fromLink = passphraseFromHash(location.hash);
 if (fromLink) join(fromLink);

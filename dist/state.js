@@ -13,11 +13,14 @@ export const SEND_GAP_SECONDS = 6;
 // forms of a character are different characters, and so different rooms.
 export const MAX_PASSPHRASE = 64;
 
+// Errors carry a code, so the page can show them in the reader's language.
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
 export function checkPassphrase(input) {
   const pass = input.normalize('NFKC').trim();
-  if (!pass) throw new Error('请输入房间暗号');
-  if (!/^[A-Za-z0-9\p{Script=Han}]+$/u.test(pass)) throw new Error('房间暗号只能用数字、英文字母和中文');
-  if (Array.from(pass).length > MAX_PASSPHRASE) throw new Error(`房间暗号最多 ${MAX_PASSPHRASE} 个字`);
+  if (!pass) throw coded('empty', '请输入房间暗号');
+  if (!/^[A-Za-z0-9\p{Script=Han}]+$/u.test(pass)) throw coded('chars', '房间暗号只能用数字、英文字母和中文');
+  if (Array.from(pass).length > MAX_PASSPHRASE) throw coded('long', `房间暗号最多 ${MAX_PASSPHRASE} 个字`);
   return pass;
 }
 

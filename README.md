@@ -6,6 +6,8 @@
 
 线上地址：<https://chat.freedom8964.com>
 
+**界面语言**：自动跟随浏览器语言（简体中文、繁體中文、English；其他语言显示英文），页面右上角可以临时切换，不会保存。
+
 ## 怎么用
 
 **最简单的方法**：任何时候在浏览器地址栏输入 `https://chat.freedom8964.com/#` ，在 `#` 后面加上房间暗号（例如 `https://chat.freedom8964.com/#你的暗号`），回车就进入房间；把这个网址发给朋友，对方打开就进同一个房间。
@@ -144,7 +146,7 @@ TUNNEL_TOKEN=<隧道令牌> docker compose -f docker-compose.tunnel.yml up -d
 
 | 路径 | 内容 |
 | :--- | :--- |
-| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`_headers`（安全响应头） |
+| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js`（简体 / 繁体 / 英文界面文字）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`_headers`（安全响应头） |
 | `src/worker.js` | Cloudflare Worker：静态资源 + `/ws/<房间>` WebSocket 转发（每个房间一个 Durable Object，不存储任何内容） |
 | `src/rules.js` | 两种部署共用的规则：人数、编号、发送间隔、限速 |
 | `server/server.mjs` | Docker 版服务器（Node + ws），与 Worker 行为一致 |

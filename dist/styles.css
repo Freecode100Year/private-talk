@@ -52,10 +52,14 @@ button,input { font:inherit; } button { cursor:pointer; }
 .howto code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; background:#fff; border:1px solid #e3ddff; border-radius:6px; padding:1px 5px; overflow-wrap:anywhere; }
 .howto-example { color:#5d5968; font-size:13px; }
 .member.away { opacity:.45; }
+.principles b { font-weight:inherit; }
+.lang-select { font:inherit; font-size:12px; border:1px solid #d8d5df; border-radius:8px; padding:4px 6px; background:#fff; color:#454152; }
+.repo-link + .lang-select { margin-left:4px; }
 @media (max-width:680px) {
   .shell { width:min(100% - 16px,1120px); padding:8px 0 12px; min-height:auto; }
   .topbar { height:44px; gap:10px; }
   .demo-badge { display:none; }
+  .repo-link { font-size:12px; }
   .stage { margin-top:36px; }
   .chat-stage { grid-template-columns:1fr; grid-template-rows:auto 1fr; border-radius:16px; margin-top:10px; height:calc(100dvh - 72px); min-height:420px; }
   .chat-side { border-right:0; border-bottom:1px solid var(--line); padding:12px 14px; gap:10px; overflow:visible; }

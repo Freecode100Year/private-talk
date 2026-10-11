@@ -11,57 +11,58 @@
   <body>
     <main class="shell">
       <header class="topbar">
-        <a class="brand" href="/" aria-label="回到开始"><span class="brand-mark">⌁</span>隐匿对话</a>
-        <span class="demo-badge">临时 · 匿名 · 端对端加密</span>
-        <a class="repo-link" href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer">GitHub 源代码</a>
+        <a class="brand" href="/" aria-label="回到开始" data-t-aria="brand.aria"><span class="brand-mark">⌁</span><span data-t="title">隐匿对话</span></a>
+        <span class="demo-badge" data-t="badge">临时 · 匿名 · 端对端加密</span>
+        <a class="repo-link" href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" data-t="repo">GitHub 源代码</a>
+        <select class="lang-select" id="langSelect" aria-label="界面语言" data-t-aria="lang.aria"></select>
       </header>
 
       <section class="stage" id="createStage">
-        <div class="eyebrow">临时 · 匿名 · 无历史</div>
-        <h1>只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
-        <p class="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
+        <div class="eyebrow" data-t="eyebrow">临时 · 匿名 · 无历史</div>
+        <h1 data-t-html="h1">只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
+        <p class="lede" data-t="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
         <div class="howto">
-          <strong>任何时候，直接用网址创建房间</strong>
-          <p>在浏览器地址栏输入 <code>https://chat.freedom8964.com/#</code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间。把这个网址发给朋友，对方打开就进同一个房间。</p>
-          <p class="howto-example">例如：<code>https://chat.freedom8964.com/#你的暗号</code></p>
-          <p class="howto-example">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
+          <strong data-t="howto.title">任何时候，直接用网址创建房间</strong>
+          <p data-t-html="howto.body">在浏览器地址栏输入 <code class="origin-hash"></code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间。把这个网址发给朋友，对方打开就进同一个房间。</p>
+          <p class="howto-example" data-t-html="howto.example">例如：<code class="origin-example"></code></p>
+          <p class="howto-example" data-t="howto.history">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
         </div>
         <form class="create-card" id="createForm">
-          <label for="roomName">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起</span></label>
+          <label for="roomName" data-t-html="form.label">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起</span></label>
           <div class="pass-row">
-            <input id="roomName" maxlength="64" placeholder="输入暗号，或点「换一个」随机生成" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-            <button class="secondary-button" id="newPassButton" type="button">换一个</button>
+            <input id="roomName" maxlength="64" placeholder="输入暗号，或点「换一个」随机生成" data-t-ph="form.placeholder" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+            <button class="secondary-button" id="newPassButton" type="button" data-t="form.new">换一个</button>
           </div>
-          <button class="primary-button" id="createButton">进入房间 <span>→</span></button>
-          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越短越容易被别人猜中，重要的谈话请用随机生成的。</p>
+          <button class="primary-button" id="createButton" data-t-html="form.enter">进入房间 <span>→</span></button>
+          <p class="fine-print" data-t="form.fine">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越短越容易被别人猜中，重要的谈话请用随机生成的。</p>
         </form>
         <div class="principles">
-          <div><span>01</span>不需要身份</div>
-          <div><span>02</span>不保存历史</div>
-          <div><span>03</span>端对端加密</div>
+          <div><span>01</span><b data-t="p1">不需要身份</b></div>
+          <div><span>02</span><b data-t="p2">不保存历史</b></div>
+          <div><span>03</span><b data-t="p3">端对端加密</b></div>
         </div>
       </section>
 
       <section class="chat-stage hidden" id="chatStage" aria-live="polite">
         <aside class="chat-side">
           <div class="side-head">
-            <div><div class="eyebrow">当前房间</div><h2 id="chatRoomName"></h2></div>
-            <button class="leave-button" id="leaveButton" type="button">离开房间</button>
+            <div><div class="eyebrow" data-t="room.eyebrow">当前房间</div><h2 id="chatRoomName"></h2></div>
+            <button class="leave-button" id="leaveButton" type="button" data-t="leave">离开房间</button>
           </div>
           <div id="memberList"></div>
-          <div class="expire-card"><span>在线</span><strong id="memberCount">0 / 10</strong><small id="lockState">最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。</small></div>
+          <div class="expire-card"><span data-t="online">在线</span><strong id="memberCount">0 / 10</strong><small id="lockState">最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。</small></div>
           <div class="side-actions">
-            <button class="secondary-button" id="copyButton" type="button">复制房间链接</button>
+            <button class="secondary-button" id="copyButton" type="button" data-t="copy">复制房间链接</button>
             <button class="secondary-button" id="lockButton" type="button" disabled>锁定房间</button>
           </div>
           <details class="tips">
-            <summary>安全提示</summary>
+            <summary data-t="tips.title">安全提示</summary>
             <ul>
-              <li>不要用带「云输入」的输入法打字（如搜狗、百度），它们会把输入内容传到自己的服务器。</li>
-              <li>房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
-              <li>人到齐后点「锁定房间」，之后新的人拿到链接也进不来；房间里的人掉线 2 分钟内还能回来。</li>
-              <li>按 Esc 立即清空屏幕上的消息和输入框。</li>
-              <li>关闭网页时会清除本站的缓存和数据；但浏览器的历史记录网页无权删除，建议用无痕 / 隐私窗口打开。</li>
+              <li data-t="tips.1">不要用带「云输入」的输入法打字（如搜狗、百度），它们会把输入内容传到自己的服务器。</li>
+              <li data-t="tips.2">房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
+              <li data-t="tips.3">人到齐后点「锁定房间」，之后新的人拿到链接也进不来；房间里的人掉线 2 分钟内还能回来。</li>
+              <li data-t="tips.4">按 Esc 立即清空屏幕上的消息和输入框。</li>
+              <li data-t="tips.5">关闭网页时会清除本站的缓存和数据；但浏览器的历史记录网页无权删除，建议用无痕 / 隐私窗口打开。</li>
             </ul>
           </details>
         </aside>
@@ -69,20 +70,20 @@
           <div class="conversation-head">
             <span><b class="secure-dot" id="statusDot"></b><span id="statusText">正在连接…</span></span>
             <span class="head-tools">
-              <label class="ttl">消息保留
+              <label class="ttl"><span data-t="ttl.label">消息保留</span>
                 <select id="ttlSelect">
-                  <option value="0">不自动删除</option>
-                  <option value="60">1 分钟</option>
-                  <option value="300">5 分钟</option>
-                  <option value="1800">30 分钟</option>
+                  <option value="0" data-t="ttl.0">不自动删除</option>
+                  <option value="60" data-t="ttl.60">1 分钟</option>
+                  <option value="300" data-t="ttl.300">5 分钟</option>
+                  <option value="1800" data-t="ttl.1800">30 分钟</option>
                 </select>
               </label>
-              <button class="quiet-button" id="clearButton" type="button" title="清空屏幕上的消息和输入框（Esc）">清屏</button>
+              <button class="quiet-button" id="clearButton" type="button" title="清空屏幕上的消息和输入框（Esc）" data-t-title="clear.title" data-t="clear">清屏</button>
             </span>
           </div>
           <div class="messages" id="messages"></div>
           <form class="composer" id="messageForm">
-            <input id="messageInput" maxlength="1000" placeholder="写一条消息…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
+            <input id="messageInput" maxlength="1000" placeholder="写一条消息…" data-t-ph="input.placeholder" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
             <span class="char-count hidden" id="charCount"></span>
             <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
           </form>
