@@ -1,0 +1,38 @@
+# 隐匿对话 with automatic HTTPS.
+#   1. Point your domain's DNS (A/AAAA) at this server; open ports 80 and 443.
+#   2. DOMAIN=chat.example.com docker compose up -d
+# Caddy gets and renews the certificate. Neither service writes logs of
+# visitors: Caddy's access log is off unless you turn it on.
+services:
+  app:
+    build: .
+    image: private-talk
+    restart: unless-stopped
+    environment:
+      TRUST_PROXY: "1"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: none
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN, e.g. DOMAIN=chat.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: none
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -40,7 +40,7 @@ function status(text, ok) {
   sendButton();
 }
 
-// The send button counts down the three seconds between messages.
+// The send button counts down the six seconds between messages.
 function sendButton() {
   clearTimeout(cooldownTimer);
   const left = Math.ceil((cooldownUntil - Date.now()) / 1000);

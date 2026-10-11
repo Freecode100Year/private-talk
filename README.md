@@ -12,7 +12,7 @@
 
 1. 也可以打开网站首页：首页已经**随机生成了一个 22 位暗号**（约 128 位随机数，无法猜中），直接点“进入房间”。不满意可以点“换一个”，或者自己输入暗号。
 2. 点“复制房间链接”，通过可信渠道发给对方（别用微信、QQ），发出后清空剪贴板。链接形如 `https://chat.freedom8964.com/#暗号`。
-3. 对方打开链接就进入同一个房间。最多 10 人（编号 1️⃣～🔟），每条消息最多 500 字 / 2048 字节，每人每 3 秒只能发一条（发送按钮会倒数 3、2、1）。
+3. 对方打开链接就进入同一个房间。最多 10 人（编号 1️⃣～🔟），每条消息最多 500 字 / 2048 字节，每人每 6 秒只能发一条（发送按钮会倒数 6、5、4…）。
 4. 人到齐后可以点“锁定房间”，之后谁拿到链接都进不来；任何成员都能解除锁定。
 5. 按 Esc 或点“清屏”立即清空屏幕；“消息保留”可以设成 1 / 5 / 30 分钟后自动从屏幕上删掉。
 6. 离开时点“离开房间”或直接关掉页面。
@@ -28,7 +28,7 @@
 | 历史 | 不存储。服务器（Cloudflare Durable Object）只在内存里转发；新加入的人看不到之前的消息 |
 | 身份 | 无账号、无昵称，按进入顺序标记为 1️⃣～🔟，每条消息显示来自哪个编号。先发没用过的编号，10 个都用过后再发最早空出的那个，新来的人不会马上顶替刚离开的人；有人进出时房间里会提示 |
 | 网页 | 无外部资源、无统计、无 Cookie；CSP 只允许本站资源，不发送 Referer，禁止被其他网站嵌入；强制 HTTPS（HSTS） |
-| 防滥用 | 每个房间最多 10 人，可锁定；每人每 3 秒一条消息（服务器同样检查）；每个连接 10 秒内最多 20 个数据帧；单帧上限 4 KB；只接受本站页面发起的连接；同一 IP 每分钟进房次数有上限（Cloudflare 边缘内存计数，不记录） |
+| 防滥用 | 每个房间最多 10 人，可锁定；每人每 6 秒一条消息（服务器同样检查）；每个连接 10 秒内最多 20 个数据帧；单帧上限 4 KB；只接受本站页面发起的连接；同一 IP 每分钟进房次数有上限（Cloudflare 边缘内存计数，不记录） |
 | 不留痕迹 | 不使用 Cookie、localStorage 等任何浏览器存储；所有页面和脚本都带 `Cache-Control: no-store`，不写入磁盘缓存；打开、切到后台和关闭页面时请求 `/bye`，服务器回 `Clear-Site-Data: "cache", "cookies", "storage"`，浏览器随即清空本站缓存和数据；覆盖 Cloudflare 默认的网络错误上报（`NEL: {"max_age":0}`），浏览器不再保存上报规则；离开时从内存中丢掉暗号、密钥和消息；消息输入框关闭拼写检查（避免增强拼写检查把文字发给第三方） |
 | 断线 | 手机锁屏、切换网络断开后自动重连（重连后是新的编号，断线期间的消息收不到） |
 
@@ -40,12 +40,44 @@
 - 浏览器历史记录（包括地址栏输入过的带暗号的网址）网页无权删除，建议用无痕 / 隐私窗口打开。
 - 没有验证对方身份的机制（任何知道暗号的人都只是一个编号）。
 
+## 用 Docker 自己部署
+
+除了 Cloudflare，也可以用 Docker 部署到自己的服务器。网页和规则跟 chat.freedom8964.com 完全一样（同一份 `dist/` 和 `src/rules.js`），房间只存在内存里，不写日志、不落盘。
+
+浏览器只在 **HTTPS**（或 localhost）下允许网页加密，所以对外服务必须走 HTTPS。仓库里的 `docker-compose.yml` 自带 Caddy，会自动申请和续期证书：
+
+```sh
+git clone https://github.com/Freecode100Year/private-talk.git
+cd private-talk
+# 先把域名的 A/AAAA 记录指向这台服务器，并开放 80、443 端口
+DOMAIN=chat.example.com docker compose up -d --build
+```
+
+已经有 nginx 等反向代理的话，只跑应用容器即可：
+
+```sh
+docker build -t private-talk .
+docker run -d --name private-talk --restart unless-stopped --read-only --cap-drop ALL \
+  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 private-talk
+```
+
+反向代理需要转发 WebSocket（`Upgrade`/`Connection` 头），并传 `Host`、`X-Forwarded-Proto`、`X-Forwarded-For`。
+
+| 环境变量 | 默认 | 说明 |
+| :--- | :--- | :--- |
+| `PORT` | `8080` | 容器内监听端口 |
+| `TRUST_PROXY` | 不信任 | 设为 `1` 时采用反向代理传来的 `X-Forwarded-For`（按 IP 限速用）和 `X-Forwarded-Proto`（校验来源用）。直接对外暴露时不要开 |
+| `JOIN_LIMIT` | `30` | 同一 IP 每分钟最多进房次数 |
+
 ## 目录
 
 | 路径 | 内容 |
 | :--- | :--- |
 | `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`_headers`（安全响应头） |
 | `src/worker.js` | Cloudflare Worker：静态资源 + `/ws/<房间>` WebSocket 转发（每个房间一个 Durable Object，不存储任何内容） |
+| `src/rules.js` | 两种部署共用的规则：人数、编号、发送间隔、限速 |
+| `server/server.mjs` | Docker 版服务器（Node + ws），与 Worker 行为一致 |
+| `Dockerfile`、`docker-compose.yml`、`Caddyfile` | Docker 部署（含自动 HTTPS） |
 | `test/` | 规则、加密与防篡改的单元测试 |
 | `wrangler.jsonc` | 部署配置（自定义域名 chat.freedom8964.com） |
 
@@ -54,5 +86,6 @@
 ```sh
 npm test               # Node 18+
 npx wrangler dev       # 本地运行（含 WebSocket 转发）
-npx wrangler deploy    # 部署
+npx wrangler deploy    # 部署到 Cloudflare
+npm start              # 本地运行 Docker 版的服务器（http://localhost:8080）
 ```

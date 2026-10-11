@@ -1,25 +1,13 @@
-// 隐匿对话 relay. Each room is a Durable Object that only forwards encrypted
-// messages between the people connected to it. It never stores anything: no
-// history, no names, no keys. Rooms are addressed by a hash derived from the
-// passphrase in the browser; the passphrase itself never reaches the server.
-// The little state a room has (visitor numbers, the lock) lives on the open
-// connections and vanishes with the last of them. The passphrase never
-// expires: whoever opens it again later brings the room back, empty.
-// Each person may send one message every three seconds.
+// 隐匿对话 relay on Cloudflare. Each room is a Durable Object that only
+// forwards encrypted messages between the people connected to it. It never
+// stores anything: no history, no names, no keys. Rooms are addressed by a
+// hash derived from the passphrase in the browser; the passphrase itself never
+// reaches the server. The little state a room has (visitor numbers, the lock)
+// lives on the open connections and vanishes with the last of them. The
+// passphrase never expires: whoever opens it again later brings the room
+// back, empty. The rules are in rules.js, shared with the Docker server.
 import { DurableObject } from 'cloudflare:workers';
-
-const MAX_MEMBERS = 10;          // visitors are numbered 1️⃣ to 🔟
-const MAX_FRAME = 4096;           // an encrypted 2048-byte message is well under this
-const RATE_PER_10S = 20;          // frames of any kind per connection per 10 seconds
-const SEND_GAP = 3000;            // at least this long between one person's messages
-const GAP_SLACK = 250;            // allowance for network jitter
-const ROOM_ID = /^[0-9a-f]{64}$/;
-
-// Close codes the page understands. A refused connection is accepted and
-// closed at once, because a plain HTTP error never reaches the page's script.
-const CLOSE_FULL = 4001;
-const CLOSE_LOCKED = 4002;
-const CLOSE_BUSY = 4003;
+import { MAX_MEMBERS, ROOM_ID, CLOSE_FULL, CLOSE_LOCKED, CLOSE_BUSY, BYE_HEADERS, nextNumber, checkFrame } from './rules.js';
 
 function refuse(code, reason) {
   const [client, server] = Object.values(new WebSocketPair());
@@ -28,14 +16,10 @@ function refuse(code, reason) {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-// /bye is called by the page when it closes (and when it opens). The answer
-// tells the browser to wipe everything it keeps for this site.
+// /bye is called by the page when it opens, goes to the background and closes.
 function bye(request, url) {
   if (request.method !== 'POST' || request.headers.get('Origin') !== url.origin) return new Response(null, { status: 405 });
-  return new Response(null, {
-    status: 204,
-    headers: { 'Clear-Site-Data': '"cache", "cookies", "storage"', 'Cache-Control': 'no-store', NEL: '{"max_age":0}' }
-  });
+  return new Response(null, { status: 204, headers: BYE_HEADERS });
 }
 
 export default {
@@ -64,15 +48,9 @@ export class Room extends DurableObject {
     const states = peers.map((ws) => ws.deserializeAttachment()).filter(Boolean);
     if (states.some((a) => a.locked)) return refuse(CLOSE_LOCKED, 'locked');
     if (peers.length >= MAX_MEMBERS) return refuse(CLOSE_FULL, 'room full');
-    // Numbers run 1 to 10. Unused numbers go first; after that, the one freed
-    // longest ago, so a newcomer does not straight away take the name of
-    // someone who just left. Every connection carries the same bookkeeping.
+    // Every connection carries the same numbering bookkeeping.
     const book = states[0] ?? { last: 0, freed: [] };
-    const freed = (book.freed ?? []).filter((x) => !states.some((a) => a.n === x));
-    const inUse = new Set(states.map((a) => a.n));
-    const firstFree = () => { let x = 1; while (inUse.has(x)) x++; return x; };
-    const n = book.last < MAX_MEMBERS ? book.last + 1 : freed.shift() ?? firstFree();
-    const last = Math.max(book.last, n);
+    const { n, last, freed } = nextNumber(book.last ?? 0, book.freed ?? [], new Set(states.map((a) => a.n)));
     for (const ws of peers) {
       const a = ws.deserializeAttachment();
       if (a) { a.last = last; a.freed = freed; ws.serializeAttachment(a); }
@@ -86,22 +64,14 @@ export class Room extends DurableObject {
   }
 
   async webSocketMessage(ws, raw) {
-    if (typeof raw !== 'string' || raw.length > MAX_FRAME) return ws.close(1009, 'too big');
     const a = ws.deserializeAttachment();
-    const now = Math.floor(Date.now() / 10000);
-    if (a.window !== now) { a.window = now; a.count = 0; }
-    if (++a.count > RATE_PER_10S) return ws.close(1008, 'too fast');
+    const r = checkFrame(raw, a);
     ws.serializeAttachment(a);
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    if (msg.type === 'lock' && typeof msg.locked === 'boolean') return this.lock(msg.locked, a.n);
-    if (msg.type !== 'msg' || typeof msg.iv !== 'string' || typeof msg.ct !== 'string') return;
-    const at = Date.now();
-    const wait = (a.sent ?? 0) + SEND_GAP - GAP_SLACK - at;
-    if (wait > 0) return ws.send(JSON.stringify({ type: 'wait', ms: wait + GAP_SLACK }));
-    a.sent = at;
-    ws.serializeAttachment(a);
-    this.broadcast({ type: 'msg', from: a.n, at, iv: msg.iv, ct: msg.ct });
+    if (!r) return;
+    if (r.close) return ws.close(...r.close);
+    if (r.wait) return ws.send(JSON.stringify({ type: 'wait', ms: r.wait }));
+    if ('lock' in r) return this.lock(r.lock, a.n);
+    this.broadcast({ type: 'msg', from: a.n, at: r.at, ...r.msg });
   }
 
   async webSocketClose(ws) {
