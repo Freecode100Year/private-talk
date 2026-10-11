@@ -59,8 +59,8 @@
             <ul>
               <li>不要用带「云输入」的输入法打字（如搜狗、百度），它们会把输入内容传到自己的服务器。</li>
               <li>房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
-              <li>人到齐后点「锁定房间」，之后谁拿到链接都进不来。</li>
-              <li>按 Esc 立即清空屏幕上的消息。</li>
+              <li>人到齐后点「锁定房间」，之后新的人拿到链接也进不来；房间里的人掉线 2 分钟内还能回来。</li>
+              <li>按 Esc 立即清空屏幕上的消息和输入框。</li>
               <li>关闭网页时会清除本站的缓存和数据；但浏览器的历史记录网页无权删除，建议用无痕 / 隐私窗口打开。</li>
             </ul>
           </details>
@@ -77,12 +77,12 @@
                   <option value="1800">30 分钟</option>
                 </select>
               </label>
-              <button class="quiet-button" id="clearButton" type="button" title="Esc">清屏</button>
+              <button class="quiet-button" id="clearButton" type="button" title="清空屏幕上的消息和输入框（Esc）">清屏</button>
             </span>
           </div>
           <div class="messages" id="messages"></div>
           <form class="composer" id="messageForm">
-            <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
+            <input id="messageInput" maxlength="1000" placeholder="写一条消息…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
             <span class="char-count hidden" id="charCount"></span>
             <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
           </form>

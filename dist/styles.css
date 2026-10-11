@@ -51,6 +51,7 @@ button,input { font:inherit; } button { cursor:pointer; }
 .howto p { margin:4px 0 0; }
 .howto code { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; background:#fff; border:1px solid #e3ddff; border-radius:6px; padding:1px 5px; overflow-wrap:anywhere; }
 .howto-example { color:#5d5968; font-size:13px; }
+.member.away { opacity:.45; }
 @media (max-width:680px) {
   .shell { width:min(100% - 16px,1120px); padding:8px 0 12px; min-height:auto; }
   .topbar { height:44px; gap:10px; }

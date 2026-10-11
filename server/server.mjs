@@ -14,7 +14,8 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, CLOSE_FULL, CLOSE_LOCKED, CLOSE_BUSY, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME, nextNumber, checkFrame
+  MAX_MEMBERS, ROOM_ID, RESUME, PONG, CLOSE_BUSY, CLOSE_LEFT, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
+  emptyBook, admit, depart, awayNumbers, checkFrame, token
 } from '../src/rules.js';
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -70,13 +71,13 @@ function clientIP(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/bye') {
-    if (req.method !== 'POST' || !sameOrigin(req)) { res.writeHead(405).end(); return; }
+    if (req.method !== 'POST' || !sameOrigin(req)) { res.writeHead(405, PLAIN_HEADERS).end(); return; }
     res.writeHead(204, BYE_HEADERS).end();
     return;
   }
-  if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return; }
+  if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, PLAIN_HEADERS).end(); return; }
   let path;
-  try { path = decodeURIComponent(url.pathname); } catch { res.writeHead(400).end(); return; }
+  try { path = decodeURIComponent(url.pathname); } catch { res.writeHead(400, PLAIN_HEADERS).end(); return; }
   if (path.endsWith('/')) path += 'index.html';
   path = normalize(path).replace(/^([/\\])+/, '');
   if (path.startsWith('..') || path === '_headers') { res.writeHead(404, HEADERS).end(); return; }
@@ -101,68 +102,83 @@ setInterval(() => {
   for (const [ip, times] of joins) if (times.every((t) => now - t >= 60000)) joins.delete(ip);
 }, 60000).unref();
 
-// roomId -> { peers: Set<ws>, last, freed, locked }
+// roomId -> { peers: Set<ws>, book }. A room exists while someone is in it.
 const rooms = new Map();
 
 function send(ws, obj) {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
+  if (ws.readyState === ws.OPEN) ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
 }
 
 function broadcast(room, obj) {
   const out = JSON.stringify(obj);
-  for (const peer of room.peers) if (peer.readyState === peer.OPEN) peer.send(out);
+  for (const peer of room.peers) send(peer, out);
 }
 
 function members(room) {
   const list = [...room.peers].map((ws) => ws.state.n).sort((x, y) => x - y);
-  broadcast(room, { type: 'members', members: list, max: MAX_MEMBERS, locked: room.locked });
+  broadcast(room, { type: 'members', members: list, max: MAX_MEMBERS, locked: room.book.locked, away: awayNumbers(room.book) });
 }
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME * 2 });
 
-server.on('upgrade', (req, socket, head) => {
-  const m = new URL(req.url, 'http://x').pathname.match(/^\/ws\/([0-9a-f]+)$/);
-  const reject = (status) => { socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`); };
-  if (!m || !ROOM_ID.test(m[1])) return reject('400 Bad Request');
-  if (!sameOrigin(req)) return reject('403 Forbidden');
-  wss.handleUpgrade(req, socket, head, (ws) => enter(ws, m[1], clientIP(req)));
-});
-
-function enter(ws, roomId, ip) {
+function enter(ws, roomId, ip, resume) {
   if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'too many joins');
-  let room = rooms.get(roomId);
-  if (!room) { room = { peers: new Set(), last: 0, freed: [], locked: false }; rooms.set(roomId, room); }
-  if (room.locked) return ws.close(CLOSE_LOCKED, 'locked');
-  if (room.peers.size >= MAX_MEMBERS) return ws.close(CLOSE_FULL, 'room full');
-  const inUse = new Set([...room.peers].map((p) => p.state.n));
-  const { n, last, freed } = nextNumber(room.last, room.freed, inUse);
-  Object.assign(room, { last, freed });
-  ws.state = { n, window: 0, count: 0 };
+  const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
+  const inUse = new Map([...room.peers].map((p) => [p.state.n, p.state.resume]));
+  const r = admit(room.book, inUse, resume);
+  if (r.refuse) return ws.close(r.refuse, 'refused');
+  rooms.set(roomId, room);
+  room.book = r.book;
+  if (r.replace) {
+    const old = [...room.peers].find((p) => p.state.n === r.replace);
+    room.peers.delete(old);
+    old.close(4005, 'replaced');
+  }
+  const n = r.n;
+  ws.state = { n, resume: token(), window: 0, count: 0 };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now() });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume });
   members(room);
 
   ws.on('pong', () => { ws.alive = true; });
   ws.on('message', (data, isBinary) => {
+    ws.alive = true;
     const r = checkFrame(isBinary ? null : data.toString(), ws.state);
     if (!r) return;
     if (r.close) return ws.close(...r.close);
+    if (r.pong) return send(ws, PONG);
     if (r.wait) return send(ws, { type: 'wait', ms: r.wait });
     if ('lock' in r) {
-      room.locked = r.lock;
+      if (room.book.locked === r.lock) return;
+      room.book = { ...room.book, locked: r.lock };
       return broadcast(room, { type: 'lock', locked: r.lock, by: n });
     }
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });
-  ws.on('close', () => {
-    if (!room.peers.delete(ws)) return;
+  ws.on('close', (code) => {
+    if (!room.peers.delete(ws)) return; // replaced by a newer connection
     if (room.peers.size === 0) { rooms.delete(roomId); return; } // the room is gone
-    if (!room.freed.includes(n)) room.freed.push(n);
+    room.book = depart(room.book, n, ws.state.resume, code === CLOSE_LEFT);
     members(room);
   });
   ws.on('error', () => ws.terminate());
 }
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url, 'http://x');
+  const m = url.pathname.match(/^\/ws\/([0-9a-f]+)$/);
+  const reject = (status) => {
+    const headers = Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('');
+    socket.end(`HTTP/1.1 ${status}\r\n${headers}Connection: close\r\n\r\n`);
+  };
+  if (!m || !ROOM_ID.test(m[1])) return reject('400 Bad Request');
+  // Stops other web pages from connecting through a visitor's browser.
+  // Programs outside a browser can send any Origin they like.
+  if (!sameOrigin(req)) return reject('403 Forbidden');
+  const resume = url.searchParams.get('resume');
+  wss.handleUpgrade(req, socket, head, (ws) => enter(ws, m[1], clientIP(req), RESUME.test(resume ?? '') ? resume : null));
+});
 
 // Drop connections that stopped answering (phones that lost the network).
 setInterval(() => {

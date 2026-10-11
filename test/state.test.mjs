@@ -74,15 +74,54 @@ test('the room code is short and does not contain the passphrase', async () => {
 });
 
 test('envelopes: sender, replay and age are checked', async () => {
-  const { envelope, checkEnvelope, MAX_SKEW } = await import('../dist/state.js');
-  const seen = new Set();
+  const { envelope, checkEnvelope, newSeen, MAX_SKEW } = await import('../dist/state.js');
+  const seen = newSeen();
   const now = Date.now();
   const e = envelope(3, '你好', now);
-  assert.equal(checkEnvelope(e, { from: 2, at: now }, seen), null, 'relay relabelled the sender');
-  assert.equal(checkEnvelope(e, { from: 3, at: now }, seen), '你好');
-  assert.equal(checkEnvelope(e, { from: 3, at: now }, seen), null, 'replayed');
-  assert.equal(checkEnvelope(envelope(3, 'old', now - MAX_SKEW - 1), { from: 3, at: now }, seen), null, 'too old');
-  assert.equal(checkEnvelope('not json', { from: 3, at: now }, seen), null);
+  assert.equal(checkEnvelope(e, { from: 2, at: now }, seen, now), null, 'relay relabelled the sender');
+  assert.deepEqual(checkEnvelope(e, { from: 3, at: now }, seen, now)?.text, '你好');
+  assert.equal(checkEnvelope(e, { from: 3, at: now }, seen, now), null, 'replayed');
+  assert.equal(checkEnvelope(envelope(3, 'old', now - MAX_SKEW - 1), { from: 3, at: now }, seen, now), null, 'too old');
+  assert.equal(checkEnvelope('not json', { from: 3, at: now }, seen, now), null);
+});
+
+// Regression tests for the 2026-10-10 audit (F01, F08).
+test('audit F01: an old message replayed with its old relay time is refused', async () => {
+  const { envelope, checkEnvelope, newSeen } = await import('../dist/state.js');
+  const yearAgo = Date.now() - 365 * 24 * 3600 * 1000;
+  const old = envelope(1, '一年前', yearAgo);
+  assert.equal(checkEnvelope(old, { from: 1, at: yearAgo }, newSeen(), Date.now()), null, 'judged by the receiving clock');
+  assert.equal(checkEnvelope(envelope(1, 'x'), { from: 1 }, newSeen()), null, 'missing relay time');
+  assert.equal(checkEnvelope(envelope(1, 'x'), { from: 1, at: NaN }, newSeen()), null, 'NaN relay time');
+});
+
+test('audit F01/F08: envelope fields and text limits are enforced on receipt', async () => {
+  const { checkEnvelope, newSeen } = await import('../dist/state.js');
+  const now = Date.now();
+  const make = (o) => JSON.stringify({ from: 1, id: '0123456789abcdef', t: now, text: 'hi', ...o });
+  const relayed = { from: 1, at: now };
+  assert.ok(checkEnvelope(make({}), relayed, newSeen(), now));
+  assert.equal(checkEnvelope(make({ text: '字'.repeat(700) }), relayed, newSeen(), now), null, 'over 500 characters');
+  assert.equal(checkEnvelope(make({ text: '' }), relayed, newSeen(), now), null, 'empty');
+  assert.equal(checkEnvelope(make({ id: 'x' }), relayed, newSeen(), now), null, 'bad id');
+  assert.equal(checkEnvelope(make({ from: 11 }), { from: 11, at: now }, newSeen(), now), null, 'number out of range');
+  assert.equal(checkEnvelope(make({ t: 'soon' }), relayed, newSeen(), now), null, 'time not a number');
+  assert.equal(checkEnvelope('null', relayed, newSeen(), now), null);
+  assert.equal(checkEnvelope('[1]', relayed, newSeen(), now), null);
+});
+
+test('seen ids expire, so memory stays bounded', async () => {
+  const { checkEnvelope, newSeen, MAX_SKEW } = await import('../dist/state.js');
+  const seen = newSeen();
+  const t0 = Date.now();
+  for (let i = 0; i < 50; i++) {
+    const id = i.toString(16).padStart(16, '0');
+    checkEnvelope(JSON.stringify({ from: 1, id, t: t0, text: 'x' }), { from: 1, at: t0 }, seen, t0);
+  }
+  assert.equal(seen.size, 50);
+  const later = t0 + 3 * MAX_SKEW;
+  checkEnvelope(JSON.stringify({ from: 1, id: 'ffffffffffffffff', t: later, text: 'x' }), { from: 1, at: later }, seen, later);
+  assert.equal(seen.size, 1);
 });
 
 test('joins and leaves', async () => {

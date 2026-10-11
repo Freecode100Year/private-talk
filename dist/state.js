@@ -85,21 +85,39 @@ export function roomCode(roomId) {
 // A message's sender, id and time travel inside the encryption. The relay
 // labels each message with who sent it; the page shows a message only when
 // that label matches the sealed one, it has not seen the id before, and the
-// message is not old, so a tampering relay cannot reattribute or replay.
+// message is recent by this device's own clock. That stops an ordinary relay
+// fault, and a tampering relay from relabelling messages or replaying ones
+// older than ten minutes. It does not stop a member who knows the passphrase
+// from working with the relay to impersonate someone: everyone in the room
+// holds the same key.
 export const MAX_SKEW = 10 * 60 * 1000;
+const ID = /^[0-9a-f]{16}$/;
 
 export function envelope(from, text, now = Date.now()) {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
   return JSON.stringify({ from, id, t: now, text });
 }
 
-export function checkEnvelope(plain, relayed, seen) {
+// seen remembers message ids (not their text) for as long as a message could
+// still pass the age check, for the whole time the page is open.
+export function newSeen() {
+  return new Map();
+}
+
+// checkEnvelope returns { text, id } or null. now is the receiving device's
+// clock, or the server's when this device's is known to be wrong.
+export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   let e;
   try { e = JSON.parse(plain); } catch { return null; }
-  if (!e || typeof e.text !== 'string' || typeof e.id !== 'string' || typeof e.t !== 'number') return null;
-  if (e.from !== relayed.from || Math.abs(relayed.at - e.t) > MAX_SKEW || seen.has(e.id)) return null;
-  seen.add(e.id);
-  return e.text;
+  if (!e || typeof e !== 'object' || typeof e.text !== 'string' || typeof e.id !== 'string' || !ID.test(e.id)) return null;
+  if (!Number.isInteger(e.from) || e.from < 1 || e.from > MAX_MEMBERS || e.from !== relayed.from) return null;
+  if (!Number.isFinite(e.t) || !Number.isFinite(relayed.at)) return null;
+  if (Math.abs(now - e.t) > MAX_SKEW || Math.abs(relayed.at - e.t) > MAX_SKEW) return null;
+  if (checkMessage(e.text) !== e.text) return null;
+  for (const [id, t] of seen) if (Math.abs(now - t) > 2 * MAX_SKEW) seen.delete(id);
+  if (seen.has(e.id)) return null;
+  seen.set(e.id, e.t);
+  return { text: e.text, id: e.id };
 }
 
 // joinsAndLeaves compares two member lists.
