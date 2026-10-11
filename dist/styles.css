@@ -83,3 +83,4 @@ button,input { font:inherit; } button { cursor:pointer; }
   .message { max-width:88%; }
   .composer { padding:10px; }
 }
+.selfhost { margin-top:18px; }.selfhost a { color:var(--purple); }

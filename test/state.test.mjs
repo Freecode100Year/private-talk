@@ -14,6 +14,14 @@ test('passphrase: one or more digits, English letters or Chinese', () => {
   assert.throws(() => checkPassphrase('云雀-周五'), /数字、英文字母和中文/);
   assert.throws(() => checkPassphrase('a b'), /数字、英文字母和中文/);
   assert.throws(() => checkPassphrase('😀'), /数字、英文字母和中文/);
+  assert.throws(() => checkPassphrase('abc!'), /不能用符号/);
+  assert.throws(() => checkPassphrase('自由。'), /不能用符号/);
+  assert.throws(() => checkPassphrase('a_b'), /不能用符号/);
+  assert.throws(() => checkPassphrase('#1'), /不能用符号/);
+  assert.throws(() => checkPassphrase('々'), /不能用符号/);
+  assert.throws(() => checkPassphrase('〇'), /不能用符号/);
+  assert.throws(() => checkPassphrase('⺀'), /不能用符号/);
+  assert.throws(() => checkPassphrase('！'), /不能用符号/);
   assert.throws(() => checkPassphrase('字'.repeat(65)), /最多 64/);
 });
 

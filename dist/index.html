@@ -23,12 +23,12 @@
         <p class="lede" data-t="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
         <div class="howto">
           <strong data-t="howto.title">任何时候，直接用网址创建房间</strong>
-          <p data-t-html="howto.body">在浏览器地址栏输入 <code class="origin-hash"></code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间。把这个网址发给朋友，对方打开就进同一个房间。</p>
+          <p data-t-html="howto.body">在浏览器地址栏输入 <code class="origin-hash"></code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间（暗号不能有符号）。把这个网址发给朋友，对方打开就进同一个房间。</p>
           <p class="howto-example" data-t-html="howto.example">例如：<code class="origin-example"></code></p>
           <p class="howto-example" data-t="howto.history">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
         </div>
         <form class="create-card" id="createForm">
-          <label for="roomName" data-t-html="form.label">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起</span></label>
+          <label for="roomName" data-t-html="form.label">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起，不能用符号</span></label>
           <div class="pass-row">
             <input id="roomName" maxlength="64" placeholder="输入暗号，或点「换一个」随机生成" data-t-ph="form.placeholder" autocomplete="off" autocapitalize="off" spellcheck="false" required />
             <button class="secondary-button" id="newPassButton" type="button" data-t="form.new">换一个</button>
@@ -41,6 +41,7 @@
           <div><span>02</span><b data-t="p2">不保存历史</b></div>
           <div><span>03</span><b data-t="p3">端对端加密</b></div>
         </div>
+        <p class="fine-print selfhost" data-t-html="selfhost">开源（MIT 许可）：任何人都可以免费部署自己的一份，不用经过我们同意。<a href="https://github.com/Freecode100Year/private-talk#自己部署" target="_blank" rel="noopener noreferrer">部署方法</a></p>
       </section>
 
       <section class="chat-stage hidden" id="chatStage" aria-live="polite">

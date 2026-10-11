@@ -349,8 +349,8 @@ setInterval(() => {
   }
 }, 2000);
 
-$('createForm').addEventListener('submit', (event) => {
-  event.preventDefault();
+// Joins with what is in the passphrase field, or says why it cannot.
+function joinFromField() {
   const input = $('roomName');
   try {
     join(checkPassphrase(input.value));
@@ -358,6 +358,10 @@ $('createForm').addEventListener('submit', (event) => {
     input.setCustomValidity(error.code ? t(`err.${error.code}`, { max: 64 }) : error.message);
     input.reportValidity();
   }
+}
+$('createForm').addEventListener('submit', (event) => {
+  event.preventDefault();
+  joinFromField();
 });
 $('roomName').addEventListener('input', () => $('roomName').setCustomValidity(''));
 $('newPassButton').addEventListener('click', () => {
@@ -469,9 +473,13 @@ wipeSite();
 // the fragment, which does not reload it.
 window.addEventListener('hashchange', () => {
   const p = passphraseFromHash(location.hash);
-  if (!p) return;
+  const typed = hashText(location.hash);
+  if (!p && !typed) return;
   if (pass) leave();
-  join(p);
+  if (p) return join(p);
+  history.replaceState(null, '', location.pathname);
+  $('roomName').value = typed;
+  joinFromField();
 });
 
 // Interface language: the browser's, unless switched in the header.
@@ -489,9 +497,17 @@ $('langSelect').replaceChildren(...Object.entries(LANGS).map(([value, label]) =>
 $('langSelect').addEventListener('change', (event) => { setLang(event.target.value); translate(); });
 translate();
 
+// A link whose passphrase breaks the rules (a symbol, say) is not silently
+// swapped for a random one: it goes into the field with the reason shown.
+function hashText(hash) {
+  const raw = hash.replace(/^#/, '');
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
 const fromLink = passphraseFromHash(location.hash);
 if (fromLink) join(fromLink);
 else {
+  const typed = hashText(location.hash);
   history.replaceState(null, '', location.pathname);
-  $('roomName').value = randomPassphrase();
+  $('roomName').value = typed || randomPassphrase();
+  if (typed) joinFromField();
 }
