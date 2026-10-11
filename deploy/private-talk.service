@@ -1,0 +1,44 @@
+# systemd unit for 隐匿对话 without Docker. See docs/vps.md.
+[Unit]
+Description=隐匿对话 private-talk relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=private-talk
+Group=private-talk
+WorkingDirectory=/opt/private-talk
+Environment=NODE_ENV=production
+Environment=PORT=8080
+Environment=HOST=127.0.0.1
+Environment=TRUST_PROXY=1
+ExecStart=/usr/bin/node server/server.mjs
+Restart=on-failure
+RestartSec=3
+# Visitors are never logged; this only keeps the start-up line out of the journal.
+StandardOutput=null
+
+# Hardening: the relay needs nothing but its own files and the network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

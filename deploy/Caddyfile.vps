@@ -1,0 +1,4 @@
+# /etc/caddy/Caddyfile for a VPS without Docker. Replace the domain.
+chat.example.com {
+	reverse_proxy 127.0.0.1:8080
+}

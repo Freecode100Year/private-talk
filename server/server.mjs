@@ -4,6 +4,7 @@
 //
 // Environment:
 //   PORT         listening port (default 8080)
+//   HOST         listening address (default all; 127.0.0.1 behind a local proxy)
 //   JOIN_LIMIT   joins per address per minute (default 30)
 //   TRUST_PROXY  "1" when behind a reverse proxy (Caddy, nginx) whose
 //                X-Forwarded-For / X-Forwarded-Proto should be believed
@@ -17,6 +18,7 @@ import {
 } from '../src/rules.js';
 
 const PORT = Number(process.env.PORT) || 8080;
+const HOST = process.env.HOST || undefined;
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const JOIN_LIMIT = Number(process.env.JOIN_LIMIT) || JOINS_PER_MINUTE;
 const ROOT = fileURLToPath(new URL('../dist/', import.meta.url));
@@ -171,5 +173,5 @@ setInterval(() => {
   }
 }, 30000).unref();
 
-server.listen(PORT, () => console.log(`隐匿对话 listening on :${PORT}`));
+server.listen(PORT, HOST, () => console.log(`隐匿对话 listening on ${HOST ?? ''}:${PORT}`));
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(); for (const ws of wss.clients) ws.close(1001); process.exit(0); });

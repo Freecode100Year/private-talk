@@ -6,7 +6,6 @@
   "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
   "ratelimits": [{ "name": "JOIN_LIMIT", "namespace_id": "8964", "simple": { "limit": 30, "period": 60 } }],
-  "routes": [{ "pattern": "chat.freedom8964.com", "custom_domain": true }],
   "workers_dev": true,
   "observability": { "enabled": false }
 }

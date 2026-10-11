@@ -4,9 +4,14 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "start": "node server/server.mjs"
+    "start": "node server/server.mjs",
+    "deploy": "wrangler deploy",
+    "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
   }
 }

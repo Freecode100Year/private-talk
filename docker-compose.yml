@@ -1,12 +1,14 @@
-# 隐匿对话 with automatic HTTPS.
+# 隐匿对话 with automatic HTTPS (Caddy).
 #   1. Point your domain's DNS (A/AAAA) at this server; open ports 80 and 443.
 #   2. DOMAIN=chat.example.com docker compose up -d
+# The ready-made image is pulled from GitHub; add --build to build it here
+# from this checkout instead.
 # Caddy gets and renews the certificate. Neither service writes logs of
 # visitors: Caddy's access log is off unless you turn it on.
 services:
   app:
+    image: ghcr.io/freecode100year/private-talk:1
     build: .
-    image: private-talk
     restart: unless-stopped
     environment:
       TRUST_PROXY: "1"

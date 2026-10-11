@@ -1,0 +1,23 @@
+name: test
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Docker server starts and serves the page
+        run: |
+          PORT=8099 node server/server.mjs &
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
+          curl -fsI http://127.0.0.1:8099/ | grep -i 'cache-control: no-store'
+          curl -fs -X POST -H 'Origin: http://127.0.0.1:8099' -D - -o /dev/null http://127.0.0.1:8099/bye | grep -i clear-site-data

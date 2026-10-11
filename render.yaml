@@ -1,0 +1,12 @@
+# Render Blueprint: https://render.com/deploy?repo=https://github.com/Freecode100Year/private-talk
+# Rooms live in one process's memory, so keep a single instance.
+services:
+  - type: web
+    name: private-talk
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    numInstances: 1
+    envVars:
+      - key: TRUST_PROXY
+        value: "1"

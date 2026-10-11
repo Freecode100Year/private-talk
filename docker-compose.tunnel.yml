@@ -1,0 +1,29 @@
+# 隐匿对话 through a Cloudflare Tunnel: no open ports, no public IP, HTTPS
+# handled by Cloudflare. Good for a home computer, a NAS or a Raspberry Pi.
+#   1. Cloudflare dashboard → Zero Trust → Networks → Tunnels → Create a
+#      tunnel (cloudflared). Copy its token.
+#   2. In the tunnel's Public Hostname tab, add your hostname with service
+#      HTTP → app:8080
+#   3. TUNNEL_TOKEN=<token> docker compose -f docker-compose.tunnel.yml up -d
+services:
+  app:
+    image: ghcr.io/freecode100year/private-talk:1
+    build: .
+    restart: unless-stopped
+    environment:
+      TRUST_PROXY: "1"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: none
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on: [app]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN to the tunnel token from the Cloudflare dashboard}
+    logging:
+      driver: none
