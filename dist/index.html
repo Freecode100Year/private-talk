@@ -24,6 +24,7 @@
           <strong>任何时候，直接用网址创建房间</strong>
           <p>在浏览器地址栏输入 <code>https://chat.freedom8964.com/#</code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间。把这个网址发给朋友，对方打开就进同一个房间。</p>
           <p class="howto-example">例如：<code>https://chat.freedom8964.com/#你的暗号</code></p>
+          <p class="howto-example">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
         </div>
         <form class="create-card" id="createForm">
           <label for="roomName">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起</span></label>
@@ -60,7 +61,7 @@
               <li>房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
               <li>人到齐后点「锁定房间」，之后谁拿到链接都进不来。</li>
               <li>按 Esc 立即清空屏幕上的消息。</li>
-              <li>浏览器的历史记录可能留下房间链接，建议用无痕 / 隐私窗口打开。</li>
+              <li>关闭网页时会清除本站的缓存和数据；但浏览器的历史记录网页无权删除，建议用无痕 / 隐私窗口打开。</li>
             </ul>
           </details>
         </aside>
@@ -81,7 +82,7 @@
           </div>
           <div class="messages" id="messages"></div>
           <form class="composer" id="messageForm">
-            <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" disabled />
+            <input id="messageInput" maxlength="500" placeholder="写一条消息…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
             <span class="char-count hidden" id="charCount"></span>
             <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
           </form>

@@ -298,10 +298,36 @@ $('messageForm').addEventListener('submit', async (event) => {
 // Phones drop connections in the background; reconnect as soon as the page
 // is looked at again.
 document.addEventListener('visibilitychange', () => {
+  // Hidden is the last moment phones reliably give a page that is about to be
+  // closed or killed, so the site is wiped then too.
+  if (document.visibilityState === 'hidden') wipeSite();
   if (document.visibilityState === 'visible' && pass && roomId && ws && ws.readyState > WebSocket.OPEN) connect();
 });
-window.addEventListener('pagehide', () => { const old = ws; ws = null; old?.close(); });
-window.addEventListener('pageshow', (event) => { if (event.persisted && pass && roomId) connect(); });
+// Leave no traces. Nothing is ever written to cookies or browser storage, and
+// every response says no-store, so pages are not kept in the disk cache. On
+// closing, the room is left, the key, passphrase and messages are dropped from
+// memory, and the server is asked to answer with Clear-Site-Data, which makes
+// the browser wipe this site's cache and storage. The same request on opening
+// sweeps up after a visit that ended in a crash.
+function wipeSite() {
+  // sendBeacon is the one request browsers promise to deliver while a tab is
+  // closing; fetch with keepalive is the fallback.
+  try {
+    if (navigator.sendBeacon?.('/bye')) return;
+  } catch {}
+  try { fetch('/bye', { method: 'POST', keepalive: true, cache: 'no-store' }).catch(() => {}); } catch {}
+}
+window.addEventListener('pagehide', () => {
+  if (pass) leave();
+  $('roomName').value = '';
+  $('messageInput').value = '';
+  wipeSite();
+});
+// A page brought back from the back/forward cache starts afresh.
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted && !$('roomName').value) $('roomName').value = randomPassphrase();
+});
+wipeSite();
 
 // A room link pasted into a tab that already shows this page only changes
 // the fragment, which does not reload it.

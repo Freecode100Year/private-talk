@@ -28,9 +28,20 @@ function refuse(code, reason) {
   return new Response(null, { status: 101, webSocket: client });
 }
 
+// /bye is called by the page when it closes (and when it opens). The answer
+// tells the browser to wipe everything it keeps for this site.
+function bye(request, url) {
+  if (request.method !== 'POST' || request.headers.get('Origin') !== url.origin) return new Response(null, { status: 405 });
+  return new Response(null, {
+    status: 204,
+    headers: { 'Clear-Site-Data': '"cache", "cookies", "storage"', 'Cache-Control': 'no-store', NEL: '{"max_age":0}' }
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/bye') return bye(request, url);
     const m = url.pathname.match(/^\/ws\/([0-9a-f]+)$/);
     if (!m) return env.ASSETS.fetch(request);
     if (!ROOM_ID.test(m[1])) return new Response('bad room', { status: 400 });
