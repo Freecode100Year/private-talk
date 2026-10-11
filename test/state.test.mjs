@@ -3,18 +3,30 @@ import assert from 'node:assert/strict';
 import { checkPassphrase, checkMessage, passphraseFromHash, roomLink, visitorName } from '../dist/state.js';
 import { deriveRoom, seal, open } from '../dist/crypto.js';
 
-test('passphrase: letters and digits, at least 8', () => {
+test('passphrase: one or more digits, English letters or Chinese', () => {
   assert.equal(checkPassphrase('  FridayCoffee2026 '), 'FridayCoffee2026');
+  assert.equal(checkPassphrase('7'), '7');
+  assert.equal(checkPassphrase('a'), 'a');
+  assert.equal(checkPassphrase('自由'), '自由');
+  assert.equal(checkPassphrase('龍門2026'), '龍門2026');
+  assert.equal(checkPassphrase('ＡＢ１'), 'AB1', 'full-width folds to plain');
   assert.throws(() => checkPassphrase('   '), /请输入/);
-  assert.throws(() => checkPassphrase('云雀-周五-2026'), /英文字母和数字/);
-  assert.throws(() => checkPassphrase('abc123'), /至少 8 位/);
+  assert.throws(() => checkPassphrase('云雀-周五'), /数字、英文字母和中文/);
+  assert.throws(() => checkPassphrase('a b'), /数字、英文字母和中文/);
+  assert.throws(() => checkPassphrase('😀'), /数字、英文字母和中文/);
+  assert.throws(() => checkPassphrase('字'.repeat(65)), /最多 64/);
 });
 
 test('the passphrase rides in the fragment, never the path', () => {
   const link = roomLink('https://chat.freedom8964.com', 'MorningMemo1');
   assert.equal(link, 'https://chat.freedom8964.com/#MorningMemo1');
   assert.equal(passphraseFromHash(new URL(link).hash), 'MorningMemo1');
-  assert.equal(passphraseFromHash('#short'), null);
+  assert.equal(passphraseFromHash('#short'), 'short');
+  assert.equal(roomLink('https://chat.freedom8964.com', '自由'), 'https://chat.freedom8964.com/#%E8%87%AA%E7%94%B1');
+  assert.equal(passphraseFromHash('#%E8%87%AA%E7%94%B1'), '自由');
+  assert.equal(passphraseFromHash('#自由'), '自由');
+  assert.equal(passphraseFromHash('#%E0%A4%A'), null, 'broken encoding');
+  assert.equal(passphraseFromHash('#'), null);
   assert.equal(passphraseFromHash(''), null);
 });
 

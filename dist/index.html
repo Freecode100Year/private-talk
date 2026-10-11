@@ -20,14 +20,19 @@
         <div class="eyebrow">临时 · 匿名 · 无历史</div>
         <h1>只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
         <p class="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
+        <div class="howto">
+          <strong>任何时候，直接用网址创建房间</strong>
+          <p>在浏览器地址栏输入 <code>https://chat.freedom8964.com/#</code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间。把这个网址发给朋友，对方打开就进同一个房间。</p>
+          <p class="howto-example">例如：<code>https://chat.freedom8964.com/#你的暗号</code></p>
+        </div>
         <form class="create-card" id="createForm">
-          <label for="roomName">房间暗号 <span>已随机生成；加入别人的房间就粘贴对方的暗号</span></label>
+          <label for="roomName">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起</span></label>
           <div class="pass-row">
-            <input id="roomName" maxlength="64" placeholder="粘贴暗号，或点「换一个」" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+            <input id="roomName" maxlength="64" placeholder="输入暗号，或点「换一个」随机生成" autocomplete="off" autocapitalize="off" spellcheck="false" required />
             <button class="secondary-button" id="newPassButton" type="button">换一个</button>
           </div>
           <button class="primary-button" id="createButton">进入房间 <span>→</span></button>
-          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。自己起的暗号容易被猜中，最好用随机生成的。</p>
+          <p class="fine-print">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越短越容易被别人猜中，重要的谈话请用随机生成的。</p>
         </form>
         <div class="principles">
           <div><span>01</span>不需要身份</div>

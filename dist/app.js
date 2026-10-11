@@ -1,5 +1,5 @@
 import {
-  MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, checkPassphrase, checkMessage, passphraseFromHash, roomLink,
+  MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, checkPassphrase, isShortPassphrase, checkMessage, passphraseFromHash, roomLink,
   visitorName, badge, randomPassphrase, roomCode, envelope, checkEnvelope, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
@@ -169,6 +169,7 @@ function connect() {
       system(joinedOnce
         ? `已重新连接，你现在是 ${badge(you)}。断线期间的消息收不到。`
         : '已进入房间。新加入的人看不到之前的消息。');
+      if (!joinedOnce && isShortPassphrase(pass)) system('提醒：这个暗号很短，别人可能猜中并进来看到消息。重要的谈话请用长暗号或随机生成的暗号。');
       joinedOnce = true;
       $('messageInput').focus();
     } else if (msg.type === 'members') {

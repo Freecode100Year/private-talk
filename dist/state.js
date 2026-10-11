@@ -2,23 +2,34 @@
 export const MAX_MEMBERS = 10;
 export const MAX_TEXT_CHARS = 500;
 export const MAX_TEXT_BYTES = 2048;
-export const MIN_PASSPHRASE = 8;
+export const SHORT_PASSPHRASE = 8; // shorter ones work, with a warning
 export const SEND_GAP_SECONDS = 3;
 
 // The passphrase is the only credential: whoever knows it is in the room, and
-// it is also what the messages are encrypted with. Letters and digits keep it
-// easy to share in a link.
+// it is also what the messages are encrypted with. It may be as short as one
+// character: digits, English letters, or Chinese (simplified or traditional).
+// NFKC folds full-width letters and digits from Chinese input methods into
+// plain ones, so ＡＢ１ and AB1 open the same room. Simplified and traditional
+// forms of a character are different characters, and so different rooms.
+export const MAX_PASSPHRASE = 64;
+
 export function checkPassphrase(input) {
-  const pass = input.trim();
+  const pass = input.normalize('NFKC').trim();
   if (!pass) throw new Error('请输入房间暗号');
-  if (!/^[A-Za-z0-9]+$/.test(pass)) throw new Error('房间暗号只能使用英文字母和数字');
-  if (pass.length < MIN_PASSPHRASE) throw new Error(`房间暗号至少 ${MIN_PASSPHRASE} 位`);
+  if (!/^[A-Za-z0-9\p{Script=Han}]+$/u.test(pass)) throw new Error('房间暗号只能用数字、英文字母和中文');
+  if (Array.from(pass).length > MAX_PASSPHRASE) throw new Error(`房间暗号最多 ${MAX_PASSPHRASE} 个字`);
   return pass;
 }
 
+export function isShortPassphrase(pass) {
+  return Array.from(pass).length < SHORT_PASSPHRASE;
+}
+
 // The passphrase travels after "#", which browsers never send to the server.
+// Chinese is percent-encoded so the link survives chat apps that would cut it
+// at the first non-ASCII character; browsers show it decoded again.
 export function roomLink(origin, pass) {
-  return `${origin}/#${pass}`;
+  return `${origin}/#${encodeURIComponent(pass)}`;
 }
 
 export function passphraseFromHash(hash) {
