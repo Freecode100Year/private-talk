@@ -7,7 +7,8 @@
     "start": "node server/server.mjs",
     "deploy": "wrangler deploy",
     "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs",
-    "lan": "node server/lan.mjs"
+    "lan": "node server/lan.mjs",
+    "help": "node scripts/build-help.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

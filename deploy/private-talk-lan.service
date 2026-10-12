@@ -1,0 +1,51 @@
+# systemd unit for 隐匿对话 in LAN / intranet mode from the offline package.
+# See docs/manual/enterprise.md.
+#   1. Unpack the linux package to /opt/private-talk
+#   2. useradd --system --no-create-home --shell /usr/sbin/nologin private-talk
+#   3. cp deploy/private-talk-lan.service /etc/systemd/system/ && systemctl enable --now private-talk-lan
+# Certificates are kept in /var/lib/private-talk (StateDirectory).
+[Unit]
+Description=隐匿对话 private-talk (LAN / intranet)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=private-talk
+Group=private-talk
+WorkingDirectory=/opt/private-talk
+Environment=NODE_ENV=production
+Environment=PORT=8443
+Environment=LAN_CERTS=/var/lib/private-talk
+# Environment=LAN_NAMES=chat.internal
+# With the company's own certificate instead (server.mjs, not lan.mjs):
+# Environment=TLS_CERT=/etc/private-talk/cert.pem
+# Environment=TLS_KEY=/etc/private-talk/key.pem
+ExecStart=/opt/private-talk/node/bin/node server/lan.mjs
+StateDirectory=private-talk
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=3
+# Ports below 1024 (PORT=443) need this:
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

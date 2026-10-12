@@ -19,6 +19,7 @@ const zhHans = {
   'brand.aria': '回到开始',
   badge: '临时 · 匿名 · 端对端加密',
   repo: 'GitHub 源代码',
+  help: '使用说明',
   'lang.aria': '界面语言',
   eyebrow: '临时 · 匿名 · 无历史',
   h1: '只给知道暗号的人，<br /><em>聊完不留痕。</em>',
@@ -92,6 +93,7 @@ const zhHans = {
   'sys.noAck': '刚才那条消息没有收到服务器确认，可能没有发出去，已放回输入框。',
   'count.tooLong': '太长了，发不出去',
   'count.left': '还能写 {n} 字',
+  insecure: '这个网址不是 HTTPS，浏览器不允许网页加密，无法使用。请改用 https:// 开头的地址。',
   'err.empty': '请输入房间暗号',
   'err.chars': '房间暗号只能用数字、英文字母和中文，不能用符号或空格',
   'err.long': '房间暗号最多 {max} 个字'
@@ -105,6 +107,7 @@ const zhHant = {
   'brand.aria': '回到開始',
   badge: '臨時 · 匿名 · 端對端加密',
   repo: 'GitHub 原始碼',
+  help: '使用說明',
   'lang.aria': '介面語言',
   eyebrow: '臨時 · 匿名 · 無歷史',
   h1: '只給知道暗號的人，<br /><em>聊完不留痕。</em>',
@@ -176,6 +179,7 @@ const zhHant = {
   'sys.noAck': '剛才那則訊息沒有收到伺服器確認，可能沒有傳出去，已放回輸入框。',
   'count.tooLong': '太長了，傳不出去',
   'count.left': '還能寫 {n} 字',
+  insecure: '這個網址不是 HTTPS，瀏覽器不允許網頁加密，無法使用。請改用 https:// 開頭的網址。',
   'err.empty': '請輸入房間暗號',
   'err.chars': '房間暗號只能用數字、英文字母和中文，不能用符號或空格',
   'err.long': '房間暗號最多 {max} 個字'
@@ -188,6 +192,7 @@ const en = {
   'brand.aria': 'Back to start',
   badge: 'Temporary · Anonymous · End-to-end encrypted',
   repo: 'Source on GitHub',
+  help: 'Help (Chinese)',
   'lang.aria': 'Interface language',
   eyebrow: 'Temporary · Anonymous · No history',
   h1: 'For those who know the passphrase.<br /><em>Nothing kept afterwards.</em>',
@@ -261,6 +266,7 @@ const en = {
   'sys.noAck': 'The server did not confirm that message, so it may not have been sent. It is back in the input box.',
   'count.tooLong': 'Too long to send',
   'count.left': '{n} characters left',
+  insecure: 'This address is not HTTPS, so the browser will not let the page encrypt. Use the https:// address instead.',
   'err.empty': 'Please enter a room passphrase',
   'err.chars': 'Use only digits, English letters and Chinese characters: no symbols or spaces',
   'err.long': 'At most {max} characters'

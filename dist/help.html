@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>使用说明 · 隐匿对话</title>
+    <link rel="stylesheet" href="help.css" />
+  </head>
+  <body>
+    <!-- Generated from docs/manual/user.md by scripts/build-help.mjs. Do not edit. -->
+    <nav><a href="./">← 返回隐匿对话</a></nav>
+    <main>
+<h1 id="用户使用手册">用户使用手册</h1>
+<p>给所有使用者：不需要安装任何东西，也不需要账号。手机和电脑上的 Chrome、Edge、Safari、Firefox 都可以用。</p>
+<p>下文用 <code>https://聊天网址</code> 表示你所用网站的地址，例如 <code>https://chat.freedom8964.com</code>，或者管理员给你的内网地址 <code>https://192.168.1.20:8443</code>。</p>
+<h2 id="1-进入房间">1. 进入房间</h2>
+<p><strong>收到了房间链接</strong>：直接打开，就进入了那个房间。</p>
+<p><strong>自己开一个房间</strong>，有两种方法：</p>
+<ul><li>打开 <code>https://聊天网址</code>，首页已经随机生成了一个暗号（22 个字符，别人不可能猜中），点「进入房间」。不喜欢可以点「换一个」，也可以自己输入暗号。</li><li>直接在浏览器地址栏输入 <code>https://聊天网址/#暗号</code>，回车。</li></ul>
+<p>暗号的规则：</p>
+<ul><li>只能用数字、英文字母、中文（简体或繁体），不能有符号、标点、空格、表情。</li><li>最短 1 个字，最长 64 个字。英文区分大小写；“龙”和“龍”是两个不同的房间。</li><li><strong>暗号越短越容易被别人猜中</strong>。只聊几句闲话可以用短暗号，重要的谈话请用随机生成的。</li></ul>
+<h2 id="2-邀请别人">2. 邀请别人</h2>
+<p>点「复制房间链接」，通过可信的渠道发给对方（当面、Signal、加密邮件等）。</p>
+<ul><li>链接里就是暗号，谁拿到链接谁就能进来。</li><li>不要用微信、QQ 等会被审查或保存记录的软件发送。</li><li>发完后清空剪贴板（复制一段无关的文字即可）。</li></ul>
+<h2 id="3-聊天">3. 聊天</h2>
+<ul><li>每个人有一个编号 1️⃣～🔟，最多 10 人。没有昵称，也看不到别人的身份。</li><li>每条消息最多 500 字。每人每 6 秒只能发一条，发送按钮会倒数。</li><li>页面顶部的<strong>房间代号</strong>（4 位字母数字）由暗号算出。和对方核对代号一样，就说明你们在同一个房间、暗号没有打错。</li><li>进出房间的人会有提示。</li><li><strong>锁定房间</strong>：人到齐后点「锁定房间」，之后新的人拿到链接也进不来。房间里的人掉线（锁屏、换网络）2 分钟内仍能用原编号回来。任何人都可以解除锁定。</li><li><strong>消息保留</strong>：可以设成 1 / 5 / 30 分钟后自动从屏幕上删掉。</li><li><strong>清屏</strong>：点「清屏」或按 Esc，立即清掉屏幕上的消息和输入框。</li><li>界面语言自动跟随系统（简体、繁体、English），右上角可以切换。</li></ul>
+<h2 id="4-离开">4. 离开</h2>
+<p>点「离开房间」或直接关闭网页。关闭网页时会自动清除本站的缓存和数据。所有人离开后房间消失，消息不会留在任何地方。</p>
+<h2 id="5-安全习惯">5. 安全习惯</h2>
+<ul><li><strong>用无痕 / 隐私窗口打开</strong>。地址栏里带暗号的网址会留在浏览器历史里，网页删不掉。</li><li><strong>不要用带云输入的输入法</strong>（如搜狗、百度的云输入）。它们会把你打的字传到自己的服务器，这超出网页能保护的范围。</li><li><strong>注意屏幕</strong>：别人能看到你的屏幕，就能看到消息。截图和录屏也无法阻止。</li><li><strong>核对房间代号</strong>：和对方用另一种方式核对代号，确认没有进错房间。</li><li><strong>没有身份验证</strong>：房间里的人只有编号。对方是谁，需要你自己通过其他方式确认。</li></ul>
+<h2 id="6-内网地址第一次打开时的证书提示">6. 内网地址第一次打开时的证书提示</h2>
+<p>在局域网、企业内网里使用时，浏览器第一次可能提示“您的连接不是私密连接”或“此连接不受信任”。这是因为证书由内网服务器自己签发，不是公网证书机构签发的。</p>
+<ul><li>确认地址是管理员告诉你的那个，就可以点「高级」→「继续前往」（Safari：「显示详细信息」→「访问此网站」）。连接照样是加密的。</li><li>管理员给了你一个 <code>ca.crt</code> 证书文件时，按<a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/lan.md#5-让设备不再提示证书" target="_blank" rel="noopener noreferrer">局域网手册</a>安装，以后就不再提示。</li><li><strong>在互联网上的公开网站</strong>（例如 chat.freedom8964.com）出现证书提示，<strong>不要继续</strong>，那可能是有人在冒充网站。</li></ul>
+<h2 id="7-常见问题">7. 常见问题</h2>
+<table><thead><tr><th>现象</th><th>原因和做法</th></tr></thead><tbody><tr><td>提示“房间已满”</td><td>已经有 10 个人，等有人离开</td></tr><tr><td>提示“房间已锁定”</td><td>房间里的人锁定了房间，请他们解除</td></tr><tr><td>提示“暗号只能用数字、英文字母和中文”</td><td>暗号里有符号或空格，去掉它们</td></tr><tr><td>显示“正在重新连接”</td><td>网络断了一下，会自动重连；2 分钟内回来编号不变</td></tr><tr><td>发送按钮在倒数</td><td>每 6 秒只能发一条，等倒数结束</td></tr><tr><td>对方看到的房间代号和我不一样</td><td>暗号不一样（大小写、简繁体、多打了字），重新核对链接</td></tr><tr><td>页面提示无法加密</td><td>网址不是 https 开头，或浏览器太旧。请用 https 地址和新版浏览器</td></tr></tbody></table>
+<p>更多问题见 <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/troubleshooting.md" target="_blank" rel="noopener noreferrer">故障排查</a>。</p>
+    </main>
+  </body>
+</html>

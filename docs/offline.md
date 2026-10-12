@@ -1,5 +1,7 @@
 # 离线安装（不能连接互联网的内网）
 
+> 面向 IT 管理员的完整步骤（核对、安装为服务、证书下发、运维、升级）见 [企业内网手册](manual/enterprise.md)。
+
 企业、学校、现场的内网往往不能上互联网，没法 `npm install`、`docker pull`。每个版本的 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 都附带离线安装包：在能上网的电脑上下载，用 U 盘或内网文件服务器拷进去即可，**内网里不需要下载任何东西**。
 
 | 文件 | 适用 | 用法 |

@@ -6,6 +6,8 @@
 
 线上地址：<https://chat.freedom8964.com>
 
+**说明书**：按使用环境分册（用户、Cloudflare、VPS、家用设备、局域网、企业内网、安卓手机、Tailscale、故障排查），见 [docs/manual](docs/manual/README.md)。网站右上角的「使用说明」是用户手册，内网里也能打开。
+
 **界面语言**：自动跟随浏览器语言（简体中文、繁體中文、English；其他语言显示英文），页面右上角可以临时切换，不会保存。
 
 ## 怎么用
@@ -47,6 +49,8 @@
 - 没有验证对方身份的机制（任何知道暗号的人都只是一个编号）。
 
 ## 自己部署
+
+每种环境的完整步骤（准备、部署、发给大家、维护、升级、排查）见 [说明书](docs/manual/README.md)。
 
 本项目以 [MIT 许可](LICENSE) 开源：**任何人都可以自由部署、修改、再分发**，个人或组织都可以，免费，不需要经过我们同意，也不需要告诉我们。先按情况选一种：
 
@@ -178,6 +182,7 @@ Serve：只有你 tailnet 里的设备能打开的私人内网；Funnel：免域
 | `docker-compose.tailscale.yml`、`deploy/tailscale/` | Tailscale Serve / Funnel |
 | `deploy/termux/` | 安卓 Termux 安装与启动脚本 |
 | `offline/`、`scripts/offline-packages.sh`、`.github/workflows/offline.yml` | 离线安装包（自带 Node.js）与离线 Docker 镜像 |
+| `docs/manual/` | 分环境说明书；`scripts/build-help.mjs` 把用户手册生成为网站里的 `dist/help.html` |
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台部署配置 |
 | `deploy/` | systemd 服务文件、Caddy 和 nginx 示例 |
 | `docs/vps.md` | 普通 VPS 部署教程 |

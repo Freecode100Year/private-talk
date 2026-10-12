@@ -38,4 +38,5 @@ Windows 设置示例（在 start-lan.cmd 里 "node.exe" 那一行前加）：
   set PORT=443
   set LAN_NAMES=chat.internal
 
-完整说明见 docs\lan.md。项目主页：https://github.com/Freecode100Year/private-talk
+完整说明书见 docs\manual（企业内网看 enterprise.md，局域网看 lan.md，
+故障排查看 troubleshooting.md）。启动后在网页右上角点“使用说明”可以看用户手册。项目主页：https://github.com/Freecode100Year/private-talk

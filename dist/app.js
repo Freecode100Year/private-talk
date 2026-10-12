@@ -4,6 +4,7 @@ import {
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
+const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
 
 const $ = (id) => document.getElementById(id);
 const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003;
@@ -170,6 +171,7 @@ function giveBack(text) {
 }
 
 async function join(p) {
+  if (!SECURE) return;
   const ticket = ++session;
   pass = p;
   // The passphrase leaves the form and the address bar at once.
@@ -502,6 +504,12 @@ translate();
 function hashText(hash) {
   const raw = hash.replace(/^#/, '');
   try { return decodeURIComponent(raw); } catch { return raw; }
+}
+// Web Crypto exists only on HTTPS (or localhost). Over plain HTTP, say so
+// instead of failing quietly.
+if (!SECURE) {
+  $('insecureNote').hidden = false;
+  $('createButton').disabled = true;
 }
 const fromLink = passphraseFromHash(location.hash);
 if (fromLink) join(fromLink);

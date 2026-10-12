@@ -19,6 +19,8 @@ mkdir -p "$OUT"
 APP="$WORK/app"
 mkdir -p "$APP/src"
 cp -r "$ROOT/dist" "$ROOT/server" "$ROOT/docs" "$APP/"
+mkdir -p "$APP/deploy" && cp "$ROOT/deploy/private-talk-lan.service" "$APP/deploy/"
+cp "$ROOT/docker-compose.lan.yml" "$APP/"
 cp "$ROOT/src/rules.js" "$APP/src/"
 cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/offline/使用说明.txt" "$APP/"
 (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null && rm package-lock.json)

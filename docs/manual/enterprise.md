@@ -1,0 +1,141 @@
+# 企业内网手册（不能上互联网的内网）
+
+**适合**：企业、学校、机构的 IT 管理员。内网与互联网隔离，服务器不能 `npm install`、不能 `docker pull`。
+**结果**：`https://chat.内网域名` 或 `https://服务器IP:8443`，只在内网可用，全程不需要互联网。
+
+## 1. 在能上网的电脑上准备
+
+从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载：
+
+| 内网服务器 | 下载 |
+| :--- | :--- |
+| Windows Server / Windows 电脑 | `private-talk-<版本>-win-x64.zip` |
+| Linux（x86） | `private-talk-<版本>-linux-x64.tar.gz` |
+| Linux（ARM，如鲲鹏、树莓派） | `private-talk-<版本>-linux-arm64.tar.gz` |
+| 只有 Docker 的服务器 | `private-talk-<版本>-docker-amd64.tar.gz` 或 `-docker-arm64.tar.gz` |
+| 服务器已有 Node.js 22+ | `private-talk-<版本>-app.zip` |
+
+另外下载 `SHA256SUMS.txt`。这些包自带官方 Node.js 和全部依赖，内网里不需要再下载任何东西。
+
+## 2. 带进内网前的核对
+
+多数单位要求核实软件来源，可以这样做：
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS.txt          # Linux / macOS
+certutil -hashfile private-talk-<版本>-win-x64.zip SHA256   # Windows，与 SHA256SUMS.txt 里的值对比
+gh attestation verify private-talk-<版本>-win-x64.zip -R Freecode100Year/private-talk   # 核验由本仓库源码在 GitHub 上构建
+```
+
+需要源码审查时，同一版本的源码在 Releases 页面的 Source code 附件里，构建脚本是 `scripts/offline-packages.sh` 和 `.github/workflows/offline.yml`。
+
+程序的网络行为（供安全审批参考）：
+
+- 只监听一个端口（默认 8443），提供网页和 WebSocket。
+- 不主动连接任何外部地址，没有更新检查、统计、遥测。
+- 页面不加载任何外部资源。
+- 不写日志、不写数据库；只在证书目录里保存自己生成的证书。
+- 聊天内容在浏览器里用 AES-256-GCM 加密，服务器只转发密文、不保存。
+
+## 3. 安装
+
+### Linux（推荐，作为系统服务）
+
+```sh
+sudo mkdir -p /opt/private-talk
+sudo tar -xzf private-talk-<版本>-linux-x64.tar.gz -C /opt/private-talk --strip-components=1
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin private-talk
+sudo cp /opt/private-talk/deploy/private-talk-lan.service /etc/systemd/system/
+sudo systemctl enable --now private-talk-lan
+sudo journalctl -u private-talk-lan -n 20        # 查看访问地址
+```
+
+服务文件已做安全加固（只读系统、独立用户、无特权），证书保存在 `/var/lib/private-talk`。服务文件见仓库 [deploy/private-talk-lan.service](../../deploy/private-talk-lan.service)。
+
+### Windows Server
+
+1. 解压到 `C:\private-talk`。
+2. 双击 `start-lan.cmd` 试运行，确认能打开。
+3. 开机自动运行：任务计划程序 → 创建任务：
+   - 常规：「不管用户是否登录都要运行」，勾选「使用最高权限运行」。
+   - 触发器：启动时。
+   - 操作：启动程序 `C:\private-talk\node\node.exe`，参数 `server\lan.mjs`，起始于 `C:\private-talk`。
+   - 设置：取消「如果任务运行时间超过以下时间，停止任务」。
+4. 防火墙放行入站 TCP 8443（只对内网网段）。
+
+### Docker
+
+```sh
+docker load -i private-talk-<版本>-docker-amd64.tar.gz
+docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
+```
+
+## 4. 域名和证书（推荐用单位自己的）
+
+**方案 A：用单位的内部 CA 证书（推荐）**
+
+设备已经信任单位的根证书，就不会有任何提示。
+
+1. 内网 DNS 加一条记录：`chat.内网域名` → 服务器 IP。
+2. 向 IT/PKI 申请这个名字的服务器证书（PEM 格式的证书和私钥）。
+3. 用 `server.mjs` 直接加载它，不用 `lan.mjs`：
+
+   ```sh
+   TLS_CERT=/etc/private-talk/cert.pem TLS_KEY=/etc/private-talk/key.pem PORT=443 \
+     /opt/private-talk/node/bin/node server/server.mjs
+   ```
+
+   systemd 服务文件里已经写好了对应的注释行，把 `ExecStart` 改成 `server/server.mjs` 即可。用 443 端口时打开 `AmbientCapabilities=CAP_NET_BIND_SERVICE`。
+
+**方案 B：用已有的反向代理**（nginx、F5、IIS ARR 等）
+
+让代理提供 HTTPS 并转发到 `http://服务器:8080`，程序用 `HOST=127.0.0.1 TRUST_PROXY=1 node server/server.mjs` 启动。代理必须转发 WebSocket（`Upgrade`、`Connection` 头），并传 `Host`、`X-Forwarded-Proto`、`X-Forwarded-For`。nginx 示例：[deploy/nginx.conf](../../deploy/nginx.conf)。
+
+**方案 C：用程序自己生成的证书**（没有内部 CA 时）
+
+默认的 `lan.mjs` 会自动生成证书。用 `LAN_NAMES=chat.内网域名` 把内网域名也写进证书（内网域名需以 `.local`、`.lan`、`.internal`、`.home.arpa` 结尾，或直接用 IP）。然后把 `ca.crt` 批量下发到终端：
+
+| 终端 | 批量下发方式 |
+| :--- | :--- |
+| Windows 域内电脑 | 组策略：计算机配置 → 策略 → Windows 设置 → 安全设置 → 公钥策略 → 受信任的根证书颁发机构 → 导入 `ca.crt`；单台：`certutil -addstore Root ca.crt` |
+| macOS | MDM 下发证书描述文件；单台：`sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ca.crt` |
+| Linux（Debian/Ubuntu） | 复制到 `/usr/local/share/ca-certificates/private-talk.crt`，运行 `update-ca-certificates` |
+| Linux（RHEL/麒麟/统信） | 复制到 `/etc/pki/ca-trust/source/anchors/`，运行 `update-ca-trust` |
+| iOS / Android 企业设备 | 通过 MDM 下发 CA 证书 |
+| Firefox | 企业策略 `Certificates → ImportEnterpriseRoots: true`（使用系统证书库） |
+
+这个 CA 带名称约束，只能为内网地址和内部名字签发证书，下发到终端不会给互联网网站带来风险。`ca.key` 只留在服务器上。
+
+## 5. 通知员工
+
+把内网地址和[用户使用手册](user.md)发给员工。可以在内网门户放一个链接 `https://chat.内网域名/`。
+
+## 6. 日常运维
+
+- **状态**：`systemctl status private-talk-lan`；或访问首页返回 200。
+- **容量**：每个房间最多 10 人，房间数不设上限。只传文字，资源占用很低；本项目没有做过大规模压力测试，人数很多时先观察服务器负载。
+- **数据**：没有数据需要备份。服务重启时所有房间消失，用户重新打开链接即可回到（空的）房间。
+- **只能运行一个实例**：房间保存在进程内存里，不要在负载均衡后面放多个实例。
+- **访问控制**：用防火墙只允许需要的网段访问 8443 端口。
+- **限速**：每个 IP 每分钟最多进房 30 次；终端经 NAT 或代理共用 IP 时，用 `JOIN_LIMIT` 调高。
+
+## 7. 升级
+
+1. 在外网下载新版本的包并核对（第 2 步）。
+2. Linux：`sudo systemctl stop private-talk-lan`，解压覆盖 `/opt/private-talk`（证书在 `/var/lib/private-talk`，不受影响），`sudo systemctl start private-talk-lan`。
+3. Windows：解压到新目录，把旧目录的 `lan-certs` 复制过去，修改计划任务的路径。
+
+## 8. 合规提示
+
+本系统的设计是**不留存任何聊天记录**：服务器只转发密文，用户关闭页面后内容即消失，管理员也无法查看或恢复。部署前请确认这符合单位关于通信留存、审计的规定。
+
+## 9. 出问题
+
+| 现象 | 做法 |
+| :--- | :--- |
+| 终端打不开 | 防火墙、网段 ACL；用服务器本机 `curl -k https://127.0.0.1:8443/` 确认程序在运行 |
+| 页面提示“这个网址不是 HTTPS” | 用户用了 http:// 地址，或代理没有提供 HTTPS |
+| 首页能打开，进房间一直“正在连接” | 代理或安全网关拦截了 WebSocket，放行 `/ws/` 路径的升级请求 |
+| 已下发证书仍提示 | 访问用的名字或 IP 不在证书里：用 `LAN_NAMES` 加上后重启；或终端证书没装到“受信任的根证书” |
+
+更多见 [故障排查](troubleshooting.md)。

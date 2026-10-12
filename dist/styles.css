@@ -84,3 +84,5 @@ button,input { font:inherit; } button { cursor:pointer; }
   .composer { padding:10px; }
 }
 .selfhost { margin-top:18px; }.selfhost a { color:var(--purple); }
+.insecure-note { margin:0 0 16px; padding:12px 14px; border-radius:11px; background:#fdecec; color:#9b1c1c; font-size:14px; line-height:1.5; }
+@media (max-width:420px) { .repo-link[href^="https://github.com"] { display:none; } }
