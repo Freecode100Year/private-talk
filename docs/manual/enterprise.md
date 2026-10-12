@@ -30,7 +30,7 @@ certutil -hashfile private-talk-win-x64.zip SHA256   # Windows，与 SHA256SUMS.
 gh attestation verify private-talk-win-x64.zip -R Freecode100Year/private-talk   # 核验由本仓库源码在 GitHub 上构建
 ```
 
-需要源码审查时，同一版本的源码在 Releases 页面的 Source code 附件里，构建脚本是 `scripts/offline-packages.sh` 和 `.github/workflows/offline.yml`。
+需要审计源码时，同一版本的源码在 Releases 页面的 Source code 附件里，构建脚本是 `scripts/offline-packages.sh` 和 `.github/workflows/offline.yml`。
 
 程序的网络行为（供安全审批参考）：
 
