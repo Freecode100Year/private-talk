@@ -3,19 +3,22 @@
 **适合**：企业、学校、机构的 IT 管理员。内网与互联网隔离，服务器不能 `npm install`、不能 `docker pull`。
 **结果**：`https://chat.内网域名` 或 `https://服务器IP:8443`，只在内网可用，全程不需要互联网。
 
-## 1. 在能上网的电脑上准备
+## 1. 需要下载什么（在能上网的电脑上）
 
-从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载：
+下面的链接总是指向最新版本，也可以到 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 页面下载。所有文件名不带版本号，解压后的文件夹名带版本号（如 `private-talk-1.7.0-win-x64`）。
 
 | 内网服务器 | 下载 |
 | :--- | :--- |
-| Windows Server / Windows 电脑 | `private-talk-<版本>-win-x64.zip` |
-| Linux（x86） | `private-talk-<版本>-linux-x64.tar.gz` |
-| Linux（ARM，如鲲鹏、树莓派） | `private-talk-<版本>-linux-arm64.tar.gz` |
-| 只有 Docker 的服务器 | `private-talk-<版本>-docker-amd64.tar.gz` 或 `-docker-arm64.tar.gz` |
-| 服务器已有 Node.js 22+ | `private-talk-<版本>-app.zip` |
+| Windows Server / Windows 电脑 | [private-talk-win-x64.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-win-x64.zip) |
+| Linux（x86_64） | [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz) |
+| Linux（ARM 64 位，如鲲鹏、飞腾、树莓派） | [private-talk-linux-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz) |
+| Mac | [private-talk-darwin-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-arm64.tar.gz)（Apple 芯片）或 [darwin-x64](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-x64.tar.gz)（Intel） |
+| 只有 Docker 的服务器（x86_64） | [private-talk-docker-amd64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-amd64.tar.gz) |
+| 只有 Docker 的服务器（ARM 64 位） | [private-talk-docker-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-arm64.tar.gz) |
+| 服务器已有 Node.js 22+ | [private-talk-app.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-app.zip) |
+| **每次都要下载** | [SHA256SUMS.txt](https://github.com/Freecode100Year/private-talk/releases/latest/download/SHA256SUMS.txt)（核对用） |
 
-另外下载 `SHA256SUMS.txt`。这些包自带官方 Node.js 和全部依赖，内网里不需要再下载任何东西。
+这些包自带官方 Node.js 和全部依赖，内网里不需要再下载任何东西。
 
 ## 2. 带进内网前的核对
 
@@ -23,8 +26,8 @@
 
 ```sh
 sha256sum -c --ignore-missing SHA256SUMS.txt          # Linux / macOS
-certutil -hashfile private-talk-<版本>-win-x64.zip SHA256   # Windows，与 SHA256SUMS.txt 里的值对比
-gh attestation verify private-talk-<版本>-win-x64.zip -R Freecode100Year/private-talk   # 核验由本仓库源码在 GitHub 上构建
+certutil -hashfile private-talk-win-x64.zip SHA256   # Windows，与 SHA256SUMS.txt 里的值对比
+gh attestation verify private-talk-win-x64.zip -R Freecode100Year/private-talk   # 核验由本仓库源码在 GitHub 上构建
 ```
 
 需要源码审查时，同一版本的源码在 Releases 页面的 Source code 附件里，构建脚本是 `scripts/offline-packages.sh` 和 `.github/workflows/offline.yml`。
@@ -43,7 +46,7 @@ gh attestation verify private-talk-<版本>-win-x64.zip -R Freecode100Year/priva
 
 ```sh
 sudo mkdir -p /opt/private-talk
-sudo tar -xzf private-talk-<版本>-linux-x64.tar.gz -C /opt/private-talk --strip-components=1
+sudo tar -xzf private-talk-linux-x64.tar.gz -C /opt/private-talk --strip-components=1
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin private-talk
 sudo cp /opt/private-talk/deploy/private-talk-lan.service /etc/systemd/system/
 sudo systemctl enable --now private-talk-lan
@@ -66,7 +69,7 @@ sudo journalctl -u private-talk-lan -n 20        # 查看访问地址
 ### Docker
 
 ```sh
-docker load -i private-talk-<版本>-docker-amd64.tar.gz
+docker load -i private-talk-docker-amd64.tar.gz
 docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
 ```
 

@@ -1,8 +1,9 @@
 # Offline packages for networks without internet access, attached to the
 # GitHub release of each version tag:
-#   private-talk-<v>-<platform>.zip/.tar.gz  Node.js + app + dependencies, unzip and run
-#   private-talk-<v>-app.zip                 app + dependencies, for machines with Node.js 22+
-#   private-talk-<v>-docker-<arch>.tar.gz    Docker image, for `docker load`
+#   private-talk-<platform>.zip/.tar.gz  Node.js + app + dependencies, unzip and run
+#   private-talk-app.zip                 app + dependencies, for machines with Node.js 22+
+#   private-talk-docker-<arch>.tar.gz    Docker image, for `docker load`
+# Names without the version keep .../releases/latest/download/<name> stable.
 name: offline
 on:
   push:
@@ -31,7 +32,7 @@ jobs:
             docker buildx build --platform linux/$arch \
               -t ghcr.io/freecode100year/private-talk:$v -t ghcr.io/freecode100year/private-talk:1 \
               --output type=docker,dest=out/image.tar .
-            gzip -9 -c out/image.tar > out/private-talk-$v-docker-$arch.tar.gz
+            gzip -9 -c out/image.tar > out/private-talk-docker-$arch.tar.gz
             rm out/image.tar
           done
       - name: Checksums

@@ -4,6 +4,13 @@
 **结果**：`https://private-talk.<你的子域>.workers.dev`，或绑定你自己的域名。
 **费用**：免费版每天有用量上限（大约够房间累计活跃 29 小时），超出后当天无法进房；每月 5 美元的 Workers 付费版不会停。
 
+## 需要下载什么
+
+| 方法 | 需要下载 |
+| :--- | :--- |
+| A：网页一键部署 | **不用下载任何东西**，全程在浏览器里完成 |
+| B：命令行 | [Node.js 22 或更新版本](https://nodejs.org/zh-cn/download)（选 LTS）；[Git](https://git-scm.com/downloads)，或者不用 Git，直接下载源码 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip) 解压 |
+
 ## 1. 准备
 
 - 一个 Cloudflare 账号（免费注册）。

@@ -4,6 +4,17 @@
 **结果**：`https://chat.你的域名`，通过 Cloudflare Tunnel 对外，家里不用开任何端口。
 **费用**：免费（需要一个托管在 Cloudflare 的域名）。
 
+## 需要下载什么
+
+| 设备 | 需要下载 |
+| :--- | :--- |
+| Windows / Mac | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
+| Linux / 树莓派 | Docker：`curl -fsSL https://get.docker.com \| sh` |
+| 群晖 / 威联通 NAS | 套件中心里的 Container Manager / Container Station（不用另外下载） |
+| 所有设备 | 本项目源码：`git clone`，或下载 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip) 解压 |
+
+镜像 `ghcr.io/freecode100year/private-talk:1` 和 `cloudflare/cloudflared` 在启动时自动下载，不用手动下载 cloudflared。
+
 ## 1. 准备
 
 - 一台常开的设备，装好 Docker：

@@ -9,6 +9,14 @@
 
 两种模式都自带 HTTPS 证书，不需要公网 IP。
 
+## 需要下载什么
+
+| 下载 | 说明 |
+| :--- | :--- |
+| [Tailscale](https://tailscale.com/download) | 当服务器的电脑和每台要访问的设备都要装（公网 Funnel 模式下访问者不用装） |
+| 离线安装包（自带 Node.js） | 当服务器的电脑：[Windows](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-win-x64.zip) · [Mac Apple 芯片](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-arm64.tar.gz) · [Mac Intel](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-x64.tar.gz) · [Linux x64](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz) · [Linux ARM](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz) |
+| 或：Docker | 用 Docker 方式时不用下载离线包，镜像 `tailscale/tailscale` 和 `private-talk` 启动时自动下载；源码 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip) |
+
 ## 1. 先看隐私
 
 - 网址形如 `https://机器名.tailnet名.ts.net`，会出现在每个房间链接里。旧的 tailnet 名可能含账号名或邮箱前缀：**管理后台 → DNS → Rename tailnet，换成随机名字**。

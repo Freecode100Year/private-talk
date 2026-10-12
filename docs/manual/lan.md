@@ -6,6 +6,23 @@
 
 网络不能上互联网、没法下载安装？直接看[企业内网手册](enterprise.md)，用离线安装包。
 
+## 需要下载什么
+
+**推荐：离线安装包**，自带 Node.js，解压就能用，不用装任何东西：
+
+| 你的电脑 | 下载 |
+| :--- | :--- |
+| Windows 10/11（Windows 11 ARM 版也能用，系统自动转译） | [private-talk-win-x64.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-win-x64.zip) |
+| Mac，Apple 芯片（M1/M2/M3/M4…） | [private-talk-darwin-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-arm64.tar.gz) |
+| Mac，Intel 芯片 | [private-talk-darwin-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-x64.tar.gz) |
+| Linux，x86_64 | [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz) |
+| Linux，ARM 64 位（树莓派 64 位系统、鲲鹏等） | [private-talk-linux-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz) |
+| 已装 Node.js 22 或更新版本（任何系统） | [private-talk-app.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-app.zip) |
+
+不知道选哪个：Mac 点左上角苹果菜单 →「关于本机」，“芯片”写 Apple 就选 Apple 芯片，写 Intel 就选 Intel；Linux 运行 `uname -m`，`x86_64` 选 x64，`aarch64` 选 arm64。
+
+用 Docker 的话：Linux 上装 Docker（`curl -fsSL https://get.docker.com \| sh`），下载源码 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip)；镜像启动时自动下载。
+
 ## 1. 准备
 
 一台在这个网络里常开的电脑（Windows / macOS / Linux），或者一部安卓手机（见[安卓手机手册](android.md)）。
@@ -14,7 +31,7 @@
 
 **方法 A：离线安装包（最简单，不用装任何东西）**
 
-1. 从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载对应系统的包：Windows 选 `win-x64.zip`，Mac 选 `darwin-arm64`（Apple 芯片）或 `darwin-x64`（Intel），Linux 选 `linux-x64` 或 `linux-arm64`。
+1. 按上面「需要下载什么」下载对应系统的包。
 2. 解压。
 3. Windows 双击 `start-lan.cmd`；Mac / Linux 在终端里运行 `./start-lan.sh`。
 

@@ -1,5 +1,9 @@
 # 云平台手册（Render、Koyeb、Railway、Zeabur、Fly.io）
 
+## 需要下载什么
+
+**不用下载任何东西**，全程在浏览器里完成，需要一个 GitHub 账号。只有 Fly.io 要在电脑上装它的命令行工具 [flyctl](https://fly.io/docs/flyctl/install/)。
+
 这些平台都自带 HTTPS 和免费子域名。**都只开 1 个实例**（配置文件里已经写好）。免费套餐空闲时可能休眠，第一次打开要等十几秒。
 
 | 平台 | 做法 |

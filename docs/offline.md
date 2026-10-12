@@ -6,21 +6,21 @@
 
 | 文件 | 适用 | 用法 |
 | :--- | :--- | :--- |
-| `private-talk-<版本>-win-x64.zip` | Windows 10/11 | 解压，双击 `start-lan.cmd` |
-| `private-talk-<版本>-linux-x64.tar.gz` | 普通 Linux 服务器 / 电脑 | `tar xzf …`，运行 `./start-lan.sh` |
-| `private-talk-<版本>-linux-arm64.tar.gz` | ARM 服务器、树莓派（64 位系统） | 同上 |
-| `private-talk-<版本>-darwin-arm64.tar.gz` | Apple 芯片的 Mac | 同上 |
-| `private-talk-<版本>-darwin-x64.tar.gz` | Intel 芯片的 Mac | 同上 |
-| `private-talk-<版本>-app.zip` | 已装 Node.js 22 或更新版本的机器 | 解压，`node server/lan.mjs` |
-| `private-talk-<版本>-docker-amd64.tar.gz` | 有 Docker 的 x86 服务器 | 见下文 |
-| `private-talk-<版本>-docker-arm64.tar.gz` | 有 Docker 的 ARM 服务器 | 见下文 |
+| [private-talk-win-x64.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-win-x64.zip) | Windows 10/11 | 解压，双击 `start-lan.cmd` |
+| [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz) | 普通 Linux 服务器 / 电脑 | `tar xzf …`，运行 `./start-lan.sh` |
+| [private-talk-linux-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz) | ARM 服务器、树莓派（64 位系统） | 同上 |
+| [private-talk-darwin-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-arm64.tar.gz) | Apple 芯片的 Mac | 同上 |
+| [private-talk-darwin-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-x64.tar.gz) | Intel 芯片的 Mac | 同上 |
+| [private-talk-app.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-app.zip) | 已装 Node.js 22 或更新版本的机器 | 解压，`node server/lan.mjs` |
+| [private-talk-docker-amd64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-amd64.tar.gz) | 有 Docker 的 x86 服务器 | 见下文 |
+| [private-talk-docker-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-arm64.tar.gz) | 有 Docker 的 ARM 服务器 | 见下文 |
 
 前五个包自带 Node.js（官方 nodejs.org 的版本，构建时按官方校验和核对）和全部依赖，解压即用，不需要安装，也不改系统设置。启动后列出的地址、证书提示的处理见 [docs/lan.md](lan.md)，包里的 `使用说明.txt` 是简要版。
 
 ## Docker 离线镜像
 
 ```sh
-docker load -i private-talk-<版本>-docker-amd64.tar.gz
+docker load -i private-talk-docker-amd64.tar.gz
 docker compose -f docker-compose.lan.yml up -d       # 用包里或仓库里的 docker-compose.lan.yml
 ```
 
@@ -32,7 +32,7 @@ docker compose -f docker-compose.lan.yml up -d       # 用包里或仓库里的 
 
 ```sh
 sha256sum -c SHA256SUMS.txt                       # 与 Releases 里的 SHA256SUMS.txt 对比
-gh attestation verify private-talk-<版本>-win-x64.zip -R Freecode100Year/private-talk   # 在能上网的电脑上核验构建来源
+gh attestation verify private-talk-win-x64.zip -R Freecode100Year/private-talk   # 在能上网的电脑上核验构建来源
 ```
 
 所有安装包都由 GitHub Actions 从本仓库源码构建（`.github/workflows/offline.yml`、`scripts/offline-packages.sh`），附有构建来源证明。

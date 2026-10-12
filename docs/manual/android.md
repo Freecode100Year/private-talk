@@ -4,6 +4,15 @@
 **结果**：局域网模式 `https://手机IP:8443`；或公网模式 `https://chat.你的域名`（Cloudflare Tunnel）。
 **限制**：需要联网安装一次（Termux 和 Node.js）；耗电，要接充电器；不适合 24 小时长期运行。
 
+## 需要下载什么
+
+| 下载 | 来源 | 说明 |
+| :--- | :--- | :--- |
+| Termux | [F-Droid](https://f-droid.org/packages/com.termux/) 或 [GitHub](https://github.com/termux/termux-app/releases)（选 `arm64-v8a` 的 apk） | 必须；不要用 Google Play 上的旧版 |
+| Termux:Boot | [F-Droid](https://f-droid.org/packages/com.termux.boot/) | 可选，开机自启用；要和 Termux 来自同一个地方 |
+
+其余的都由安装脚本自动下载：Node.js、Git、本项目源码；公网模式第一次运行时自动安装 cloudflared。所以安装时手机要能上网，之后的局域网模式不需要网络。
+
 ## 1. 安装（需要互联网，只做一次）
 
 1. 从 [F-Droid](https://f-droid.org/packages/com.termux/) 或 [GitHub](https://github.com/termux/termux-app/releases) 安装 **Termux**。不要装 Google Play 上的旧版本。

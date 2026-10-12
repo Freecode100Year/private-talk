@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds the offline packages for networks without internet access:
-#   private-talk-<version>-<platform>.zip/.tar.gz   Node.js + app + dependencies
-#   private-talk-<version>-app.zip                  app + dependencies, for machines that already have Node.js 22+
+#   private-talk-<platform>.zip/.tar.gz   Node.js + app + dependencies
+#   private-talk-app.zip                  app + dependencies, for machines that already have Node.js 22+
+# File names carry no version, so .../releases/latest/download/<name> always
+# fetches the newest; the folder inside is named with the version.
 # The Node.js binaries come from nodejs.org and are checked against its SHASUMS256.txt.
 #   scripts/offline-packages.sh <version> [platform ...]
 # platforms: win-x64 linux-x64 linux-arm64 darwin-arm64 darwin-x64 (default: all)
@@ -24,7 +26,7 @@ cp "$ROOT/docker-compose.lan.yml" "$APP/"
 cp "$ROOT/src/rules.js" "$APP/src/"
 cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/offline/使用说明.txt" "$APP/"
 (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null && rm package-lock.json)
-(cd "$WORK" && cp -r app "private-talk-$VERSION-app" && zip -qr "$OUT/private-talk-$VERSION-app.zip" "private-talk-$VERSION-app")
+(cd "$WORK" && cp -r app "private-talk-$VERSION-app" && zip -qr "$OUT/private-talk-app.zip" "private-talk-$VERSION-app")
 
 curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt" -o "$WORK/SHASUMS256.txt"
 for p in "${PLATFORMS[@]}"; do
@@ -38,13 +40,13 @@ for p in "${PLATFORMS[@]}"; do
     cp "$ROOT/offline/start-lan.cmd" "$dir/"
     # Windows reads .cmd and .txt in the console code page; CRLF line ends.
     sed -i 's/$/\r/' "$dir/start-lan.cmd" "$dir/使用说明.txt"
-    (cd "$WORK" && zip -qr "$OUT/$name.zip" "$name")
+    (cd "$WORK" && zip -qr "$OUT/private-talk-$p.zip" "$name")
   else
     mkdir -p "$dir/node/bin"
     tar -xJf "$WORK/$file" -C "$WORK" "node-$NODE_VERSION-$p/bin/node" "node-$NODE_VERSION-$p/LICENSE"
     mv "$WORK/node-$NODE_VERSION-$p/bin/node" "$dir/node/bin/"; mv "$WORK/node-$NODE_VERSION-$p/LICENSE" "$dir/node/"
     cp "$ROOT/offline/start-lan.sh" "$dir/"; chmod +x "$dir/start-lan.sh"
-    tar -czf "$OUT/$name.tar.gz" -C "$WORK" "$name"
+    tar -czf "$OUT/private-talk-$p.tar.gz" -C "$WORK" "$name"
   fi
   echo "built $name"
 done

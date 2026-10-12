@@ -4,6 +4,15 @@
 **结果**：`https://chat.你的域名`，证书自动申请和续期。
 **费用**：VPS 和域名的费用。程序本身很省资源，最小配置（1 核 512MB）就够几十个房间。
 
+## 需要下载什么
+
+以下都在 VPS 上用命令下载，你的电脑上不需要装任何东西（只要能 SSH 登录）。
+
+| 方式 | 需要下载 |
+| :--- | :--- |
+| Docker（推荐） | Docker：`curl -fsSL https://get.docker.com \| sh`；本项目源码：`git clone`（第 2 步）。镜像 `ghcr.io/freecode100year/private-talk:1` 和 Caddy 在启动时自动下载 |
+| 不用 Docker | 离线包 [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz)（ARM 服务器用 [linux-arm64](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz)），自带 Node.js，不用另装；HTTPS 再装 [Caddy](https://caddyserver.com/docs/install) 或 nginx |
+
 ## 1. 准备
 
 - 一台境外 Linux VPS（Debian / Ubuntu 最省事），能用 SSH 登录。
