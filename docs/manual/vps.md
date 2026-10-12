@@ -10,7 +10,7 @@
 
 | 方式 | 需要下载 |
 | :--- | :--- |
-| Docker（推荐） | Docker：`curl -fsSL https://get.docker.com \| sh`；本项目源码：`git clone`（第 2 步）。镜像 `ghcr.io/freecode100year/private-talk:1` 和 Caddy 在启动时自动下载 |
+| Docker（推荐） | Docker：`curl -fsSL https://get.docker.com \| sh`；本项目源码：`git clone`（第 2 步）。镜像 `ghcr.io/freecode100year/private-talk:2` 和 Caddy 在启动时自动下载 |
 | 不用 Docker | 离线包 [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz)（ARM 服务器用 [linux-arm64](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz)），自带 Node.js，不用另装；HTTPS 再装 [Caddy](https://caddyserver.com/docs/install) 或 nginx |
 
 ## 1. 准备
@@ -19,6 +19,27 @@
   中国大陆的服务器开网站需要备案，这类站点也不适合放在境内。
 - 一个域名，在 DNS 里加一条 A 记录（有 IPv6 再加 AAAA）：`chat.你的域名` → VPS 的 IP。
 - VPS 防火墙开放 80 和 443 端口。
+
+### 登录服务器
+
+在自己的电脑上打开终端（Windows 用 PowerShell，Mac 用「终端」），用服务商给的 IP 和密码 / 密钥登录：
+
+```sh
+ssh root@你的服务器IP
+```
+
+### 设置域名
+
+在域名服务商（或 Cloudflare）的 DNS 设置里添加一条记录：类型 `A`，名称 `chat`，值填服务器 IP。等几分钟到几十分钟生效，可以用 `ping chat.你的域名` 检查是否已指向服务器。
+
+### 开放端口
+
+```sh
+# Debian / Ubuntu 用 ufw 时：
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
+```
+
+服务商网页后台如果有“安全组 / 防火墙”，也要放行 80 和 443。
 
 ## 2. 部署（推荐：Docker）
 
@@ -37,20 +58,29 @@ DOMAIN=chat.你的域名 docker compose up -d
 
 ```sh
 docker run -d --name private-talk --restart unless-stopped --read-only --cap-drop ALL \
-  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:1
+  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2
 ```
 
-## 3. 发给大家
+## 3. 确认部署成功
+
+```sh
+docker compose ps                       # app 和 caddy 都是 running，app 显示 healthy
+curl -sI https://chat.你的域名 | head -1   # 应显示 HTTP/2 200
+```
+
+然后在浏览器打开 `https://chat.你的域名`，电脑和手机用同一个暗号进房间互发消息。
+
+## 4. 发给大家
 
 把 `https://chat.你的域名` 和[用户使用手册](user.md)发给使用者。
 
-## 4. 日常维护
+## 5. 日常维护
 
 - 查看是否在运行：`docker compose ps`（状态 healthy 即正常）。
 - 程序不写日志、不存数据，没有需要备份的东西。
 - 系统安全更新：Debian / Ubuntu 打开自动安全更新（`apt install unattended-upgrades`）。
 
-## 5. 升级
+## 6. 升级
 
 ```sh
 cd private-talk
@@ -58,16 +88,24 @@ git pull
 docker compose pull && docker compose up -d
 ```
 
-镜像标签 `:1` 只会更新到 1.x 的兼容版本，不会突然升级到不兼容的大版本。
+镜像标签 `:2` 只会更新到 2.x 的兼容版本，不会突然升级到不兼容的大版本。
 
-## 6. 安全注意
+## 7. 安全注意
 
 - SSH 用密钥登录，关闭密码登录。
 - 只开放 22（或你的 SSH 端口）、80、443。
 - VPS 服务商能看到服务器上的一切，但聊天内容在浏览器里加密，服务器上只有看不懂的密文、而且不保存。
 - 想隐藏服务器真实 IP，可以把域名放到 Cloudflare 并开启代理（橙色云），或改用[家用设备手册](home.md)里的 Cloudflare Tunnel 方式。
 
-## 7. 出问题
+## 8. 卸载
+
+```sh
+cd private-talk && docker compose down -v && cd .. && rm -rf private-talk
+```
+
+再删除 DNS 里的那条记录。
+
+## 9. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

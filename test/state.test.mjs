@@ -136,3 +136,14 @@ test('joins and leaves', async () => {
   const { joinsAndLeaves } = await import('../dist/state.js');
   assert.deepEqual(joinsAndLeaves([1, 2, 3], [1, 3, 4]), { joined: [4], left: [2] });
 });
+
+test('v2 keys: access and message key are separate; old passphrases still meet', async () => {
+  const a = await deriveRoom('自由');
+  const b = await deriveRoom('自由');
+  assert.equal(a.roomId, b.roomId);
+  assert.equal(a.access, b.access);
+  assert.match(a.access, /^[0-9a-f]{64}$/);
+  assert.notEqual(a.access, a.roomId);
+  const sealed = await seal(a.key, 'hello');
+  assert.equal(await open(b.key, sealed), 'hello');
+});

@@ -7,7 +7,7 @@ import { t, apply, lang, setLang, LANGS } from './i18n.js';
 const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
 
 const $ = (id) => document.getElementById(id);
-const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003;
+const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007;
 const PING = '{"type":"ping"}';
 const MAX_ON_SCREEN = 300;      // older messages are dropped from the screen
 const ACK_WAIT = 8000;          // a sent message should come back from the relay within this
@@ -20,6 +20,8 @@ let ws = null;
 let key = null;
 let pass = null;
 let roomId = null;
+let access = null;       // shown to the relay to be let in (see crypto.js)
+let host = 0;            // the member who may lock and take people out
 let you = 0;
 let resume = null;      // lets this page take its own place back after a dropped connection
 let present = null;     // member numbers last seen, null before the first list
@@ -29,7 +31,7 @@ let retries = 0;
 let retryTimer = 0;
 let session = 0;        // bumps on every join and leave, to drop stale work
 let view = 0;           // bumps whenever the screen is cleared, so late results don't reappear
-let clockSkew = 0;      // server time minus this device's, from the last hello
+let clockSkew = 0;      // server time minus this device's, only to warn about a wrong clock
 let online = false;
 let cooldownUntil = 0;  // no sending before this time
 let cooldownTimer = 0;
@@ -46,6 +48,7 @@ const seen = newSeen();
 
 const time = (ms) => new Date(ms).toLocaleTimeString(t('html.lang'), { hour: '2-digit', minute: '2-digit' });
 const nameOf = (n) => (n === you ? `${badge(n)} ${t('me')}` : badge(n));
+const isHost = () => you !== 0 && you === host;
 
 function show(stage) {
   $('createStage').classList.toggle('hidden', stage !== 'create');
@@ -58,7 +61,7 @@ function status(key, ok) {
   $('statusText').textContent = key ? t(key) : '';
   $('statusDot').classList.toggle('off', !ok);
   $('messageInput').disabled = !ok;
-  $('lockButton').disabled = !ok;
+  $('lockButton').disabled = !ok || !isHost();
   online = ok;
   sendButton();
 }
@@ -109,6 +112,14 @@ function bubble(from, at, text) {
   const who = document.createElement('small');
   who.className = 'who';
   who.textContent = `${nameOf(from)} · ${time(at)}`;
+  if (mine) {
+    // Back from the relay: it passed the message on. Not a read receipt.
+    const sent = document.createElement('span');
+    sent.className = 'sent';
+    sent.textContent = ` · ${t('sent')}`;
+    sent.title = t('sent.title');
+    who.append(sent);
+  }
   const p = document.createElement('p');
   p.textContent = text;
   body.append(who, p);
@@ -116,7 +127,9 @@ function bubble(from, at, text) {
   append(row, mine || atBottom());
 }
 
-function members(list, nowAway = []) {
+function members(list, nowAway = [], nowHost = host) {
+  const hostBefore = host;
+  host = nowHost;
   $('memberCount').textContent = `${list.length} / ${MAX_MEMBERS}`;
   const entry = (n, gone) => {
     const div = document.createElement('div');
@@ -125,7 +138,18 @@ function members(list, nowAway = []) {
     div.children[0].textContent = badge(n);
     div.children[0].classList.add(`c${n}`);
     div.children[0].classList.toggle('me', n === you);
-    div.children[1].textContent = gone ? t('member.away', { b: badge(n) }) : nameOf(n);
+    div.children[0].classList.toggle('host', !gone && n === host);
+    if (!gone && n === host) div.children[0].title = t('host');
+    div.children[1].textContent = gone ? t('member.away', { b: badge(n) }) : nameOf(n) + (n === host ? ` · ${t('host')}` : '');
+    if (!gone && isHost() && n !== you) {
+      const out = document.createElement('button');
+      out.type = 'button';
+      out.className = 'remove-button';
+      out.textContent = t('remove');
+      out.title = t('remove.title', { b: badge(n) });
+      out.addEventListener('click', () => removeMember(n, out));
+      div.append(out);
+    }
     return div;
   };
   $('memberList').replaceChildren(...list.map((n) => entry(n, false)), ...nowAway.map((n) => entry(n, true)));
@@ -136,8 +160,21 @@ function members(list, nowAway = []) {
   } else if (list.length > 1) {
     system(t('sys.present', { count: list.length, others: list.filter((n) => n !== you).map(badge).join(' ') }));
   }
+  // Say who the host is when that changes, and once on arrival if it is you.
+  if (host && host !== hostBefore && (present || host === you)) system(host === you ? t('sys.youHost') : t('sys.newHost', { b: badge(host) }));
   present = list;
   away = nowAway;
+  $('lockButton').disabled = !online || !isHost();
+  $('lockButton').title = isHost() ? '' : t('lock.hostOnly', { b: host ? badge(host) : '' });
+}
+
+function removeMember(n, button) {
+  if (!isHost() || ws?.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'remove', n }));
+  // Lock changes and removals share a two-second limit at the relay; if this
+  // one was too soon the member is still listed, and the button comes back.
+  button.disabled = true;
+  setTimeout(() => { button.disabled = false; }, 2100);
 }
 
 function lockState(locked) {
@@ -192,6 +229,7 @@ async function join(p) {
   if (ticket !== session) return; // left or switched rooms while the key was being made
   key = room.key;
   roomId = room.roomId;
+  access = room.access;
   $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
   connect();
 }
@@ -200,8 +238,10 @@ function connect() {
   clearTimeout(retryTimer);
   status(joinedOnce ? 'status.reconnecting' : 'status.connecting', false);
   let opened = false;
-  const query = resume ? `?resume=${resume}` : '';
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${roomId}${query}`);
+  // The access value and resume token travel in the subprotocol header, not
+  // the URL (see src/rules.js).
+  const protocols = ['pt2', `a${access}`, ...(resume ? [`r${resume}`] : [])];
+  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${roomId}`, protocols);
   ws = sock;
   lastHeard = Date.now();
   // Messages are handled one at a time, in order, each checked against the
@@ -218,6 +258,8 @@ function connect() {
     if (ws !== sock) return; // left, or replaced by a newer connection
     if (e.code === CLOSE_FULL) return stop('stop.full');
     if (e.code === CLOSE_BUSY) return stop('stop.busy');
+    if (e.code === CLOSE_REMOVED) return stop('stop.removed');
+    if (e.code === CLOSE_DENIED) return stop('stop.denied');
     if (e.code === CLOSE_LOCKED) {
       if (!joinedOnce) return stop('stop.locked');
       status('status.lockedWait', false);
@@ -247,6 +289,8 @@ async function handle(data, sock, started) {
     else if (before === you) system(t('sys.reconnectedSame', { b: badge(you) }));
     else system(t('sys.reconnectedNew', { b: badge(you) }));
     if (!joinedOnce && isShortPassphrase(pass)) system(t('sys.shortPass'));
+    // Messages are checked against this device's clock only (the relay is
+    // not trusted to say what time it is), so a wrong clock is worth a word.
     if (!joinedOnce && Math.abs(clockSkew) > MAX_SKEW / 2) {
       system(t('sys.clock', { min: Math.round(Math.abs(clockSkew) / 60000) }));
     }
@@ -254,7 +298,7 @@ async function handle(data, sock, started) {
     startHeartbeat();
     $('messageInput').focus();
   } else if (msg.type === 'members' && Array.isArray(msg.members)) {
-    members(msg.members, Array.isArray(msg.away) ? msg.away : []);
+    members(msg.members, Array.isArray(msg.away) ? msg.away : [], Number.isInteger(msg.host) ? msg.host : 0);
     lockState(!!msg.locked);
   } else if (msg.type === 'wait') {
     cooldown(Number(msg.ms) || SEND_GAP_SECONDS * 1000);
@@ -266,14 +310,16 @@ async function handle(data, sock, started) {
     lockState(!!msg.locked);
     const who = msg.by === you ? t('you') : badge(msg.by);
     system(t(msg.locked ? 'sys.locked' : 'sys.unlocked', { who }));
+  } else if (msg.type === 'denied') {
+    system(t('sys.notHost', { b: host ? badge(host) : '' }));
+  } else if (msg.type === 'removed') {
+    system(t('sys.removed', { b: badge(msg.n), who: msg.by === you ? t('you') : badge(msg.by) }));
   } else if (msg.type === 'msg') {
     let got = null;
     try {
       const plain = await open(key, msg);
       if (!current() || started.view !== view) return; // the room changed or the screen was cleared meanwhile
-      // Go by this device's clock, unless it is known to be wrong.
-      const now = Math.abs(clockSkew) > MAX_SKEW / 2 ? Date.now() + clockSkew : Date.now();
-      got = checkEnvelope(plain, msg, seen, now);
+      got = checkEnvelope(plain, msg, seen, Date.now());
     } catch {
       if (!current() || started.view !== view) return;
     }
@@ -317,6 +363,9 @@ function stop(key) {
   system(t(key));
   clearInterval(heartbeatTimer);
   ws = null;
+  // Out of the room: the member list no longer applies.
+  present = null;
+  members([], [], 0);
 }
 
 // leave ends the session and drops everything it held: the connection, key,
@@ -329,8 +378,9 @@ function leave() {
   const old = ws;
   ws = null;
   try { old?.close(CLOSE_LEFT, 'leave'); } catch {}
-  key = pass = roomId = resume = null;
+  key = pass = roomId = access = resume = null;
   you = 0;
+  host = 0;
   present = null;
   away = [];
   cooldownUntil = 0;
@@ -376,22 +426,24 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && pass) clearScreen(true);
 });
 $('lockButton').addEventListener('click', () => {
-  if (ws?.readyState !== WebSocket.OPEN) return;
+  if (ws?.readyState !== WebSocket.OPEN || !isHost()) return;
   ws.send(JSON.stringify({ type: 'lock', locked: !$('lockButton').dataset.locked }));
   // The relay takes one lock change every two seconds; the button waits too.
   $('lockButton').disabled = true;
-  setTimeout(() => { $('lockButton').disabled = !online; }, 2100);
+  setTimeout(() => { $('lockButton').disabled = !online || !isHost(); }, 2100);
 });
-$('copyButton').addEventListener('click', async (event) => {
-  const button = event.currentTarget;
+async function copy(button, text, label) {
   try {
-    await navigator.clipboard.writeText(roomLink(location.origin, pass));
+    await navigator.clipboard.writeText(text);
     button.textContent = t('copied');
   } catch {
     button.textContent = t('copyFail');
   }
-  setTimeout(() => { button.textContent = t('copy'); }, 2500);
-});
+  setTimeout(() => { button.textContent = t(label); }, 2500);
+}
+$('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(location.origin, pass), 'copy'));
+// A link alone from someone looks odd; the invitation says what it is.
+$('inviteButton').addEventListener('click', (event) => copy(event.currentTarget, t('invite.text', { link: roomLink(location.origin, pass) }), 'invite'));
 $('messageInput').addEventListener('input', () => {
   inputVersion++;
   const v = $('messageInput').value;
@@ -413,7 +465,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return;
   const started = { session, version: inputVersion };
   cooldown(SEND_GAP_SECONDS * 1000);
-  const sealed = envelope(you, text, Date.now() + clockSkew);
+  const sealed = envelope(you, text, Date.now());
   const frame = JSON.stringify({ type: 'msg', ...(await seal(key, sealed)) });
   if (started.session !== session) return; // left the room meanwhile; the text went with it
   if (ws !== sock || sock.readyState !== WebSocket.OPEN) {

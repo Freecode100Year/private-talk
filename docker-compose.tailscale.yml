@@ -27,7 +27,7 @@ services:
       driver: none
 
   app:
-    image: ghcr.io/freecode100year/private-talk:1
+    image: ghcr.io/freecode100year/private-talk:2
     build: .
     restart: unless-stopped
     network_mode: service:tailscale

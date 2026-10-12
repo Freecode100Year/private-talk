@@ -13,7 +13,7 @@
 | 群晖 / 威联通 NAS | 套件中心里的 Container Manager / Container Station（不用另外下载） |
 | 所有设备 | 本项目源码：`git clone`，或下载 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip) 解压 |
 
-镜像 `ghcr.io/freecode100year/private-talk:1` 和 `cloudflare/cloudflared` 在启动时自动下载，不用手动下载 cloudflared。
+镜像 `ghcr.io/freecode100year/private-talk:2` 和 `cloudflare/cloudflared` 在启动时自动下载，不用手动下载 cloudflared。
 
 ## 1. 准备
 
@@ -22,6 +22,13 @@
   - 群晖 / 威联通 NAS：套件中心里的 Container Manager / Container Station。
   - 树莓派：64 位系统，`curl -fsSL https://get.docker.com | sh`。
 - 一个已托管在 Cloudflare 的域名。
+
+### 安装 Docker Desktop（Windows / Mac）
+
+1. 从 [docker.com](https://www.docker.com/products/docker-desktop/) 下载 Docker Desktop 并安装。
+2. Windows 安装时保持勾选「Use WSL 2」；装完按提示重启电脑。
+3. 打开 Docker Desktop，等左下角显示 Engine running（绿色）。
+4. 在设置里打开「Start Docker Desktop when you sign in」，这样开机会自动运行。
 
 ## 2. 在 Cloudflare 创建隧道
 
@@ -41,17 +48,23 @@ NAS 的图形界面：新建项目（Compose），把 `docker-compose.tunnel.yml
 
 一两分钟后打开 `https://chat.你的域名`。
 
-## 4. 发给大家
+## 4. 确认部署成功
+
+1. Cloudflare 后台的隧道列表里，这条隧道显示「健康 / Healthy」。
+2. 浏览器打开 `https://chat.你的域名`，看到首页。
+3. 电脑和手机（用手机流量，不连家里 Wi-Fi）用同一个暗号进房间，互发消息能收到。
+
+## 5. 发给大家
 
 把网址和[用户使用手册](user.md)发给使用者。
 
-## 5. 日常维护
+## 6. 日常维护
 
 - 设备要一直开着、不能睡眠（电脑在电源设置里关闭睡眠）。
 - Cloudflare 后台隧道页面显示「健康」即正常。
 - 不存数据，不需要备份。
 
-## 6. 升级
+## 7. 升级
 
 ```sh
 cd private-talk && git pull
@@ -59,13 +72,21 @@ docker compose -f docker-compose.tunnel.yml pull
 docker compose -f docker-compose.tunnel.yml up -d
 ```
 
-## 7. 安全注意
+## 8. 安全注意
 
 - 家里的公网 IP 不会暴露，访问者只看到 Cloudflare。
 - 隧道令牌泄露的话，到 Cloudflare 后台删除这个隧道重建。
 - Cloudflare 能看到访问记录，看不到聊天内容。
 
-## 8. 出问题
+## 9. 卸载
+
+```sh
+cd private-talk && docker compose -f docker-compose.tunnel.yml down && cd .. && rm -rf private-talk
+```
+
+再到 Cloudflare 后台删除这条隧道和它的公共主机名。
+
+## 10. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

@@ -4,6 +4,8 @@
 #   private-talk-app.zip                 app + dependencies, for machines with Node.js 22+
 #   private-talk-docker-<arch>.tar.gz    Docker image, for `docker load`
 # Names without the version keep .../releases/latest/download/<name> stable.
+# Nothing is published unless the tests pass and the Windows, macOS and Linux
+# packages each start and serve HTTPS on their own system.
 name: offline
 on:
   push:
@@ -14,13 +16,16 @@ permissions:
   id-token: write
   attestations: write
 jobs:
-  packages:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: npm test
       - name: Node.js bundles
         run: scripts/offline-packages.sh "${GITHUB_REF_NAME#v}"
       - uses: docker/setup-qemu-action@v3
@@ -30,13 +35,56 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           for arch in amd64 arm64; do
             docker buildx build --platform linux/$arch \
-              -t ghcr.io/freecode100year/private-talk:$v -t ghcr.io/freecode100year/private-talk:1 \
+              -t ghcr.io/freecode100year/private-talk:$v -t ghcr.io/freecode100year/private-talk:${v%%.*} \
               --output type=docker,dest=out/image.tar .
             gzip -9 -c out/image.tar > out/private-talk-docker-$arch.tar.gz
             rm out/image.tar
           done
       - name: Checksums
         run: cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with: { name: packages, path: out/ }
+
+  # Each package, unpacked and started on its own system, must serve HTTPS
+  # with the certificate it made.
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, file: private-talk-win-x64.zip }
+          - { os: macos-latest, file: private-talk-darwin-arm64.tar.gz }
+          - { os: macos-15-intel, file: private-talk-darwin-x64.tar.gz }
+          - { os: ubuntu-latest, file: private-talk-linux-x64.tar.gz }
+          - { os: ubuntu-24.04-arm, file: private-talk-linux-arm64.tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: packages, path: out }
+      - name: Unpack and start
+        shell: bash
+        run: |
+          mkdir pkg
+          case "${{ matrix.file }}" in
+            *.zip) unzip -q "out/${{ matrix.file }}" -d pkg ;;
+            *) tar -xzf "out/${{ matrix.file }}" -C pkg ;;
+          esac
+          dir=$(ls -d pkg/*/)
+          cd "$dir"
+          if [ -f node/node.exe ]; then PORT=8443 ./node/node.exe server/lan.mjs & else PORT=8443 ./start-lan.sh & fi
+          for i in $(seq 1 40); do curl -fsk https://127.0.0.1:8443/ >/dev/null && break; sleep 0.5; done
+          curl -fs --cacert lan-certs/ca.crt https://127.0.0.1:8443/ -o /dev/null
+          curl -fs --cacert lan-certs/ca.crt https://localhost:8443/help.html | grep -q 用户使用手册
+          echo "OK on ${{ matrix.os }}"
+
+  release:
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: packages, path: out }
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: out/private-talk-*

@@ -22,8 +22,11 @@
 **方法 A：网页一键部署**
 
 1. 打开项目主页 <https://github.com/Freecode100Year/private-talk>，点 README 里的「Deploy to Cloudflare」按钮。
-2. 登录 Cloudflare，按提示授权 GitHub、确认项目名（默认 `private-talk`）。
-3. 等几分钟，页面会给出 `https://private-talk.<子域>.workers.dev` 网址，打开能看到首页就成功了。
+2. 登录 Cloudflare（没有账号就先免费注册，注册后回到这个按钮再点一次）。
+3. 按页面提示连接你的 GitHub 账号：Cloudflare 会把项目复制一份到你的 GitHub（以后升级用）。
+4. 确认项目名（默认 `private-talk`，网址里会用到），其他选项保持默认，点「部署」/「Create and deploy」。
+5. 等两三分钟，页面会给出 `https://private-talk.<子域>.workers.dev` 网址。
+   新账号第一次用 Workers 时，会先让你起一个 `workers.dev` 子域名（例如你的英文名），填好再继续。
 
 **方法 B：命令行**（电脑上装有 Node.js 22 或更新版本）
 
@@ -35,37 +38,47 @@ npx wrangler login              # 浏览器里登录 Cloudflare 并授权
 npx wrangler deploy             # 部署，最后一行显示网址
 ```
 
-## 3. 绑定自己的域名（可选）
+## 3. 确认部署成功
+
+1. 用电脑打开部署得到的网址，看到首页。
+2. 点「进入房间」，再点「复制房间链接」，用手机打开这个链接。
+3. 电脑上显示“2️⃣ 进入了房间”，两边互发一条消息能收到，就成功了。
+
+## 4. 绑定自己的域名（可选）
 
 Cloudflare 后台 → Workers 和 Pages → private-talk → 设置 → 域和路由 → 添加 → 自定义域，填 `chat.你的域名`。几分钟后 `https://chat.你的域名` 可用，证书自动签发。
 
 绑定后可以在同一页面关闭 `workers.dev` 地址，只保留自己的域名。
 
-## 4. 发给大家
+## 5. 发给大家
 
 把网址告诉使用者，并把[用户使用手册](user.md)发给他们。最简单的说法：
 
 > 打开 `https://你的网址/#暗号`，暗号自己约定（只用数字、字母、中文），同一个暗号就进同一个房间。
 
-## 5. 日常维护
+## 6. 日常维护
 
 不需要维护：没有服务器要管，没有数据要备份（本来就不存任何东西）。
 
 - 用量：Cloudflare 后台 → Workers → private-talk → 指标，可以看请求数和 Durable Objects 用量。
 - 免费版用量到上限当天会进不了房，第二天恢复。人多时开通 Workers 付费版（每月 5 美元）。
 
-## 6. 升级
+## 7. 升级
 
 - 一键部署的：到你 GitHub 里的那个仓库，点「Sync fork」同步最新代码，Cloudflare 会自动重新部署。
 - 命令行部署的：`git pull && npm install && npx wrangler deploy`。
 
-## 7. 安全注意
+## 8. 安全注意
 
 - 你的 Cloudflare 账号就是这个网站的钥匙：开启两步验证。
 - 如果域名开启了 Cloudflare Web Analytics 的自动注入，Cloudflare 会往网页里插入统计脚本。本项目的安全策略会拦截它，更干净的做法是在后台关掉该域名的自动注入。
 - Cloudflare 能看到谁在什么时间访问了网站（IP 地址），看不到聊天内容。
 
-## 8. 出问题
+## 9. 卸载
+
+Cloudflare 后台 → Workers 和 Pages → private-talk → 设置 → 拉到最下面「删除」。网站立即停止，没有数据需要清理。GitHub 里复制的仓库可以一并删除。
+
+## 10. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

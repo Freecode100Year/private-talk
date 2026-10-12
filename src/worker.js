@@ -9,17 +9,20 @@
 // shared with the Docker server.
 import { DurableObject } from 'cloudflare:workers';
 import {
-  MAX_MEMBERS, ROOM_ID, RESUME, PING, PONG, CLOSE_BUSY, CLOSE_LEFT, PLAIN_HEADERS, BYE_HEADERS,
-  emptyBook, admit, depart, awayNumbers, checkFrame, token
+  MAX_MEMBERS, ROOM_ID, PING, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, PROTOCOL,
+  emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from './rules.js';
 
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
+// The page asks for the pt2 subprotocol; a 101 answer must name it or the
+// browser drops the connection without telling the page why.
+const WS_HEADERS = { ...PLAIN_HEADERS, 'Sec-WebSocket-Protocol': PROTOCOL };
 
 function refuse(code, reason) {
   const [client, server] = Object.values(new WebSocketPair());
   server.accept();
   server.close(code, reason);
-  return new Response(null, { status: 101, webSocket: client, headers: PLAIN_HEADERS });
+  return new Response(null, { status: 101, webSocket: client, headers: WS_HEADERS });
 }
 
 // /bye is called by the page when it opens, goes to the background and closes.
@@ -39,6 +42,9 @@ export default {
     // Stops other web pages from connecting through a visitor's browser.
     // Programs outside a browser can send any Origin they like.
     if (request.headers.get('Origin') !== url.origin) return plain(403, 'forbidden');
+    // Only a page that knows the passphrase can show the access value.
+    const proto = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
+    if (!proto.ok || !(await accessMatches(m[1], proto.access))) return refuse(CLOSE_DENIED, 'no access');
     // Joins per address per minute, counted in memory at the edge and never
     // written anywhere: enough to stop a script opening rooms in bulk.
     if (env.JOIN_LIMIT) {
@@ -73,14 +79,16 @@ export class Room extends DurableObject {
   }
 
   async fetch(request) {
-    const resume = new URL(request.url).searchParams.get('resume');
+    const { resume } = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
     const peers = this.peers();
     const inUse = new Map(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.resume]; }));
-    const r = admit(this.book(peers), inUse, RESUME.test(resume ?? '') ? resume : null);
+    const r = admit(this.book(peers), inUse, resume);
     if (r.refuse) return refuse(r.refuse, 'refused');
+    let seq = r.seq;
     if (r.replace) {
       const old = peers.find((ws) => ws.deserializeAttachment().n === r.replace);
       const a = old.deserializeAttachment();
+      seq = a.seq; // the same person on a new connection keeps their place
       a.done = true;
       old.serializeAttachment(a);
       try { old.close(4005, 'replaced'); } catch {}
@@ -88,11 +96,15 @@ export class Room extends DurableObject {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     const mine = token();
-    server.serializeAttachment({ n: r.n, resume: mine, book: r.book, window: 0, count: 0 });
+    server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0 });
     this.saveBook(r.book, this.peers());
     server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine }));
     this.members();
-    return new Response(null, { status: 101, webSocket: client, headers: PLAIN_HEADERS });
+    return new Response(null, { status: 101, webSocket: client, headers: WS_HEADERS });
+  }
+
+  host(peers = this.peers()) {
+    return hostOf(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.seq]; }));
   }
 
   async webSocketMessage(ws, raw) {
@@ -104,7 +116,10 @@ export class Room extends DurableObject {
     if (r.close) return ws.close(...r.close);
     if (r.pong) return ws.send(PONG);
     if (r.wait) return ws.send(JSON.stringify({ type: 'wait', ms: r.wait }));
-    if ('lock' in r) return this.lock(r.lock, a.n);
+    if ('lock' in r || 'remove' in r) {
+      if (a.n !== this.host()) return ws.send(JSON.stringify({ type: 'denied' }));
+      return 'lock' in r ? this.lock(r.lock, a.n) : this.remove(r.remove, a.n);
+    }
     this.broadcast({ type: 'msg', from: a.n, at: r.at, ...r.msg });
   }
 
@@ -131,11 +146,27 @@ export class Room extends DurableObject {
     this.broadcast({ type: 'lock', locked, by });
   }
 
+  // The host takes member n out: their connection closes and their comeback
+  // token is dropped, so they return only as a newcomer (not while locked).
+  remove(n, by) {
+    if (n === by) return;
+    const target = this.peers().find((ws) => ws.deserializeAttachment().n === n);
+    if (!target) return;
+    const a = target.deserializeAttachment();
+    a.done = true;
+    target.serializeAttachment(a);
+    const peers = this.peers();
+    this.saveBook(depart(this.book(peers), n, a.resume, true), peers);
+    try { target.close(CLOSE_REMOVED, 'removed'); } catch {}
+    this.broadcast({ type: 'removed', n, by });
+    this.members();
+  }
+
   members(skip) {
     const peers = this.peers(skip);
     const book = this.book(peers);
     const list = peers.map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
-    this.broadcast({ type: 'members', members: list, max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
+    this.broadcast({ type: 'members', members: list, host: this.host(peers), max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
   }
 
   broadcast(obj, skip) {

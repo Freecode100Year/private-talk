@@ -65,13 +65,29 @@
 echo tunnel > ~/.private-talk-mode
 ```
 
-## 5. 日常
+## 5. 确认部署成功
+
+1. 在手机自带的浏览器打开 `https://localhost:8443/`，点「继续前往」后看到首页。
+2. 另一部手机连上这个热点（或同一个 Wi-Fi），打开屏幕上列出的地址。
+3. 两部手机用同一个暗号进房间，互发消息能收到。
+
+## 6. 日常
 
 - 停止：在 Termux 里按 Ctrl+C（音量下键 + C）。
 - 升级：`cd ~/private-talk && git pull && npm ci --omit=dev`。
 - 手机锁屏、换网络时连接会断几秒，聊天页会自动重连，2 分钟内回来编号不变。
 
-## 6. 出问题
+## 7. 卸载
+
+在 Termux 里运行：
+
+```sh
+rm -rf ~/private-talk ~/.termux/boot/private-talk ~/.private-talk-mode ~/.private-talk-tunnel
+```
+
+再卸载 Termux 和 Termux:Boot 两个应用。
+
+## 8. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

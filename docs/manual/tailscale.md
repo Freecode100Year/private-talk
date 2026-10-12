@@ -59,16 +59,27 @@ TS_AUTHKEY=tskey-auth-... TS_MODE=private docker compose -f docker-compose.tails
 
 认证密钥在管理后台 Settings → Keys 生成。
 
-## 4. 发给大家
+## 4. 确认部署成功
+
+1. `tailscale serve status` 显示网址，并且指向 `http://127.0.0.1:8080`。
+2. 私人内网模式：在另一台已登录同一个 Tailscale 账号（或被邀请）的设备上打开网址，看到首页。
+   公网模式：用手机流量（不装 Tailscale）打开网址，看到首页。
+3. 两台设备用同一个暗号进房间，互发消息能收到。
+
+## 5. 发给大家
 
 - 私人内网：对方要先装 Tailscale、加入你的网络（管理后台邀请），再打开网址。
 - 公网：直接把网址和[用户使用手册](user.md)发给对方。
 
-## 5. 手机
+## 6. 手机
 
 安卓、iPhone 上的 Tailscale App 可以加入网络、打开网址，但**不能在手机上开 Serve 或 Funnel**。手机当服务器的办法见[安卓手机手册](android.md)。
 
-## 6. 出问题
+## 7. 卸载
+
+`tailscale serve reset`（或 `tailscale funnel reset`），停止 `node server/server.mjs`，删除程序目录。Docker：`docker compose -f docker-compose.tailscale.yml down -v`，再到 Tailscale 管理后台删除这台机器。
+
+## 8. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

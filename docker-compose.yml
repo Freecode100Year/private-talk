@@ -7,7 +7,7 @@
 # visitors: Caddy's access log is off unless you turn it on.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:1
+    image: ghcr.io/freecode100year/private-talk:2
     build: .
     restart: unless-stopped
     environment:

@@ -8,6 +8,7 @@
 | `HOST` | 所有地址 | 监听地址。放在本机反向代理后面时设为 `127.0.0.1` |
 | `TRUST_PROXY` | 不信任 | 设为 `1` 时采用反向代理传来的 `X-Forwarded-For`（按 IP 限速）和 `X-Forwarded-Proto`（校验来源）。程序直接对外时不要开 |
 | `JOIN_LIMIT` | `30` | 同一 IP 每分钟最多进房次数 |
+| `MAX_CONNECTIONS` | `2000` | 整个服务同时在线的连接上限，超出的提示“进入次数太多” |
 | `TLS_CERT`、`TLS_KEY` | 无 | 证书和私钥文件（PEM），设置后直接提供 HTTPS |
 | `LAN_CERTS` | `./lan-certs` | 局域网模式的证书目录 |
 | `LAN_NAMES` | 无 | 局域网模式额外写进证书的名字或地址，逗号分隔 |

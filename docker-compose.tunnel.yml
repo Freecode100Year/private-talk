@@ -7,7 +7,7 @@
 #   3. TUNNEL_TOKEN=<token> docker compose -f docker-compose.tunnel.yml up -d
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:1
+    image: ghcr.io/freecode100year/private-talk:2
     build: .
     restart: unless-stopped
     environment:

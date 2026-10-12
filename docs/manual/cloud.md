@@ -15,11 +15,20 @@
 | Fly.io | 装好 `flyctl` 后在仓库目录运行 `fly launch --copy-config --no-deploy`（按提示改一个唯一的应用名），然后 `fly deploy`、`fly scale count 1` |
 
 
+## 确认部署成功
+
+1. 打开平台给的 `https://…` 网址，看到首页（免费套餐休眠时，第一次要等十几秒）。
+2. 电脑和手机用同一个暗号进房间，互发消息能收到。
+
 ## 部署后
 
 - 把平台给的 `https://…` 网址和[用户使用手册](user.md)发给使用者。
 - 环境变量 `TRUST_PROXY=1` 让按 IP 的进房限速使用真实访客地址（Render、Fly.io 的配置文件里已写好）。
 - 升级：平台连着 GitHub 时，同步你的仓库（Sync fork）后会自动重新部署。
 - 平台运营方能看到访问记录，看不到聊天内容（见 [隐私与安全设计](../privacy.md)）。
+
+## 卸载
+
+在平台后台删除这个服务 / 应用（Render：Settings → Delete Web Service；Railway：Settings → Delete Service；Fly.io：`fly apps destroy 应用名`）。
 
 更多见 [故障排查](troubleshooting.md)。

@@ -1,21 +1,25 @@
-// End-to-end encryption. Both the room address and the message key are
-// derived from the passphrase in the browser, with different salts, so the
-// server sees neither the passphrase nor anything it could decrypt with.
+// End-to-end encryption. Everything is derived from the passphrase in the
+// browser: one slow PBKDF2 step (to make guessing costly), then HKDF splits
+// the result into two unrelated secrets:
+//   access  shown to the relay to be let in; the room address is its SHA-256,
+//           so the relay can check it but cannot work it out from the address
+//   key     the AES-256-GCM message key, which never leaves the browser
+// Knowing the access value does not help find the key, and neither reveals
+// the passphrase.
 const enc = new TextEncoder();
 const ITERATIONS = 310000;
-
-async function baseKey(pass) {
-  return crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits', 'deriveKey']);
-}
-
-const params = (salt) => ({ name: 'PBKDF2', salt: enc.encode(salt), iterations: ITERATIONS, hash: 'SHA-256' });
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 
 export async function deriveRoom(pass) {
-  const base = await baseKey(pass);
-  const bits = await crypto.subtle.deriveBits(params('private-talk/room/v1'), base, 256);
-  const roomId = Array.from(new Uint8Array(bits), (b) => b.toString(16).padStart(2, '0')).join('');
-  const key = await crypto.subtle.deriveKey(params('private-talk/key/v1'), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-  return { roomId, key };
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  const master = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode('private-talk/v2'), iterations: ITERATIONS, hash: 'SHA-256' }, base, 256);
+  const hkdf = await crypto.subtle.importKey('raw', master, 'HKDF', false, ['deriveBits', 'deriveKey']);
+  const info = (label) => ({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc.encode(label) });
+  const access = await crypto.subtle.deriveBits(info('private-talk/v2/access'), hkdf, 256);
+  const roomId = hex(await crypto.subtle.digest('SHA-256', access));
+  const key = await crypto.subtle.deriveKey(info('private-talk/v2/key'), hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  return { roomId, access: hex(access), key };
 }
 
 const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));

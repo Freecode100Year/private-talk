@@ -6,6 +6,7 @@
 //   PORT         listening port (default 8080)
 //   HOST         listening address (default all; 127.0.0.1 behind a local proxy)
 //   JOIN_LIMIT   joins per address per minute (default 30)
+//   MAX_CONNECTIONS  open chat connections in all (default 2000); more are refused as busy
 //   TRUST_PROXY  "1" when behind a reverse proxy (Caddy, nginx, Tailscale
 //                Serve/Funnel) whose X-Forwarded-For / X-Forwarded-Proto
 //                should be believed
@@ -19,14 +20,18 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, RESUME, PONG, CLOSE_BUSY, CLOSE_LEFT, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
-  emptyBook, admit, depart, awayNumbers, checkFrame, token
+  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
+  PROTOCOL, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || undefined;
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const JOIN_LIMIT = Number(process.env.JOIN_LIMIT) || JOINS_PER_MINUTE;
+const MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 2000;
+// A member whose connection cannot keep up (more than this much unsent) is
+// dropped rather than letting the backlog grow in memory.
+const MAX_BUFFERED = 1 << 20;
 // Browsers only allow the page's encryption (Web Crypto) on HTTPS or
 // localhost, so a LAN address needs a certificate.
 const TLS = process.env.TLS_CERT && process.env.TLS_KEY
@@ -117,8 +122,12 @@ setInterval(() => {
 const rooms = new Map();
 
 function send(ws, obj) {
-  if (ws.readyState === ws.OPEN) ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
+  if (ws.readyState !== ws.OPEN) return;
+  if (ws.bufferedAmount > MAX_BUFFERED) { ws.terminate(); return; }
+  ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
 }
+
+const hostIn = (room) => hostOf([...room.peers].map((p) => [p.state.n, p.state.seq]));
 
 function broadcast(room, obj) {
   const out = JSON.stringify(obj);
@@ -127,26 +136,34 @@ function broadcast(room, obj) {
 
 function members(room) {
   const list = [...room.peers].map((ws) => ws.state.n).sort((x, y) => x - y);
-  broadcast(room, { type: 'members', members: list, max: MAX_MEMBERS, locked: room.book.locked, away: awayNumbers(room.book) });
+  broadcast(room, { type: 'members', members: list, host: hostIn(room), max: MAX_MEMBERS, locked: room.book.locked, away: awayNumbers(room.book) });
 }
 
-const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME * 2 });
+const wss = new WebSocketServer({
+  noServer: true,
+  maxPayload: MAX_FRAME * 2,
+  // The page asks for pt2 alongside its access value and resume token; only
+  // pt2 is answered.
+  handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
+});
 
 function enter(ws, roomId, ip, resume) {
-  if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'too many joins');
+  if (!allowJoin(ip) || wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_BUSY, 'busy');
   const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
   const inUse = new Map([...room.peers].map((p) => [p.state.n, p.state.resume]));
   const r = admit(room.book, inUse, resume);
   if (r.refuse) return ws.close(r.refuse, 'refused');
   rooms.set(roomId, room);
   room.book = r.book;
+  let seq = r.seq;
   if (r.replace) {
     const old = [...room.peers].find((p) => p.state.n === r.replace);
+    seq = old.state.seq; // the same person on a new connection keeps their place
     room.peers.delete(old);
     old.close(4005, 'replaced');
   }
   const n = r.n;
-  ws.state = { n, resume: token(), window: 0, count: 0 };
+  ws.state = { n, seq, resume: token(), window: 0, count: 0 };
   ws.alive = true;
   room.peers.add(ws);
   send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume });
@@ -160,10 +177,21 @@ function enter(ws, roomId, ip, resume) {
     if (r.close) return ws.close(...r.close);
     if (r.pong) return send(ws, PONG);
     if (r.wait) return send(ws, { type: 'wait', ms: r.wait });
-    if ('lock' in r) {
-      if (room.book.locked === r.lock) return;
-      room.book = { ...room.book, locked: r.lock };
-      return broadcast(room, { type: 'lock', locked: r.lock, by: n });
+    if ('lock' in r || 'remove' in r) {
+      if (n !== hostIn(room)) return send(ws, { type: 'denied' });
+      if ('lock' in r) {
+        if (room.book.locked === r.lock) return;
+        room.book = { ...room.book, locked: r.lock };
+        return broadcast(room, { type: 'lock', locked: r.lock, by: n });
+      }
+      // Take a member out: close them and drop their comeback token.
+      const target = [...room.peers].find((p) => p.state.n === r.remove);
+      if (!target || target === ws) return;
+      room.peers.delete(target);
+      room.book = depart(room.book, r.remove, target.state.resume, true);
+      target.close(CLOSE_REMOVED, 'removed');
+      broadcast(room, { type: 'removed', n: r.remove, by: n });
+      return members(room);
     }
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });
@@ -187,8 +215,14 @@ server.on('upgrade', (req, socket, head) => {
   // Stops other web pages from connecting through a visitor's browser.
   // Programs outside a browser can send any Origin they like.
   if (!sameOrigin(req)) return reject('403 Forbidden');
-  const resume = url.searchParams.get('resume');
-  wss.handleUpgrade(req, socket, head, (ws) => enter(ws, m[1], clientIP(req), RESUME.test(resume ?? '') ? resume : null));
+  // Only a page that knows the passphrase can show the access value.
+  const proto = parseProtocols(req.headers['sec-websocket-protocol']);
+  accessMatches(m[1], proto.access).then((ok) => {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      if (!proto.ok || !ok) return ws.close(CLOSE_DENIED, 'no access');
+      enter(ws, m[1], clientIP(req), proto.resume);
+    });
+  });
 });
 
 // Drop connections that stopped answering (phones that lost the network).

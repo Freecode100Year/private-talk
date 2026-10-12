@@ -9,7 +9,7 @@
 # put the computer's LAN address in LAN_NAMES.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:1
+    image: ghcr.io/freecode100year/private-talk:2
     build: .
     restart: unless-stopped
     command: ["node", "server/lan.mjs"]

@@ -109,11 +109,18 @@ docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
 
 这个 CA 带名称约束，只能为内网地址和内部名字签发证书，下发到终端不会给互联网网站带来风险。`ca.key` 只留在服务器上。
 
-## 5. 通知员工
+## 5. 确认部署成功
+
+1. 在服务器上：`curl -k https://127.0.0.1:8443/ -o /dev/null -w "%{http_code}\n"` 应返回 `200`（Windows PowerShell：`curl.exe -k https://127.0.0.1:8443/`）。
+2. 在一台员工电脑上打开内网地址，看到首页；页面没有红色的“不是 HTTPS”提示。
+3. 两台电脑用同一个暗号进房间，互发消息能收到。
+4. 第二个人进房后，第一个人旁边显示 👑（房主），能锁定房间。
+
+## 6. 通知员工
 
 把内网地址和[用户使用手册](user.md)发给员工。可以在内网门户放一个链接 `https://chat.内网域名/`。
 
-## 6. 日常运维
+## 7. 日常运维
 
 - **状态**：`systemctl status private-talk-lan`；或访问首页返回 200。
 - **容量**：每个房间最多 10 人，房间数不设上限。只传文字，资源占用很低；本项目没有做过大规模压力测试，人数很多时先观察服务器负载。
@@ -121,18 +128,26 @@ docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
 - **只能运行一个实例**：房间保存在进程内存里，不要在负载均衡后面放多个实例。
 - **访问控制**：用防火墙只允许需要的网段访问 8443 端口。
 - **限速**：每个 IP 每分钟最多进房 30 次；终端经 NAT 或代理共用 IP 时，用 `JOIN_LIMIT` 调高。
+- **连接上限**：默认最多 2000 个同时在线的连接，超出的会被提示“进入次数太多”；用 `MAX_CONNECTIONS` 调整。
+- **房间管理**：最早进入的人是房主，可以锁定房间、移出成员；不需要管理员账号，服务器上也没有管理后台（不存在可以查看房间的地方）。
 
-## 7. 升级
+## 8. 升级
 
 1. 在外网下载新版本的包并核对（第 2 步）。
 2. Linux：`sudo systemctl stop private-talk-lan`，解压覆盖 `/opt/private-talk`（证书在 `/var/lib/private-talk`，不受影响），`sudo systemctl start private-talk-lan`。
 3. Windows：解压到新目录，把旧目录的 `lan-certs` 复制过去，修改计划任务的路径。
 
-## 8. 合规提示
+## 9. 卸载
+
+- Linux：`sudo systemctl disable --now private-talk-lan && sudo rm /etc/systemd/system/private-talk-lan.service && sudo rm -rf /opt/private-talk /var/lib/private-talk && sudo userdel private-talk`
+- Windows：删除计划任务，删除 `C:\private-talk`。
+- 终端上下发过的 `ca.crt`：通过组策略 / MDM 撤回。
+
+## 10. 合规提示
 
 本系统的设计是**不留存任何聊天记录**：服务器只转发密文，用户关闭页面后内容即消失，管理员也无法查看或恢复。部署前请确认这符合单位关于通信留存、审计的规定。
 
-## 9. 出问题
+## 11. 出问题
 
 | 现象 | 做法 |
 | :--- | :--- |

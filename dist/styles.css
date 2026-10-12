@@ -86,3 +86,9 @@ button,input { font:inherit; } button { cursor:pointer; }
 .selfhost { margin-top:18px; }.selfhost a { color:var(--purple); }
 .insecure-note { margin:0 0 16px; padding:12px 14px; border-radius:11px; background:#fdecec; color:#9b1c1c; font-size:14px; line-height:1.5; }
 @media (max-width:420px) { .repo-link[href^="https://github.com"] { display:none; } }
+.message .sent { opacity:.7; }
+.member .remove-button { margin-left:auto; border:0; background:#f2f0f5; color:#7a2e2e; border-radius:8px; padding:3px 8px; font-size:12px; cursor:pointer; }
+.member .remove-button:disabled { opacity:.5; }
+.avatar { position:relative; }
+.avatar.host::after { content:'👑'; position:absolute; top:-9px; right:-8px; font-size:12px; line-height:1; }
+.repo-link + .repo-link { margin-left:0; }

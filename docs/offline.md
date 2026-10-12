@@ -24,7 +24,7 @@ docker load -i private-talk-docker-amd64.tar.gz
 docker compose -f docker-compose.lan.yml up -d       # 用包里或仓库里的 docker-compose.lan.yml
 ```
 
-镜像加载后带有 `ghcr.io/freecode100year/private-talk:1` 标签，`docker-compose.lan.yml` 会直接用它，不会去联网拉取。
+镜像加载后带有 `ghcr.io/freecode100year/private-talk:2` 标签，`docker-compose.lan.yml` 会直接用它，不会去联网拉取。
 
 ## 带进内网前先核对
 

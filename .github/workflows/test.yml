@@ -3,11 +3,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Windows and macOS too: line endings, paths and the LAN certificate code
+    # behave differently there.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,9 +22,19 @@ jobs:
           node-version: 22
       - run: npm ci --ignore-scripts
       - run: npm test
-      - name: Docker server starts and serves the page
+      - name: Help page is up to date
+        run: node scripts/build-help.mjs --check
+      - name: Server starts and serves the page
+        shell: bash
         run: |
           PORT=8099 node server/server.mjs &
           for i in $(seq 1 20); do curl -fs http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
           curl -fsI http://127.0.0.1:8099/ | grep -i 'cache-control: no-store'
           curl -fs -X POST -H 'Origin: http://127.0.0.1:8099' -D - -o /dev/null http://127.0.0.1:8099/bye | grep -i clear-site-data
+      - name: LAN mode makes its certificate and serves HTTPS
+        shell: bash
+        run: |
+          LAN_CERTS="$RUNNER_TEMP/lan" PORT=8443 node server/lan.mjs &
+          for i in $(seq 1 30); do curl -fsk https://127.0.0.1:8443/ >/dev/null && break; sleep 0.5; done
+          curl -fs --cacert "$RUNNER_TEMP/lan/ca.crt" https://127.0.0.1:8443/ -o /dev/null
+          curl -fs --cacert "$RUNNER_TEMP/lan/ca.crt" https://localhost:8443/help.html | grep -q 用户使用手册

@@ -4,7 +4,7 @@
 //   node scripts/build-help.mjs --check  fail if dist/help.html is out of date
 // A small Markdown subset: headings, paragraphs, lists, tables, code, links,
 // bold and inline code, which is all the manual uses.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('..', import.meta.url);
@@ -15,6 +15,7 @@ const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/
 function inline(text) {
   const codes = [];
   let s = escape(text).replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  s = s.replace(/!\[([^\]]*)\]\(images\/([\w.-]+)\)/g, '<img src="manual-images/$2" alt="$1" loading="lazy" />');
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
     const url = /^https?:/.test(href) ? href : REPO + href;
@@ -27,7 +28,9 @@ function inline(text) {
 const slug = (t) => t.trim().toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
 
 export function render(md) {
-  const lines = md.split('\n');
+  // Windows checkouts may have CRLF line ends; every branch below must move
+  // on by at least one line, so odd input can never loop forever.
+  const lines = md.replace(/\r\n?/g, '\n').split('\n');
   const out = [];
   let i = 0;
   while (i < lines.length) {
@@ -56,12 +59,12 @@ export function render(md) {
         body.map((r) => '<tr>' + cells(r).map((c) => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>');
       continue;
     }
-    const list = line.match(/^(\s*)(-|\d+\.) /);
+    const list = line.match(/^\s*(-|\d+\.) /);
     if (list) {
-      const ordered = list[2] !== '-';
+      const ordered = list[1] !== '-';
       const items = [];
-      for (; i < lines.length && /^(-|\d+\.) /.test(lines[i]); i++) {
-        let item = lines[i].replace(/^(-|\d+\.) /, '');
+      for (; i < lines.length && /^\s*(-|\d+\.) /.test(lines[i]); i++) {
+        let item = lines[i].replace(/^\s*(-|\d+\.) /, '');
         while (i + 1 < lines.length && /^ {2,}\S/.test(lines[i + 1]) && !/^\s*(-|\d+\.) /.test(lines[i + 1])) item += ' ' + lines[++i].trim();
         items.push(`<li>${inline(item)}</li>`);
       }
@@ -74,8 +77,9 @@ export function render(md) {
       out.push(`<blockquote>${inline(body.join(' '))}</blockquote>`);
       continue;
     }
-    const para = [];
-    for (; i < lines.length && lines[i].trim() && !/^(#|```|\||-|\d+\.|>)/.test(lines[i]); i++) para.push(lines[i].trim());
+    // A paragraph: this line, whatever it starts with, and the plain lines after it.
+    const para = [lines[i++].trim()];
+    for (; i < lines.length && lines[i].trim() && !/^(#{1,4} |```|\||\s*-\s|\s*\d+\.\s|>)/.test(lines[i]); i++) para.push(lines[i].trim());
     out.push(`<p>${inline(para.join(''))}</p>`);
   }
   return out.join('\n');
@@ -103,12 +107,24 @@ ${render(md)}
 `;
 }
 
+// Screenshots used by the manual are served from dist/manual-images/.
+export function imagesInSync() {
+  const src = new URL('docs/manual/images/', root);
+  const dst = new URL('dist/manual-images/', root);
+  return readdirSync(src).every((f) => {
+    try { return readFileSync(new URL(f, dst)).equals(readFileSync(new URL(f, src))); } catch { return false; }
+  });
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const target = new URL('dist/help.html', root);
   const html = page();
   if (process.argv.includes('--check')) {
-    if (readFileSync(target, 'utf8') !== html) { console.error('dist/help.html is out of date: run node scripts/build-help.mjs'); process.exit(1); }
+    if (readFileSync(target, 'utf8') !== html || !imagesInSync()) { console.error('dist/help.html is out of date: run node scripts/build-help.mjs'); process.exit(1); }
   } else {
     writeFileSync(target, html);
+    const dst = new URL('dist/manual-images/', root);
+    mkdirSync(dst, { recursive: true });
+    for (const f of readdirSync(new URL('docs/manual/images/', root))) copyFileSync(new URL(`docs/manual/images/${f}`, root), new URL(f, dst));
   }
 }

@@ -91,3 +91,50 @@ test('audit F07/F10: relay responses carry no-store and NEL off; /bye does not c
   assert.equal(PLAIN_HEADERS['Cache-Control'], 'no-store');
   assert.doesNotMatch(BYE_HEADERS['Clear-Site-Data'], /cookies/);
 });
+
+test('v2: heartbeats have their own budget', async () => {
+  const { PINGS_PER_10S } = await import('../src/rules.js');
+  const state = {};
+  const t = 5_000_000;
+  for (let i = 0; i < PINGS_PER_10S; i++) assert.deepEqual(checkFrame(PING, state, t), { pong: true });
+  assert.deepEqual(checkFrame(PING, state, t), { close: [1008, 'too many pings'] });
+  assert.deepEqual(checkFrame(PING, {}, t), { pong: true }, 'another connection is unaffected');
+  const later = {};
+  checkFrame(PING, later, t); checkFrame(PING, later, t);
+  assert.deepEqual(checkFrame(PING, later, t + 10_000), { pong: true }, 'the budget resets every 10 seconds');
+});
+
+test('v2: the host is the longest-present member; remove frames are checked', async () => {
+  const { hostOf, MAX_MEMBERS } = await import('../src/rules.js');
+  assert.equal(hostOf([[3, 7], [1, 9], [5, 2]]), 5);
+  assert.equal(hostOf([]), 0);
+  let book = emptyBook();
+  const a = admit(book, inUse(), null); book = a.book;
+  const b = admit(book, inUse([a.n, 'x']), null);
+  assert.ok(b.seq > a.seq, 'later arrivals come later in line');
+  const back = admit(depart(b.book, a.n, 'tokA', false, 1), inUse([b.n, 'y']), 'tokA', 2);
+  assert.ok(back.seq > b.seq, 'coming back after a drop joins the end of the line');
+  const same = admit(b.book, inUse([a.n, 'tokA'], [b.n, 'y']), 'tokA');
+  assert.equal(same.replace, a.n);
+  assert.equal(same.keepSeq, true, 'a replaced connection keeps its place');
+  const state = {};
+  assert.deepEqual(checkFrame(JSON.stringify({ type: 'remove', n: 2 }), state, 1e6), { remove: 2 });
+  assert.equal(checkFrame(JSON.stringify({ type: 'remove', n: 3 }), state, 1e6 + 10), null, 'rate limited with lock');
+  assert.equal(checkFrame(JSON.stringify({ type: 'remove', n: MAX_MEMBERS + 1 }), {}, 1e6), null, 'bad number is a bad frame');
+});
+
+test('v2: access value travels in the subprotocol and must hash to the room', async () => {
+  const { parseProtocols, accessMatches } = await import('../src/rules.js');
+  const { deriveRoom } = await import('../dist/crypto.js');
+  const room = await deriveRoom('FridayCoffee2026');
+  const p = parseProtocols(`pt2, a${room.access}, r${'0'.repeat(32)}`);
+  assert.equal(p.ok, true);
+  assert.equal(p.resume, '0'.repeat(32));
+  assert.equal(await accessMatches(room.roomId, p.access), true);
+  const other = await deriveRoom('FridayCoffee2027');
+  assert.equal(await accessMatches(room.roomId, other.access), false, 'another passphrase is refused');
+  assert.equal(await accessMatches(room.roomId, room.roomId), false, 'the address itself is not the access value');
+  assert.equal(parseProtocols(`a${room.access}`).ok, false, 'pt2 is required');
+  assert.equal(parseProtocols('pt2, ax').ok, false);
+  assert.equal(parseProtocols('pt2, a' + room.access + ', rnothex').resume, null);
+});
