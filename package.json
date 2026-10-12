@@ -6,7 +6,8 @@
     "test": "node --test",
     "start": "node server/server.mjs",
     "deploy": "wrangler deploy",
-    "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs"
+    "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs",
+    "lan": "node server/lan.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

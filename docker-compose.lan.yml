@@ -1,0 +1,36 @@
+# 隐匿对话 on a LAN or intranet, with no internet needed: HTTPS from a
+# certificate the server makes for itself (see server/lancert.mjs).
+#   docker compose -f docker-compose.lan.yml up -d
+#   docker compose -f docker-compose.lan.yml logs app     # shows the addresses to open
+#   docker compose -f docker-compose.lan.yml cp app:/certs/ca.crt .   # optional: install it on devices
+#
+# Host networking lets the server see the machine's LAN addresses (Linux).
+# On Docker Desktop (Windows/macOS) remove network_mode, uncomment ports and
+# put the computer's LAN address in LAN_NAMES.
+services:
+  app:
+    image: ghcr.io/freecode100year/private-talk:1
+    build: .
+    restart: unless-stopped
+    command: ["node", "server/lan.mjs"]
+    network_mode: host
+    # ports: ["8443:8443"]
+    environment:
+      PORT: "8443"
+      LAN_CERTS: /certs
+      # LAN_NAMES: chat.lan,192.168.1.20
+    volumes:
+      - lan-certs:/certs
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('https').get({host:'127.0.0.1',port:process.env.PORT,rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+    logging:
+      driver: local
+      options: { max-size: 1m, max-file: "2" }  # the server only prints its addresses at start
+
+volumes:
+  lan-certs:

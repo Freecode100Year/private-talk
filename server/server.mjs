@@ -6,10 +6,15 @@
 //   PORT         listening port (default 8080)
 //   HOST         listening address (default all; 127.0.0.1 behind a local proxy)
 //   JOIN_LIMIT   joins per address per minute (default 30)
-//   TRUST_PROXY  "1" when behind a reverse proxy (Caddy, nginx) whose
-//                X-Forwarded-For / X-Forwarded-Proto should be believed
+//   TRUST_PROXY  "1" when behind a reverse proxy (Caddy, nginx, Tailscale
+//                Serve/Funnel) whose X-Forwarded-For / X-Forwarded-Proto
+//                should be believed
+//   TLS_CERT     certificate (PEM) and key file: serve HTTPS directly, for a
+//   TLS_KEY      LAN or intranet without a proxy (see scripts/lan.mjs)
 import http from 'node:http';
+import https from 'node:https';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -22,6 +27,11 @@ const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || undefined;
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const JOIN_LIMIT = Number(process.env.JOIN_LIMIT) || JOINS_PER_MINUTE;
+// Browsers only allow the page's encryption (Web Crypto) on HTTPS or
+// localhost, so a LAN address needs a certificate.
+const TLS = process.env.TLS_CERT && process.env.TLS_KEY
+  ? { cert: readFileSync(process.env.TLS_CERT), key: readFileSync(process.env.TLS_KEY) }
+  : null;
 const ROOT = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const TYPES = {
@@ -49,7 +59,7 @@ async function file(path) {
 }
 
 function originOf(req) {
-  const proto = TRUST_PROXY && req.headers['x-forwarded-proto'] ? req.headers['x-forwarded-proto'].split(',')[0].trim() : 'http';
+  const proto = TRUST_PROXY && req.headers['x-forwarded-proto'] ? req.headers['x-forwarded-proto'].split(',')[0].trim() : TLS ? 'https' : 'http';
   return `${proto}://${req.headers.host}`;
 }
 
@@ -68,7 +78,7 @@ function clientIP(req) {
   return req.socket.remoteAddress || 'unknown';
 }
 
-const server = http.createServer(async (req, res) => {
+const handler = async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/bye') {
     if (req.method !== 'POST' || !sameOrigin(req)) { res.writeHead(405, PLAIN_HEADERS).end(); return; }
@@ -85,7 +95,8 @@ const server = http.createServer(async (req, res) => {
   if (!body) { res.writeHead(404, { ...HEADERS, 'Content-Type': 'text/plain; charset=utf-8' }).end('not found'); return; }
   res.writeHead(200, { ...HEADERS, 'Content-Type': TYPES[extname(path)] || 'application/octet-stream', 'Content-Length': body.length });
   res.end(req.method === 'HEAD' ? undefined : body);
-});
+};
+const server = TLS ? https.createServer(TLS, handler) : http.createServer(handler);
 
 // Joins per address per minute, in memory only.
 const joins = new Map();
@@ -189,5 +200,5 @@ setInterval(() => {
   }
 }, 30000).unref();
 
-server.listen(PORT, HOST, () => console.log(`隐匿对话 listening on ${HOST ?? ''}:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`隐匿对话 listening on ${TLS ? 'https' : 'http'}://${HOST ?? '0.0.0.0'}:${PORT}`));
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(); for (const ws of wss.clients) ws.close(1001); process.exit(0); });

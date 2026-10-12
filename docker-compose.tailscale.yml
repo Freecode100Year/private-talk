@@ -1,0 +1,45 @@
+# 隐匿对话 through Tailscale. Two modes:
+#   TS_MODE=funnel   public: anyone with the https://<name>.<tailnet>.ts.net
+#                    address can open it (Tailscale Funnel)
+#   TS_MODE=private  only devices in your tailnet can open it (Tailscale Serve),
+#                    a private "intranet" across homes and phones
+# Steps:
+#   1. Tailscale admin console → DNS: enable MagicDNS and HTTPS certificates;
+#      for funnel, also allow the "funnel" node attribute in the access policy.
+#   2. Settings → Keys → generate an auth key.
+#   3. TS_AUTHKEY=tskey-... TS_MODE=funnel docker compose -f docker-compose.tailscale.yml up -d
+# The address includes your tailnet's name; see docs/tailscale.md before
+# making it public.
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: ${TS_HOSTNAME:-private-talk}
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY to a Tailscale auth key}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/${TS_MODE:-private}.json
+      TS_USERSPACE: "true"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./deploy/tailscale:/config:ro
+    logging:
+      driver: none
+
+  app:
+    image: ghcr.io/freecode100year/private-talk:1
+    build: .
+    restart: unless-stopped
+    network_mode: service:tailscale
+    depends_on: [tailscale]
+    environment:
+      HOST: 127.0.0.1
+      TRUST_PROXY: "1"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: none
+
+volumes:
+  tailscale-state:

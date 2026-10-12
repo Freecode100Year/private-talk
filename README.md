@@ -57,10 +57,13 @@
 | 家里的电脑、NAS、树莓派，没有公网 IP | [③ Cloudflare Tunnel](#-cloudflare-tunnel家里的机器) | 免费 |
 | 不想管服务器 | [④ 云平台一键部署](#-云平台一键部署) | 各平台免费/低价套餐 |
 | 有 VPS，但不想用 Docker | [⑤ 普通 VPS 教程](docs/vps.md) | VPS 费用 |
+| 同一个 Wi-Fi / 办公室 / 现场，不需要互联网 | [⑥ 局域网 / 内网](docs/lan.md) | 免费 |
+| 只有一部安卓手机 | [⑦ 安卓手机（Termux）](docs/android.md) | 免费 |
+| 用 Tailscale：私人内网或免域名公网 | [⑧ Tailscale Serve / Funnel](docs/tailscale.md) | 免费 |
 
 所有方式通用的几点：
 
-- **必须 HTTPS**：浏览器只在 HTTPS（或 localhost）下允许网页加密。以上方式都自带 HTTPS。
+- **必须 HTTPS**：浏览器只在 HTTPS（或 localhost）下允许网页加密。以上方式都自带 HTTPS（局域网模式自动生成本机证书）。
 - **只能跑一个实例**（Cloudflare 除外）：房间存在进程内存里，开多个实例时，同一个暗号的人可能被分到不同实例而碰不到面。
 - **用境外服务器**：中国大陆的服务器开放网站需要备案，这类站点也不适合放在境内。
 - **锁定版本**：Docker 镜像用 `:1` 这样的版本号标签（不会突然升级到不兼容的大版本）；源码可以 `git checkout v1.0.0` 固定到某个发布版。
@@ -142,6 +145,22 @@ TUNNEL_TOKEN=<隧道令牌> docker compose -f docker-compose.tunnel.yml up -d
 
 见 [docs/vps.md](docs/vps.md)：安装 Node.js、用 systemd 开机自启（附带安全加固的服务文件）、Caddy 或 nginx 提供 HTTPS。
 
+### ⑥ 局域网 / 内网
+
+```sh
+npm ci --omit=dev && npm run lan          # 或 docker compose -f docker-compose.lan.yml up -d
+```
+
+自动生成只能用于局域网地址的证书，用 HTTPS 提供服务，断网也能聊天。证书提示和安装方法见 [docs/lan.md](docs/lan.md)。
+
+### ⑦ 安卓手机（Termux）
+
+在 Termux 里一行安装，可选局域网模式（开热点大家连上来）或 Cloudflare Tunnel 公网模式，支持开机自启。见 [docs/android.md](docs/android.md)。
+
+### ⑧ Tailscale Serve / Funnel
+
+Serve：只有你 tailnet 里的设备能打开的私人内网；Funnel：免域名、免开端口的公网网址。见 [docs/tailscale.md](docs/tailscale.md)（公开前先看隐私提醒）。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -152,6 +171,9 @@ TUNNEL_TOKEN=<隧道令牌> docker compose -f docker-compose.tunnel.yml up -d
 | `server/server.mjs` | Docker 版服务器（Node + ws），与 Worker 行为一致 |
 | `Dockerfile`、`docker-compose.yml`、`Caddyfile` | Docker 部署（含自动 HTTPS） |
 | `docker-compose.tunnel.yml` | 通过 Cloudflare Tunnel 部署 |
+| `docker-compose.lan.yml`、`server/lan.mjs`、`server/lancert.mjs` | 局域网 / 内网模式与本机证书 |
+| `docker-compose.tailscale.yml`、`deploy/tailscale/` | Tailscale Serve / Funnel |
+| `deploy/termux/` | 安卓 Termux 安装与启动脚本 |
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台部署配置 |
 | `deploy/` | systemd 服务文件、Caddy 和 nginx 示例 |
 | `docs/vps.md` | 普通 VPS 部署教程 |
@@ -166,6 +188,7 @@ npm test               # Node 22+
 npx wrangler dev       # 本地运行（含 WebSocket 转发）
 npm run deploy:freedom8964  # 部署 chat.freedom8964.com（本站维护者用）
 npm start              # 本地运行 Docker 版的服务器（http://localhost:8080）
+npm run lan            # 局域网模式（https://本机IP:8443）
 ```
 
 ## 许可
