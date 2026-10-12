@@ -4,6 +4,7 @@ import {
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
+import { qrSvg } from './qr.js';
 const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
 
 const $ = (id) => document.getElementById(id);
@@ -189,7 +190,14 @@ function lockState(locked) {
 function clearScreen(withInput) {
   view++;
   $('messages').replaceChildren();
-  if (withInput) clearInput();
+  if (withInput) { clearInput(); closeQr(); }
+}
+
+// The QR code holds the passphrase: it is drawn here, never fetched, and
+// removed from the page as soon as the dialog closes.
+function closeQr() {
+  if ($('qrDialog').open) $('qrDialog').close();
+  $('qrCode').replaceChildren();
 }
 
 function clearInput() {
@@ -359,6 +367,7 @@ function retry(delay) {
 }
 
 function stop(key) {
+  closeQr();
   status(key, false);
   system(t(key));
   clearInterval(heartbeatTimer);
@@ -444,6 +453,17 @@ async function copy(button, text, label) {
 $('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(location.origin, pass), 'copy'));
 // A link alone from someone looks odd; the invitation says what it is.
 $('inviteButton').addEventListener('click', (event) => copy(event.currentTarget, t('invite.text', { link: roomLink(location.origin, pass) }), 'invite'));
+$('qrButton').addEventListener('click', () => {
+  if (!pass) return;
+  let code;
+  try { code = qrSvg(roomLink(location.origin, pass)); } catch { system(t('qr.tooLong')); return; }
+  $('qrCode').replaceChildren(code);
+  $('qrDialog').showModal();
+});
+$('qrClose').addEventListener('click', closeQr);
+$('qrDialog').addEventListener('close', () => $('qrCode').replaceChildren());
+// A click on the dimmed backdrop lands on the dialog itself.
+$('qrDialog').addEventListener('click', (event) => { if (event.target === $('qrDialog')) closeQr(); });
 $('messageInput').addEventListener('input', () => {
   inputVersion++;
   const v = $('messageInput').value;
