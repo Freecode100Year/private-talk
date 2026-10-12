@@ -1,0 +1,41 @@
+隐匿对话 离线安装包
+====================
+
+这个包已经带好运行所需的一切（Node.js 和依赖），不需要联网安装任何东西，
+适合不能连接互联网的企业内网、学校内网、现场网络。
+
+启动
+----
+Windows：双击 start-lan.cmd
+  第一次运行 Windows 防火墙会询问，请勾选“专用网络”并允许。
+macOS / Linux：在终端运行 ./start-lan.sh
+  macOS 如提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开。
+不带 Node.js 的 app 包（机器上已有 Node.js 22 或更新版本）：
+  在这个目录运行 node server/lan.mjs
+
+启动后窗口会列出地址，例如 https://192.168.1.20:8443/ ，
+同一网络里的人用浏览器打开即可。房间链接：https://地址:8443/#暗号
+
+证书提示
+--------
+第一次打开浏览器会提示“连接不是私密连接”，这是本机自己签发的证书：
+  · 点“高级”→“继续前往”即可使用；或
+  · 把 lan-certs\ca.crt 安装到各设备的“受信任的根证书”，以后不再提示。
+这个证书机构只能为内网地址和 .local/.lan/.internal 等名字签发，
+无法冒充任何公网网站。lan-certs\ca.key 不要发给别人。
+
+常用设置（环境变量）
+------------------
+PORT       端口，默认 8443
+LAN_NAMES  额外写进证书的名字或地址，逗号分隔，例如 chat.internal,10.0.5.8
+           （内网有 DNS 名，或者列出的地址不对时使用）
+TLS_CERT / TLS_KEY  使用公司 IT 签发的证书时，改用：
+           node\node.exe server\server.mjs   （Windows）
+           ./node/bin/node server/server.mjs  （macOS/Linux）
+           并设置 TLS_CERT、TLS_KEY、PORT
+
+Windows 设置示例（在 start-lan.cmd 里 "node.exe" 那一行前加）：
+  set PORT=443
+  set LAN_NAMES=chat.internal
+
+完整说明见 docs\lan.md。项目主页：https://github.com/Freecode100Year/private-talk

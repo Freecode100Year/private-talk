@@ -6,6 +6,8 @@
 
 网页在浏览器里加密消息（Web Crypto），浏览器只在 HTTPS 或 `localhost` 下允许这样做。用 `http://192.168.1.20:8080` 打开，页面会提示无法加密。所以局域网模式会自动给本机生成证书，用 HTTPS 提供服务。
 
+内网不能上互联网？用离线安装包，解压即用，见 [docs/offline.md](offline.md)。
+
 ## 方式一：Node.js（Windows / macOS / Linux / 安卓 Termux）
 
 ```sh

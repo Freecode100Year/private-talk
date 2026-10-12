@@ -1,0 +1,46 @@
+# Offline packages for networks without internet access, attached to the
+# GitHub release of each version tag:
+#   private-talk-<v>-<platform>.zip/.tar.gz  Node.js + app + dependencies, unzip and run
+#   private-talk-<v>-app.zip                 app + dependencies, for machines with Node.js 22+
+#   private-talk-<v>-docker-<arch>.tar.gz    Docker image, for `docker load`
+name: offline
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm test
+      - name: Node.js bundles
+        run: scripts/offline-packages.sh "${GITHUB_REF_NAME#v}"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Docker images for docker load
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for arch in amd64 arm64; do
+            docker buildx build --platform linux/$arch \
+              -t ghcr.io/freecode100year/private-talk:$v -t ghcr.io/freecode100year/private-talk:1 \
+              --output type=docker,dest=out/image.tar .
+            gzip -9 -c out/image.tar > out/private-talk-$v-docker-$arch.tar.gz
+            rm out/image.tar
+          done
+      - name: Checksums
+        run: cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/private-talk-*
+      - name: Attach to the release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "离线安装包见下方附件，用法见 docs/offline.md。"
+          gh release upload "$GITHUB_REF_NAME" out/* --clobber

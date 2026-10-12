@@ -58,6 +58,7 @@
 | 不想管服务器 | [④ 云平台一键部署](#-云平台一键部署) | 各平台免费/低价套餐 |
 | 有 VPS，但不想用 Docker | [⑤ 普通 VPS 教程](docs/vps.md) | VPS 费用 |
 | 同一个 Wi-Fi / 办公室 / 现场，不需要互联网 | [⑥ 局域网 / 内网](docs/lan.md) | 免费 |
+| 企业内网不能上互联网，无法安装依赖 | [离线安装包](docs/offline.md)：解压即用，自带 Node.js | 免费 |
 | 只有一部安卓手机 | [⑦ 安卓手机（Termux）](docs/android.md) | 免费 |
 | 用 Tailscale：私人内网或免域名公网 | [⑧ Tailscale Serve / Funnel](docs/tailscale.md) | 免费 |
 
@@ -153,6 +154,8 @@ npm ci --omit=dev && npm run lan          # 或 docker compose -f docker-compose
 
 自动生成只能用于局域网地址的证书，用 HTTPS 提供服务，断网也能聊天。证书提示和安装方法见 [docs/lan.md](docs/lan.md)。
 
+内网不能上互联网时，用 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 里的**离线安装包**（Windows / Linux / macOS 自带 Node.js，另有 Docker 离线镜像），U 盘拷进去解压即用，见 [docs/offline.md](docs/offline.md)。
+
 ### ⑦ 安卓手机（Termux）
 
 在 Termux 里一行安装，可选局域网模式（开热点大家连上来）或 Cloudflare Tunnel 公网模式，支持开机自启。见 [docs/android.md](docs/android.md)。
@@ -174,6 +177,7 @@ Serve：只有你 tailnet 里的设备能打开的私人内网；Funnel：免域
 | `docker-compose.lan.yml`、`server/lan.mjs`、`server/lancert.mjs` | 局域网 / 内网模式与本机证书 |
 | `docker-compose.tailscale.yml`、`deploy/tailscale/` | Tailscale Serve / Funnel |
 | `deploy/termux/` | 安卓 Termux 安装与启动脚本 |
+| `offline/`、`scripts/offline-packages.sh`、`.github/workflows/offline.yml` | 离线安装包（自带 Node.js）与离线 Docker 镜像 |
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台部署配置 |
 | `deploy/` | systemd 服务文件、Caddy 和 nginx 示例 |
 | `docs/vps.md` | 普通 VPS 部署教程 |
