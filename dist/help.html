@@ -20,8 +20,8 @@
 <p>建议用<strong>无痕 / 隐私窗口</strong>打开（原因见第 9 节）。</p>
 <h2 id="1-认识首页">1. 认识首页</h2>
 <p><img src="manual-images/home-desktop.jpg" alt="首页（电脑）" loading="lazy" /></p>
-<p>首页从上到下是：</p>
-<ul><li><strong>右上角</strong>：「使用说明」打开本手册；语言选单可以在简体中文、繁體中文、English 之间切换（只对这一次有效，不会保存）。</li><li><strong>直接用网址创建房间</strong>：告诉你可以在地址栏输入 <code>https://聊天网址/#暗号</code> 直接进房间。</li><li><strong>房间暗号</strong>输入框：已经自动填好一个随机暗号（22 个字符）。</li><li><strong>换一个</strong>：再随机生成一个暗号。</li><li><strong>进入房间</strong>：用输入框里的暗号进入房间。</li></ul>
+<p>首页上有：</p>
+<ul><li><strong>顶部右侧</strong>：「隐私说明」（网页能保护什么、不能保护什么）、「使用说明」（本手册）、GitHub 源代码，以及语言选单（简体中文、繁體中文、English，只对这一次有效，不会保存）。</li><li><strong>右边的卡片</strong>，用来进入房间，有两个标签：</li><li><strong>加入房间</strong>（默认）：输入别人告诉你的暗号。</li><li><strong>创建房间</strong>：自动生成一个随机暗号（22 个字符）；「生成另一个暗号」可以再换一个。</li><li><strong>房间暗号</strong>输入框：输入的内容像密码一样显示成圆点，点右边的眼睛图标可以显示 / 隐藏。它不是密码框，浏览器不会提示你“保存密码”。</li><li><strong>进入私密房间 / 创建私密房间</strong>：用输入框里的暗号进入房间。暗号不合规（例如有符号）时，按钮下方会用文字说明原因。</li><li><strong>我们如何保护你的对话</strong>：打开隐私说明。</li><li>往下滚动：三条特点，以及“直接用网址进入房间”和“自己部署一份”的说明。</li></ul>
 <p>手机上的首页是同样的内容，排成一列：</p>
 <p><img src="manual-images/home-mobile.jpg" alt="首页（手机）" loading="lazy" /></p>
 <h2 id="2-暗号它是什么怎么选">2. 暗号：它是什么、怎么选</h2>
@@ -31,16 +31,18 @@
 <table><thead><tr><th>用途</th><th>建议</th></tr></thead><tbody><tr><td>重要、私密的谈话</td><td>用首页<strong>随机生成</strong>的暗号，别人不可能猜中</td></tr><tr><td>只聊几句闲话、方便口头告诉对方</td><td>可以自己起，但越长越好（12 个字以上）；短暗号进入后会有提醒</td></tr><tr><td>绝对不要</td><td>生日、名字、手机号、常见词语：这些很容易被猜中</td></tr></tbody></table>
 <blockquote>暗号永久有效：所有人离开后房间就消失，但以后任何人用同一个暗号打开，会得到一个<strong>新的空房间</strong>。以前的消息不会回来。</blockquote>
 <h2 id="3-进入房间的三种方法">3. 进入房间的三种方法</h2>
-<ol><li><strong>收到了链接</strong>：直接点开（或复制到浏览器地址栏打开），就进入了那个房间。</li><li><strong>从首页开房间</strong>：打开 <code>https://聊天网址</code>，直接点「进入房间」（用自动生成的暗号），或者先输入自己的暗号再点。</li><li><strong>直接输入网址</strong>：在地址栏输入 <code>https://聊天网址/#暗号</code>，回车。例如 <code>https://chat.freedom8964.com/#周五咖啡2026</code>。</li></ol>
+<ol><li><strong>收到了链接</strong>：直接点开（或复制到浏览器地址栏打开），就进入了那个房间。</li><li><strong>从首页开房间</strong>：打开 <code>https://聊天网址</code>，点「创建房间」标签，再点「创建私密房间」（用自动生成的暗号）；或者在「加入房间」里输入约定好的暗号，点「进入私密房间」。</li><li><strong>直接输入网址</strong>：在地址栏输入 <code>https://聊天网址/#暗号</code>，回车。例如 <code>https://chat.freedom8964.com/#周五咖啡2026</code>。</li></ol>
 <p>进入时会显示“正在生成密钥…”，手机上可能要一两秒。进入后，地址栏里的暗号会立刻被抹掉，屏幕上也不会显示暗号。</p>
 <h2 id="4-认识房间">4. 认识房间</h2>
 <p><img src="manual-images/room-host-desktop.jpg" alt="房间（电脑，房主视角）" loading="lazy" /></p>
-<p><strong>左边（手机上在上方）</strong>：</p>
-<ul><li><strong>房间 D8D2</strong>：4 位房间代号，由暗号算出。和对方核对代号一样，说明你们在同一个房间、暗号没打错。它只用来发现输错，<strong>不能证明对方是谁</strong>。</li><li><strong>成员列表</strong>：每个人是一个编号 1️⃣～🔟。带 👑 的是<strong>房主</strong>；“我”是你自己；灰色的是掉线中的人。</li><li><strong>在线 3 / 10</strong>：现在的人数和上限。下方小字说明房间是否锁定。</li><li><strong>复制房间链接</strong> / <strong>房间二维码</strong> / <strong>锁定房间</strong>（见第 5、6 节）。</li><li><strong>安全提示</strong>：点开有 5 条使用提醒。</li><li><strong>离开房间</strong>：退出（见第 8 节）。</li></ul>
-<p><strong>右边</strong>：</p>
-<ul><li><strong>已连接</strong>：连接状态。断线时显示“正在重新连接…”。</li><li><strong>本机自动清屏</strong>：可选 1 / 5 / 30 分钟后，把<strong>你这台设备</strong>屏幕上的旧消息删掉。</li><li><strong>清屏</strong>：立即清空<strong>你这台设备</strong>的屏幕和输入框（快捷键 Esc）。</li><li>中间是消息。灰色小框是系统提示（谁进来、谁离开、锁定等）。</li><li>底部输入框和发送按钮。</li></ul>
-<p>手机上的房间：</p>
+<p><strong>左边的房间栏</strong>（手机上收在抽屉里，点左下角「房间」按钮或左上角的人形图标打开）：</p>
+<ul><li><strong>房间 D8D2</strong>：4 位房间代号，由暗号算出。和对方核对代号一样，说明你们在同一个房间、暗号没打错。它只用来发现输错，<strong>不能证明对方是谁</strong>。</li><li><strong>房间开放中 / 房间已锁定</strong>：锁定状态。</li><li><strong>在线成员 3 / 10</strong>：现在的人数和上限。</li><li><strong>成员列表</strong>：每个人是一个编号 1️⃣～🔟（“成员 1”就是 1️⃣）。头像上带 👑、名字旁标着「房主」的是<strong>房主</strong>；标着「你」的是你自己；半透明的是掉线中的人。</li><li><strong>复制房间链接</strong> / <strong>房间二维码</strong> / <strong>锁定房间</strong>（见第 5、6 节）。</li><li><strong>安全提示</strong>：点开有 5 条使用提醒。</li><li><strong>离开房间</strong>：退出，会先问一句“结束这次对话？”，点「离开房间」确认（见第 8 节）。</li><li>手机上多一个「返回聊天」，关掉抽屉回到对话。</li></ul>
+<p><strong>右边的对话区</strong>：</p>
+<ul><li><strong>已连接 · 3 人在线</strong>：连接状态和人数。断线时显示“正在重新连接…”。</li><li><strong>清屏</strong>：立即清空<strong>你这台设备</strong>的屏幕和输入框（快捷键 Esc；如果开着弹窗或抽屉，第一下 Esc 先把它们关掉）。</li><li>中间是消息。居中的小字是系统提示（谁进来、谁离开、锁定等）。</li><li>底部：<strong>本机自动清屏</strong>（可选 1 / 5 / 30 分钟后，把<strong>你这台设备</strong>屏幕上的旧消息删掉）、字数（如 0 / 500）、输入框和发送按钮。</li></ul>
+<p>手机上的房间（成员和按钮在抽屉里）：</p>
 <p><img src="manual-images/room-mobile.jpg" alt="房间（手机）" loading="lazy" /></p>
+<p>点「房间」打开抽屉：</p>
+<p><img src="manual-images/room-mobile-drawer.jpg" alt="房间抽屉（手机）" loading="lazy" /></p>
 <h2 id="5-邀请别人">5. 邀请别人</h2>
 <ul><li><strong>复制房间链接</strong>：复制 <code>https://聊天网址/#暗号</code>。</li><li><strong>房间二维码</strong>：弹出一个二维码，对方用手机自带相机一扫就能进房（不建议用微信、QQ 等扫：会用它们的内置浏览器打开，链接会经过它们）。适合面对面拉人进房，免去把链接发到别的聊天软件里留下记录。</li><li>二维码在你自己的浏览器里生成，不经过任何在线服务。</li><li>二维码里就是房间链接（含暗号），<strong>不要截图、不要转发</strong>；点「关闭」、点二维码外面或按 Esc 即可收起。</li></ul>
 <p><strong>发送时注意</strong>：</p>
@@ -55,10 +57,10 @@
 <p>被移出的人看到的画面：</p>
 <p><img src="manual-images/removed.jpg" alt="被移出" loading="lazy" /></p>
 <h2 id="7-发消息">7. 发消息</h2>
-<ul><li>在底部输入框打字，按回车或点 ↑ 发送。用中文输入法选字时的回车不会发送。</li><li><strong>每人每 6 秒只能发一条</strong>，发送按钮会倒数 6、5、4……</li><li><strong>每条最多 500 字</strong>。快到上限时输入框旁会提示还能写几个字。</li><li>自己的消息出现在右边，带“<strong>已发出</strong>”：表示服务器已经转发，<strong>不代表对方已经看到</strong>（对方可能刚好掉线）。</li><li>8 秒内没有收到服务器确认，消息会放回输入框，并提示可能没发出去，可以再发。</li><li>消息里的网址、代码都按纯文字显示，不会被执行。</li></ul>
+<ul><li>在底部输入框打字，按 Enter 或点发送按钮（→）发送；<strong>Shift + Enter 换行</strong>。用中文输入法选字时的回车不会发送。</li><li><strong>每人每 6 秒只能发一条</strong>，发送按钮会倒数 6、5、4……，输入框下方也会写“请稍等，几秒后可以发送”。</li><li><strong>每条最多 500 字</strong>。输入框上方显示已写的字数（如 120 / 500），超过时会提示删减。</li><li>自己的消息出现在右边，带“<strong>已发出</strong>”：表示服务器已经转发，<strong>不代表对方已经看到</strong>（对方可能刚好掉线）。</li><li>8 秒内没有收到服务器确认，消息会放回输入框，并提示可能没发出去，可以再发。</li><li>消息里的网址、代码都按纯文字显示，不会被执行。</li></ul>
 <p><strong>新加入的人看不到之前的消息</strong>；断线期间别人发的消息也收不到。</p>
 <h2 id="8-离开房间">8. 离开房间</h2>
-<ul><li>点「离开房间」，或者直接关闭网页 / 标签页。</li><li>关闭网页时，页面会请浏览器清除本站的缓存和数据，并丢掉暗号、密钥和消息。</li><li>所有人都离开后，房间就消失了。</li></ul>
+<ul><li>点「离开房间」，在弹出的确认框里再点「离开房间」（点「继续对话」或按 Esc 取消）；或者直接关闭网页 / 标签页。手机上「离开房间」在「房间」抽屉的最下面。</li><li>关闭网页时，页面会请浏览器清除本站的缓存和数据，并丢掉暗号、密钥和消息。</li><li>所有人都离开后，房间就消失了。</li></ul>
 <h2 id="9-安全习惯">9. 安全习惯</h2>
 <table><thead><tr><th>习惯</th><th>为什么</th></tr></thead><tbody><tr><td>用无痕 / 隐私窗口</td><td>地址栏里带暗号的网址会留在浏览器历史里，网页删不掉</td></tr><tr><td>不用带“云输入”的输入法（搜狗、百度等的云输入）</td><td>它们会把你打的字传到自己的服务器，网页挡不住</td></tr><tr><td>用随机暗号</td><td>短暗号可能被猜中，别人进来就能看到消息</td></tr><tr><td>人到齐后让房主锁定</td><td>防止链接被转发后有人进来</td></tr><tr><td>和对方核对房间代号</td><td>确认在同一个房间</td></tr><tr><td>别人能看到你屏幕时按 Esc</td><td>立即清屏</td></tr><tr><td>打开系统的“自动设置时间”</td><td>消息按本机时间核对，时间差超过 10 分钟会收不到或发不出</td></tr></tbody></table>
 <p><strong>这个工具做不到的</strong>：</p>
@@ -69,7 +71,7 @@
 <ol><li><strong>核对地址</strong>：确认地址和管理员告诉你的完全一样。</li><li><strong>继续访问</strong>：</li><li>Chrome / Edge：点「高级」→「继续前往 …（不安全）」。</li><li>Firefox：点「高级…」→「接受风险并继续」。</li><li>Safari：点「显示详细信息」→「访问此网站」→ 再点「访问网站」确认。</li><li><strong>长期使用</strong>：请管理员给你 <code>ca.crt</code> 证书文件，按<a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/lan.md#5-让设备不再提示证书" target="_blank" rel="noopener noreferrer">局域网手册</a>安装，以后就不再提示。</li></ol>
 <p><strong>在互联网上的公开网站（例如 chat.freedom8964.com）出现证书提示，不要继续</strong>，那可能是有人在冒充网站。</p>
 <h2 id="11-用-http-打开时">11. 用 http:// 打开时</h2>
-<p>如果网址是 <code>http://</code> 开头（不是 https），页面会显示红色提示，「进入房间」按钮也不能点：</p>
+<p>如果网址是 <code>http://</code> 开头（不是 https），卡片里会显示橙色提示，「进入私密房间」按钮也不能点：</p>
 <p><img src="manual-images/insecure.jpg" alt="用 http 打开时的提示" loading="lazy" /></p>
 <p>改用 <code>https://</code> 开头的地址即可。如果管理员只给了 http 地址，请他按部署手册开启 HTTPS。</p>
 <h2 id="12-系统提示一览">12. 系统提示一览</h2>

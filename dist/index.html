@@ -2,103 +2,206 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="匿名、临时、端对端加密的私密对话，不保存历史" />
     <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="dark" />
     <title>隐匿对话</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <a class="brand" href="/" aria-label="回到开始" data-t-aria="brand.aria"><span class="brand-mark">⌁</span><span data-t="title">隐匿对话</span></a>
-        <span class="demo-badge" data-t="badge">临时 · 匿名 · 端对端加密</span>
-        <a class="repo-link" href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" data-t="repo">GitHub 源代码</a>
-        <a class="repo-link" href="help.html" data-t="help">使用说明</a>
-        <select class="lang-select" id="langSelect" aria-label="界面语言" data-t-aria="lang.aria"></select>
-      </header>
+    <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 018 0v3m-4 5v2"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4-3 7-8 10-5-3-8-6-8-10V6z"/><path d="M8 12l3 3 5-6"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M3 3l18 18M10 5h2c6 0 10 7 10 7a19 19 0 01-4 4M6 6a20 20 0 00-4 6s4 7 10 7a10 10 0 005-1"/><path d="M9 9a4 4 0 005 5"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6l6 6-6 6"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="15" cy="8" r="5"/><path d="M11 12L3 20v-4m4 0v-4"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-3a7 7 0 0114 0v3m1-17a4 4 0 010 8m2 3a5 5 0 013 5"/></symbol>
+      <symbol id="i-code" viewBox="0 0 24 24"><path d="M7 5l-6 7 6 7m10-14l6 7-6 7m-3-16l-4 20"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V3h8v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+      <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 21V5m4 2h7"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4 1-4-2-6-2m13 5v-4c0-1-.3-2-1-2 4-.5 7-2 7-6 0-2-1-3-2-4 .3-1 .3-3 0-4-2 0-4 1-5 2a15 15 0 00-6 0C8 3 6 2 4 2c-.3 1-.3 3 0 4-1 1-2 2-2 4 0 4 3 5.5 7 6-1 1-1 2-1 3v3"/></symbol>
+    </defs></svg>
 
-      <section class="stage" id="createStage">
-        <div class="eyebrow" data-t="eyebrow">临时 · 匿名 · 无历史</div>
-        <h1 data-t-html="h1">只给知道暗号的人，<br /><em>聊完不留痕。</em></h1>
-        <p class="lede" data-t="lede">新建房间会随机生成暗号，把房间链接通过可信的渠道发给对方。无需账号，不保存消息。暗号永久有效：有人用它打开，房间就在；所有人离开，房间就消失，下次用同一个暗号还能再打开。</p>
-        <div class="howto">
-          <strong data-t="howto.title">任何时候，直接用网址创建房间</strong>
-          <p data-t-html="howto.body">在浏览器地址栏输入 <code class="origin-hash"></code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间（暗号不能有符号）。把这个网址发给朋友，对方打开就进同一个房间。</p>
-          <p class="howto-example" data-t-html="howto.example">例如：<code class="origin-example"></code></p>
-          <p class="howto-example" data-t="howto.history">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
-        </div>
-        <p class="insecure-note" id="insecureNote" hidden data-t="insecure">这个网址不是 HTTPS，浏览器不允许网页加密，无法使用。请改用 https:// 开头的地址。</p>
-        <form class="create-card" id="createForm">
-          <label for="roomName" data-t-html="form.label">房间暗号 <span>数字、英文字母或中文（简体、繁体），1 个字起，不能用符号</span></label>
-          <div class="pass-row">
-            <input id="roomName" maxlength="64" placeholder="输入暗号，或点「换一个」随机生成" data-t-ph="form.placeholder" autocomplete="off" autocapitalize="off" spellcheck="false" required />
-            <button class="secondary-button" id="newPassButton" type="button" data-t="form.new">换一个</button>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="回到开始" data-t-aria="brand.aria"><span class="brand-icon"><svg><use href="#i-lock"/></svg></span><span>Private <b>Talk</b><small data-t="title">隐匿对话</small></span></a>
+      <nav>
+        <button class="nav-link" type="button" data-open-privacy><svg><use href="#i-shield"/></svg><span data-t="nav.privacy">隐私说明</span></button>
+        <a class="nav-link" href="help.html"><svg><use href="#i-book"/></svg><span data-t="help">使用说明</span></a>
+        <a class="nav-link repo-link" href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" aria-label="GitHub" ><svg><use href="#i-github"/></svg><span data-t="repo">开源项目</span></a>
+        <select class="lang-select" id="langSelect" aria-label="界面语言" data-t-aria="lang.aria"></select>
+      </nav>
+    </header>
+
+    <main id="createStage">
+      <section class="hero">
+        <div class="hero-art" aria-hidden="true"></div>
+        <div class="hero-watermark" aria-hidden="true">PRIVATE<span> / TALK</span></div>
+        <div class="orbit" aria-hidden="true"><span class="orbit-cross"></span><span class="orbit-label">PRIVATE SPACE / 001</span></div>
+        <div class="hero-coordinates" aria-hidden="true"><span>01 / PRIVATE CHANNEL</span><span>ACCESS BY PASSPHRASE</span></div>
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="live-dot"></span> PRIVATE CONVERSATIONS. SIMPLY.</div>
+            <h1 data-t-html="h1">只给知道<br /><span class="headline-secret">暗号的人<span class="cyan">。</span></span><br /><em>聊完，轻装离开。</em></h1>
+            <p class="hero-description" data-t-html="hero.desc">不交换身份，不建立关系链。<br />一个暗号，一间只属于此刻的房间。</p>
+            <div class="hero-tags"><span><svg><use href="#i-shield"/></svg><b data-t="tag.e2ee">端对端加密</b></span><span><svg><use href="#i-eye"/></svg><b data-t="tag.noSignup">无需注册</b></span><span><b data-t="tag.max">最多 10 人</b></span></div>
+            <div class="hero-note"><span class="short-line"></span><span data-t="hero.note">少一点痕迹，多一点自在。</span></div>
           </div>
-          <button class="primary-button" id="createButton" data-t-html="form.enter">进入房间 <span>→</span></button>
-          <p class="fine-print" data-t="form.fine">暗号就是钥匙：知道暗号的人都能进来，消息也用它在浏览器里加密，服务器只转发看不懂的密文。暗号越短越容易被别人猜中，重要的谈话请用随机生成的。</p>
-        </form>
-        <div class="principles">
-          <div><span>01</span><b data-t="p1">不需要身份</b></div>
-          <div><span>02</span><b data-t="p2">不保存历史</b></div>
-          <div><span>03</span><b data-t="p3">端对端加密</b></div>
+
+          <section class="entry-card" aria-labelledby="entryTitle">
+            <div class="entry-card-top"><span class="overline">YOUR PRIVATE SPACE</span><svg><use href="#i-lock"/></svg></div>
+            <div class="tabs" role="tablist" aria-label="房间" data-t-aria="tabs.aria">
+              <button id="joinTab" type="button" role="tab" aria-selected="true" class="active" data-t="tab.join">加入房间</button>
+              <button id="createTab" type="button" role="tab" aria-selected="false" tabindex="-1" data-t="tab.create">创建房间</button>
+            </div>
+            <h2 id="entryTitle">知道暗号，就能相见。</h2>
+            <p id="entryDesc" class="muted">输入与你的朋友约定好的房间暗号。</p>
+            <p class="insecure-note" id="insecureNote" hidden data-t="insecure">这个网址不是 HTTPS，浏览器不允许网页加密，无法使用。请改用 https:// 开头的地址。</p>
+            <form id="createForm" novalidate>
+              <label for="roomName" data-t="form.label">房间暗号</label>
+              <div class="secret-input">
+                <svg><use href="#i-key"/></svg>
+                <input id="roomName" class="masked" maxlength="64" placeholder="输入房间暗号" data-t-ph="form.placeholder" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                <button id="revealButton" class="icon-button" type="button" aria-pressed="false" aria-label="显示暗号" data-t-aria="reveal.show"><svg><use href="#i-eye"/></svg></button>
+              </div>
+              <button id="newPassButton" class="random-button" type="button" hidden><span data-t="form.new">生成另一个暗号</span> <span aria-hidden="true">↻</span></button>
+              <p id="passHint" class="input-hint">暗号就是钥匙，请通过可信的渠道分享。只能用数字、英文字母或中文，不能用符号。</p>
+              <p id="passError" class="input-error" role="alert" hidden></p>
+              <button id="createButton" class="primary-button" type="submit"><span id="entryButtonLabel">进入私密房间</span><svg><use href="#i-arrow"/></svg></button>
+            </form>
+            <div class="entry-meta"><span class="live-dot"></span><span data-t="entry.meta">无需手机号 · 无需昵称 · 无需账号</span></div>
+            <div class="card-divider"></div>
+            <button class="privacy-link" type="button" data-open-privacy><svg><use href="#i-shield"/></svg><span data-t="entry.privacy">我们如何保护你的对话</span><svg><use href="#i-chevron"/></svg></button>
+          </section>
         </div>
-        <p class="fine-print selfhost" data-t-html="selfhost">开源（MIT 许可）：任何人都可以免费部署自己的一份，不用经过我们同意。<a href="https://github.com/Freecode100Year/private-talk#自己部署" target="_blank" rel="noopener noreferrer">部署方法</a></p>
       </section>
 
-      <section class="chat-stage hidden" id="chatStage" aria-live="polite">
-        <aside class="chat-side">
-          <div class="side-head">
-            <div><div class="eyebrow" data-t="room.eyebrow">当前房间</div><h2 id="chatRoomName"></h2></div>
-            <button class="leave-button" id="leaveButton" type="button" data-t="leave">离开房间</button>
-          </div>
-          <div id="memberList"></div>
-          <div class="expire-card"><span data-t="online">在线</span><strong id="memberCount">0 / 10</strong><small id="lockState">最多 10 人。暗号永久有效：所有人离开后房间消失，再用暗号打开就会重新出现。</small></div>
-          <div class="side-actions">
-            <button class="secondary-button" id="copyButton" type="button" data-t="copy">复制房间链接</button>
-            <button class="secondary-button" id="qrButton" type="button" data-t="qr">房间二维码</button>
-            <button class="secondary-button" id="lockButton" type="button" disabled>锁定房间</button>
+      <section class="principles" aria-label="特点" data-t-aria="principles.aria">
+        <article><span class="principle-number">01 /</span><svg><use href="#i-shield"/></svg><div><h3 data-t="p1">内容只在你们之间</h3><p data-t="p1.body">浏览器内加密，服务器只转发密文。</p></div></article>
+        <article><span class="principle-number">02 /</span><svg><use href="#i-trash"/></svg><div><h3 data-t="p2">对话只属于此刻</h3><p data-t="p2.body">服务器不保存消息历史。</p></div></article>
+        <article><span class="principle-number">03 /</span><svg><use href="#i-code"/></svg><div><h3 data-t="p3">信任，来自透明</h3><p data-t="p3.body">开源免费，任何人都能自己部署。</p></div></article>
+      </section>
+
+      <section class="extras">
+        <div class="howto">
+          <h3 data-t="howto.title">任何时候，直接用网址进入房间</h3>
+          <p data-t-html="howto.body">在浏览器地址栏输入 <code class="origin-hash"></code>，在 <code>#</code> 后面加上房间暗号，回车就进入房间（暗号不能有符号）。把这个网址发给朋友，对方打开就进同一个房间。</p>
+          <p data-t-html="howto.example">例如：<code class="origin-example"></code></p>
+          <p class="fine" data-t="howto.history">关闭网页会自动清除本站缓存；地址栏输入过的网址会留在浏览器历史里，网页删不掉，建议用无痕 / 隐私窗口。</p>
+        </div>
+        <div class="howto">
+          <h3 data-t="selfhost.title">自己部署一份</h3>
+          <p class="selfhost" data-t-html="selfhost">开源（MIT 许可）：任何人都可以免费部署自己的一份，不用经过我们同意。<a href="https://github.com/Freecode100Year/private-talk#自己部署" target="_blank" rel="noopener noreferrer">部署方法</a></p>
+          <p class="fine" data-t="form.fine">暗号越短越容易被别人猜中，重要的谈话请用随机生成的。对方仍可能截图或复制消息。</p>
+        </div>
+      </section>
+
+      <footer>
+        <span>PRIVATE TALK <span class="footer-dot">·</span> <span data-t="title">隐匿对话</span></span>
+        <span data-t="footer.line">隐私始于你，也止于你。</span>
+        <button type="button" data-open-privacy><span data-t="footer.privacy">了解隐私边界</span> <span class="footer-arrow">↗</span></button>
+      </footer>
+    </main>
+
+    <main id="chatStage" class="hidden">
+      <div class="chat-shell">
+        <aside class="room-sidebar" id="roomSidebar" aria-label="房间成员与操作" data-t-aria="side.aria">
+          <div class="sidebar-top"><span class="overline">CURRENT ROOM</span><button class="icon-button mobile-close" id="closeSidebar" type="button" aria-label="关闭房间信息" data-t-aria="side.close"><svg><use href="#i-close"/></svg></button></div>
+          <h2 id="chatRoomName"></h2>
+          <div class="room-status"><span class="live-dot"></span><span id="roomState">房间开放中</span></div>
+          <div class="sidebar-divider"></div>
+          <div class="members-heading"><span data-t="online">在线成员</span><b id="memberCount">0 / 10</b></div>
+          <ul class="members" id="memberList"></ul>
+          <p class="sidebar-note" id="lockState"></p>
+          <div class="sidebar-actions">
+            <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
+            <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
+            <button class="secondary-button" id="lockButton" type="button" disabled><svg><use href="#i-lock"/></svg><span>锁定房间</span></button>
           </div>
           <details class="tips">
             <summary data-t="tips.title">安全提示</summary>
             <ul>
-              <li data-t="tips.1">不要用带「云输入」的输入法打字（如搜狗、百度），它们会把输入内容传到自己的服务器。</li>
-              <li data-t="tips.2">房间链接里就是暗号。别用微信、QQ 发送；发出后清空剪贴板。</li>
-              <li data-t="tips.3">人到齐后点「锁定房间」，之后新的人拿到链接也进不来；房间里的人掉线 2 分钟内还能回来。</li>
-              <li data-t="tips.4">按 Esc 立即清空屏幕上的消息和输入框。</li>
-              <li data-t="tips.5">关闭网页时会清除本站的缓存和数据；但浏览器的历史记录网页无权删除，建议用无痕 / 隐私窗口打开。</li>
+              <li data-t="tips.1"></li>
+              <li data-t="tips.2"></li>
+              <li data-t="tips.3"></li>
+              <li data-t="tips.4"></li>
+              <li data-t="tips.5"></li>
             </ul>
           </details>
+          <div class="sidebar-bottom">
+            <div class="mini-shield"><svg><use href="#i-shield"/></svg><span data-t="tag.e2ee">端对端加密</span></div>
+            <p data-t-html="side.check">请核对在线人数。<br />知道暗号的人都能进入房间。</p>
+            <button class="back-to-chat" id="backToChat" type="button" data-t="side.back">返回聊天</button>
+            <button class="leave-button" id="leaveButton" type="button"><span data-t="leave">离开房间</span><svg><use href="#i-arrow"/></svg></button>
+          </div>
         </aside>
-        <div class="conversation">
-          <div class="conversation-head">
-            <span><b class="secure-dot" id="statusDot"></b><span id="statusText">正在连接…</span></span>
-            <span class="head-tools">
-              <label class="ttl"><span data-t="ttl.label">消息保留</span>
-                <select id="ttlSelect">
-                  <option value="0" data-t="ttl.0">不自动删除</option>
+
+        <section class="conversation" aria-label="聊天" data-t-aria="chat.aria">
+          <header class="conversation-header">
+            <div>
+              <button class="room-mobile-button" id="showSidebar" type="button" aria-label="查看房间成员和操作" data-t-aria="side.open"><svg><use href="#i-users"/></svg></button>
+              <div><h2 data-t="chat.title">此刻，只在这里。</h2><p><b class="live-dot" id="statusDot"></b><span id="statusText">正在连接…</span><span class="sep">·</span><span id="headCount"></span></p></div>
+            </div>
+            <button class="clear-button" id="clearButton" type="button" title="清空本机屏幕上的消息和输入框（Esc）" data-t-title="clear.title"><svg><use href="#i-trash"/></svg><span data-t="clear">清屏</span><kbd>Esc</kbd></button>
+          </header>
+          <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="composer-area">
+            <div class="composer-tools">
+              <button class="room-tools-button" id="roomTools" type="button" aria-label="打开房间成员和操作" data-t-aria="side.open"><svg><use href="#i-users"/></svg><span data-t="side.button">房间</span></button>
+              <label><span class="ttl-label" data-t="ttl.label">本机自动清屏</span>
+                <select id="ttlSelect" aria-label="本机自动清屏" data-t-aria="ttl.label">
+                  <option value="0" data-t="ttl.0">不自动清屏</option>
                   <option value="60" data-t="ttl.60">1 分钟</option>
                   <option value="300" data-t="ttl.300">5 分钟</option>
                   <option value="1800" data-t="ttl.1800">30 分钟</option>
                 </select>
               </label>
-              <button class="quiet-button" id="clearButton" type="button" title="清空屏幕上的消息和输入框（Esc）" data-t-title="clear.title" data-t="clear">清屏</button>
-            </span>
+              <span id="charCount">0 / 500</span>
+            </div>
+            <form class="composer" id="messageForm">
+              <textarea id="messageInput" rows="1" maxlength="1000" placeholder="说点什么，只给此刻的人听…" data-t-ph="input.placeholder" aria-label="消息内容" data-t-aria="input.aria" aria-describedby="composerStatus" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled></textarea>
+              <button class="send-button" id="sendButton" type="submit" aria-label="发送消息" disabled><svg><use href="#i-arrow"/></svg><span class="count"></span></button>
+            </form>
+            <p id="composerStatus" class="composer-status" role="status" aria-live="polite"></p>
+            <div class="composer-caption"><span data-t="caption.clear">清屏只清除此设备显示的内容。</span><span class="desktop-hint" data-t="caption.keys">Enter 发送 · Shift + Enter 换行</span></div>
           </div>
-          <div class="messages" id="messages"></div>
-          <form class="composer" id="messageForm">
-            <input id="messageInput" maxlength="1000" placeholder="写一条消息…" data-t-ph="input.placeholder" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" disabled />
-            <span class="char-count hidden" id="charCount"></span>
-            <button class="send-button" aria-label="发送消息" disabled id="sendButton">↑</button>
-          </form>
-        </div>
-      </section>
+        </section>
+      </div>
+      <div class="drawer-scrim" id="drawerScrim" hidden></div>
     </main>
+
+    <dialog id="privacyDialog" aria-labelledby="privacyTitle">
+      <div class="dialog-top"><span class="overline">PRIVACY, WITHOUT OVERPROMISING.</span><button class="icon-button" type="button" data-close aria-label="关闭" data-t-aria="qr.close"><svg><use href="#i-close"/></svg></button></div>
+      <div class="dialog-emblem"><svg><use href="#i-shield"/></svg></div>
+      <h2 id="privacyTitle" data-t="privacy.title">私密，需要清楚的边界。</h2>
+      <div class="privacy-points">
+        <div><b data-t="privacy.msg">消息内容</b><p data-t="privacy.msg.body"></p></div>
+        <div><b data-t="privacy.pass">房间暗号</b><p data-t="privacy.pass.body"></p></div>
+        <div><b data-t="privacy.history">聊天历史</b><p data-t="privacy.history.body"></p></div>
+        <div><b data-t="privacy.device">设备与浏览器</b><p data-t="privacy.device.body"></p></div>
+      </div>
+      <p class="muted" data-t-html="privacy.more"></p>
+      <button class="primary-button" type="button" data-close><span data-t="privacy.ok">我了解了</span><svg><use href="#i-arrow"/></svg></button>
+    </dialog>
+
+    <dialog id="leaveDialog" aria-labelledby="leaveTitle">
+      <div class="dialog-top"><span class="overline">LEAVE THIS MOMENT.</span><button class="icon-button" type="button" data-close aria-label="关闭" data-t-aria="qr.close"><svg><use href="#i-close"/></svg></button></div>
+      <h2 id="leaveTitle" data-t="leave.title">结束这次对话？</h2>
+      <p class="muted" data-t="leave.body">离开后，本页的消息、输入内容和暗号都会清除。</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close data-t="leave.stay">继续对话</button><button class="primary-button" id="confirmLeave" type="button" data-t="leave">离开房间</button></div>
+    </dialog>
+
     <dialog class="qr-dialog" id="qrDialog" aria-labelledby="qrTitle">
+      <div class="dialog-top"><span class="overline">SCAN, IN PERSON.</span><button class="icon-button" type="button" id="qrX" aria-label="关闭" data-t-aria="qr.close"><svg><use href="#i-close"/></svg></button></div>
       <h2 id="qrTitle" data-t="qr.title">扫码进入房间</h2>
       <div class="qr-code" id="qrCode"></div>
       <p class="qr-note" data-t="qr.note">二维码里含房间暗号：只给要邀请的人当面扫，不要截图或转发。</p>
-      <button class="primary-button" id="qrClose" type="button" data-t="qr.close">关闭</button>
+      <button class="primary-button" id="qrClose" type="button"><span data-t="qr.close">关闭</span><svg><use href="#i-arrow"/></svg></button>
     </dialog>
     <script type="module" src="app.js"></script>
   </body>

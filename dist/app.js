@@ -52,8 +52,11 @@ const nameOf = (n) => (n === you ? `${badge(n)} ${t('me')}` : badge(n));
 const isHost = () => you !== 0 && you === host;
 
 function show(stage) {
+  closeSidebar(false);
   $('createStage').classList.toggle('hidden', stage !== 'create');
   $('chatStage').classList.toggle('hidden', stage !== 'chat');
+  document.body.classList.toggle('in-chat', stage === 'chat');
+  window.scrollTo(0, 0);
 }
 
 let statusKey = '';
@@ -61,6 +64,7 @@ function status(key, ok) {
   statusKey = key;
   $('statusText').textContent = key ? t(key) : '';
   $('statusDot').classList.toggle('off', !ok);
+  headCount();
   $('messageInput').disabled = !ok;
   $('lockButton').disabled = !ok || !isHost();
   online = ok;
@@ -73,10 +77,25 @@ function sendButton() {
   const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
   const button = $('sendButton');
   button.disabled = !online || left > 0;
-  button.textContent = left > 0 ? String(left) : '↑';
+  button.querySelector('.count').textContent = left > 0 ? String(left) : '';
   button.classList.toggle('counting', left > 0);
   button.setAttribute('aria-label', left > 0 ? t('send.wait', { s: left }) : t('send.aria'));
+  button.title = button.getAttribute('aria-label');
+  composerStatus();
   if (left > 0) cooldownTimer = setTimeout(sendButton, (cooldownUntil - Date.now()) % 1000 || 1000);
+}
+
+// Says in words why the message cannot go yet, not only by a greyed button.
+function composerStatus() {
+  const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+  const v = $('messageInput').value;
+  const tooLong = Array.from(v).length > MAX_TEXT_CHARS || new TextEncoder().encode(v).byteLength > MAX_TEXT_BYTES;
+  $('composerStatus').textContent = tooLong ? t('count.tooLong') : online && left > 0 ? t('send.waitLong', { s: left }) : '';
+}
+
+function headCount() {
+  $('headCount').textContent = online && present ? t('head.count', { n: present.length }) : '';
+  $('headCount').previousElementSibling.hidden = !$('headCount').textContent;
 }
 
 function cooldown(ms) {
@@ -107,24 +126,30 @@ function system(text) {
 
 function bubble(from, at, text) {
   const mine = from === you;
-  const row = document.createElement('div');
-  row.className = `message ${mine ? 'outgoing' : 'incoming'} c${from}`;
+  const row = document.createElement('article');
+  row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
+  const avatar = document.createElement('span');
+  avatar.className = 'avatar';
+  avatar.textContent = badge(from);
+  avatar.setAttribute('aria-hidden', 'true');
   const body = document.createElement('div');
-  const who = document.createElement('small');
-  who.className = 'who';
+  const who = document.createElement('div');
+  who.className = 'message-meta who';
   who.textContent = `${nameOf(from)} · ${time(at)}`;
   if (mine) {
     // Back from the relay: it passed the message on. Not a read receipt.
     const sent = document.createElement('span');
     sent.className = 'sent';
-    sent.textContent = ` · ${t('sent')}`;
+    sent.textContent = t('sent');
     sent.title = t('sent.title');
     who.append(sent);
   }
   const p = document.createElement('p');
+  p.className = 'bubble';
   p.textContent = text;
   body.append(who, p);
-  row.append(body);
+  if (mine) row.append(body, avatar);
+  else row.append(avatar, body);
   append(row, mine || atBottom());
 }
 
@@ -133,15 +158,32 @@ function members(list, nowAway = [], nowHost = host) {
   host = nowHost;
   $('memberCount').textContent = `${list.length} / ${MAX_MEMBERS}`;
   const entry = (n, gone) => {
-    const div = document.createElement('div');
+    const div = document.createElement('li');
     div.className = gone ? 'member away' : 'member';
-    div.innerHTML = '<span class="avatar"></span><span></span><i></i>';
-    div.children[0].textContent = badge(n);
-    div.children[0].classList.add(`c${n}`);
-    div.children[0].classList.toggle('me', n === you);
-    div.children[0].classList.toggle('host', !gone && n === host);
-    if (!gone && n === host) div.children[0].title = t('host');
-    div.children[1].textContent = gone ? t('member.away', { b: badge(n) }) : nameOf(n) + (n === host ? ` · ${t('host')}` : '');
+    const avatar = document.createElement('span');
+    avatar.className = `avatar c${n}`;
+    avatar.textContent = badge(n);
+    avatar.classList.toggle('me', n === you);
+    avatar.classList.toggle('host', !gone && n === host);
+    if (!gone && n === host) avatar.title = t('host');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = gone ? t('member.away', { b: badge(n) }) : t('member.name', { n });
+    const tags = [];
+    if (n === you) tags.push([t('you.tag'), '']);
+    if (!gone && n === host) tags.push([t('host'), 'host-tag']);
+    for (const [text, cls] of tags) {
+      const tag = document.createElement('small');
+      tag.textContent = text;
+      if (cls) tag.className = cls;
+      name.append(tag);
+    }
+    div.append(avatar, name);
+    if (!gone) {
+      const dot = document.createElement('span');
+      dot.className = 'member-online';
+      div.append(dot);
+    }
     if (!gone && isHost() && n !== you) {
       const out = document.createElement('button');
       out.type = 'button';
@@ -167,6 +209,7 @@ function members(list, nowAway = [], nowHost = host) {
   away = nowAway;
   $('lockButton').disabled = !online || !isHost();
   $('lockButton').title = isHost() ? '' : t('lock.hostOnly', { b: host ? badge(host) : '' });
+  headCount();
 }
 
 function removeMember(n, button) {
@@ -179,7 +222,8 @@ function removeMember(n, button) {
 }
 
 function lockState(locked) {
-  $('lockButton').textContent = t(locked ? 'unlock' : 'lock');
+  $('lockButton').querySelector('span').textContent = t(locked ? 'unlock' : 'lock');
+  $('roomState').textContent = t(locked ? 'room.locked' : 'room.open');
   $('lockButton').dataset.locked = locked ? '1' : '';
   $('lockState').textContent = t(locked ? 'note.locked' : 'note.open');
   $('chatStage').classList.toggle('locked', locked);
@@ -221,6 +265,7 @@ async function join(p) {
   pass = p;
   // The passphrase leaves the form and the address bar at once.
   $('roomName').value = '';
+  mask(true);
   history.replaceState(null, '', location.pathname);
   retries = 0;
   resume = null;
@@ -304,7 +349,8 @@ async function handle(data, sock, started) {
     }
     joinedOnce = true;
     startHeartbeat();
-    $('messageInput').focus();
+    // On phones a focused box opens the keyboard over the conversation.
+    if (!matchMedia('(pointer: coarse)').matches && !matchMedia('(max-width: 850px)').matches) $('messageInput').focus({ preventScroll: true });
   } else if (msg.type === 'members' && Array.isArray(msg.members)) {
     members(msg.members, Array.isArray(msg.away) ? msg.away : [], Number.isInteger(msg.host) ? msg.host : 0);
     lockState(!!msg.locked);
@@ -396,7 +442,7 @@ function leave() {
   clearScreen(true);
   members([]);
   status('', false);
-  $('roomName').value = randomPassphrase();
+  setMode('join');
   show('create');
 }
 
@@ -410,30 +456,151 @@ setInterval(() => {
   }
 }, 2000);
 
+// The entry card: "join" takes a passphrase someone gave you, "create" makes
+// a random one. Both go into the same room-joining code.
+let mode = 'join';
+function setMode(next, value) {
+  mode = next;
+  const creating = mode === 'create';
+  $('joinTab').classList.toggle('active', !creating);
+  $('createTab').classList.toggle('active', creating);
+  $('joinTab').setAttribute('aria-selected', String(!creating));
+  $('createTab').setAttribute('aria-selected', String(creating));
+  $('joinTab').tabIndex = creating ? -1 : 0;
+  $('createTab').tabIndex = creating ? 0 : -1;
+  $('newPassButton').hidden = !creating;
+  $('roomName').value = value ?? (creating ? randomPassphrase() : '');
+  passError('');
+  mask(true);
+  modeText();
+}
+function modeText() {
+  const creating = mode === 'create';
+  $('entryTitle').textContent = t(creating ? 'entry.createTitle' : 'entry.joinTitle');
+  $('entryDesc').textContent = t(creating ? 'entry.createDesc' : 'entry.joinDesc');
+  $('entryButtonLabel').textContent = t(creating ? 'entry.createButton' : 'entry.joinButton');
+  $('passHint').textContent = t(creating ? 'entry.createHint' : 'entry.joinHint');
+}
+// The passphrase is hidden as it is typed, like a password, but the field is
+// not a password field, so browsers do not offer to save it.
+function mask(on) {
+  $('roomName').classList.toggle('masked', on);
+  $('revealButton').setAttribute('aria-pressed', String(!on));
+  $('revealButton').setAttribute('aria-label', t(on ? 'reveal.show' : 'reveal.hide'));
+}
+function passError(text) {
+  $('passError').textContent = text;
+  $('passError').hidden = !text;
+  $('roomName').setAttribute('aria-invalid', String(!!text));
+}
+$('joinTab').addEventListener('click', () => { if (mode !== 'join') setMode('join'); });
+$('createTab').addEventListener('click', () => { if (mode !== 'create') setMode('create'); });
+document.querySelector('.tabs').addEventListener('keydown', (event) => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 'join' : event.key === 'End' ? 'create' : mode === 'join' ? 'create' : 'join';
+  if (next !== mode) setMode(next);
+  $(next === 'join' ? 'joinTab' : 'createTab').focus();
+});
+$('revealButton').addEventListener('click', () => mask(!$('roomName').classList.contains('masked')));
+
 // Joins with what is in the passphrase field, or says why it cannot.
 function joinFromField() {
   const input = $('roomName');
   try {
     join(checkPassphrase(input.value));
   } catch (error) {
-    input.setCustomValidity(error.code ? t(`err.${error.code}`, { max: 64 }) : error.message);
-    input.reportValidity();
+    passError(error.code ? t(`err.${error.code}`, { max: 64 }) : error.message);
+    input.focus();
   }
 }
 $('createForm').addEventListener('submit', (event) => {
   event.preventDefault();
   joinFromField();
 });
-$('roomName').addEventListener('input', () => $('roomName').setCustomValidity(''));
+$('roomName').addEventListener('input', () => passError(''));
 $('newPassButton').addEventListener('click', () => {
   $('roomName').value = randomPassphrase();
-  $('roomName').setCustomValidity('');
+  passError('');
 });
-$('leaveButton').addEventListener('click', leave);
+
+// Dialogs: privacy notes, leave confirmation, QR code.
+for (const el of document.querySelectorAll('[data-open-privacy]')) el.addEventListener('click', () => $('privacyDialog').showModal());
+for (const el of document.querySelectorAll('[data-close]')) el.addEventListener('click', () => el.closest('dialog').close());
+for (const dialog of document.querySelectorAll('dialog')) {
+  // A click on the dimmed backdrop lands on the dialog itself.
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+}
+$('leaveButton').addEventListener('click', () => $('leaveDialog').showModal());
+$('confirmLeave').addEventListener('click', () => {
+  $('leaveDialog').close();
+  leave();
+  $('roomName').focus({ preventScroll: true });
+});
 $('clearButton').addEventListener('click', () => clearScreen(true));
+
+// On phones the members and room actions live in a drawer.
+const phone = matchMedia('(max-width: 600px)');
+let drawerOpener = null;
+function syncSidebar() {
+  const side = $('roomSidebar');
+  const open = phone.matches && side.classList.contains('open');
+  side.inert = phone.matches && !open;
+  side.setAttribute('role', phone.matches ? 'dialog' : 'complementary');
+  if (phone.matches) side.setAttribute('aria-modal', String(open));
+  else side.removeAttribute('aria-modal');
+  $('drawerScrim').hidden = !open;
+  document.querySelector('.conversation').inert = open;
+  document.querySelector('.site-header').inert = open;
+  for (const b of [$('showSidebar'), $('roomTools')]) b.setAttribute('aria-expanded', String(open));
+}
+function openSidebar(event) {
+  drawerOpener = event.currentTarget;
+  $('roomSidebar').classList.add('open');
+  syncSidebar();
+  $('closeSidebar').focus({ preventScroll: true });
+}
+function closeSidebar(restoreFocus = true) {
+  const wasOpen = $('roomSidebar').classList.contains('open');
+  $('roomSidebar').classList.remove('open');
+  syncSidebar();
+  if (wasOpen && restoreFocus && drawerOpener && pass) drawerOpener.focus({ preventScroll: true });
+}
+for (const b of [$('showSidebar'), $('roomTools')]) {
+  b.setAttribute('aria-controls', 'roomSidebar');
+  b.addEventListener('click', openSidebar);
+}
+$('closeSidebar').addEventListener('click', () => closeSidebar());
+$('backToChat').addEventListener('click', () => closeSidebar());
+$('drawerScrim').addEventListener('click', () => closeSidebar());
+phone.addEventListener('change', () => closeSidebar(false));
+
+// Esc closes an open dialog (the browser does that) or the drawer first; only
+// then is it the panic key that clears the screen.
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && pass) clearScreen(true);
+  if (event.key === 'Escape') {
+    if (document.querySelector('dialog[open]')) return;
+    if ($('roomSidebar').classList.contains('open')) { event.preventDefault(); closeSidebar(); return; }
+    if (pass) clearScreen(true);
+  }
+  // Keep Tab inside the open drawer.
+  if (event.key === 'Tab' && $('roomSidebar').classList.contains('open') && !document.querySelector('dialog[open]')) {
+    const items = [...$('roomSidebar').querySelectorAll('button:not(:disabled), summary')].filter((b) => b.getClientRects().length);
+    const first = items[0], last = items.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
 });
+
+// The on-screen keyboard shrinks the visible area; the chat follows it.
+function syncViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
+  document.body.classList.toggle('keyboard-open', window.innerHeight - vv.height > 150);
+}
+window.visualViewport?.addEventListener('resize', syncViewport);
+syncViewport();
 $('lockButton').addEventListener('click', () => {
   if (ws?.readyState !== WebSocket.OPEN || !isHost()) return;
   ws.send(JSON.stringify({ type: 'lock', locked: !$('lockButton').dataset.locked }));
@@ -442,13 +609,14 @@ $('lockButton').addEventListener('click', () => {
   setTimeout(() => { $('lockButton').disabled = !online || !isHost(); }, 2100);
 });
 async function copy(button, text, label) {
+  const span = button.querySelector('span');
   try {
     await navigator.clipboard.writeText(text);
-    button.textContent = t('copied');
+    span.textContent = t('copied');
   } catch {
-    button.textContent = t('copyFail');
+    span.textContent = t('copyFail');
   }
-  setTimeout(() => { button.textContent = t(label); }, 2500);
+  setTimeout(() => { span.textContent = t(label); }, 2500);
 }
 $('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(location.origin, pass), 'copy'));
 $('qrButton').addEventListener('click', () => {
@@ -459,18 +627,28 @@ $('qrButton').addEventListener('click', () => {
   $('qrDialog').showModal();
 });
 $('qrClose').addEventListener('click', closeQr);
+$('qrX').addEventListener('click', closeQr);
 $('qrDialog').addEventListener('close', () => $('qrCode').replaceChildren());
-// A click on the dimmed backdrop lands on the dialog itself.
-$('qrDialog').addEventListener('click', (event) => { if (event.target === $('qrDialog')) closeQr(); });
 $('messageInput').addEventListener('input', () => {
   inputVersion++;
   const v = $('messageInput').value;
   const chars = Array.from(v).length;
   const bytes = new TextEncoder().encode(v).byteLength;
-  // Only worth showing near the limits.
-  const near = chars > MAX_TEXT_CHARS - 100 || bytes > MAX_TEXT_BYTES - 300;
-  $('charCount').classList.toggle('hidden', !near);
-  $('charCount').textContent = chars > MAX_TEXT_CHARS || bytes > MAX_TEXT_BYTES ? t('count.tooLong') : t('count.left', { n: MAX_TEXT_CHARS - chars });
+  $('charCount').textContent = `${chars} / ${MAX_TEXT_CHARS}`;
+  $('charCount').classList.toggle('over', chars > MAX_TEXT_CHARS || bytes > MAX_TEXT_BYTES);
+  composerStatus();
+  // The box grows with the text, up to a few lines.
+  const box = $('messageInput');
+  box.style.height = 'auto';
+  box.style.height = `${Math.min(box.scrollHeight + 2, 120)}px`;
+  box.style.overflowY = box.scrollHeight > 120 ? 'auto' : 'hidden';
+});
+// Enter sends, Shift+Enter starts a new line.
+$('messageInput').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $('messageForm').requestSubmit();
+  }
 });
 // Enter that confirms a Chinese input method's choice must not send.
 $('messageInput').addEventListener('compositionstart', () => { composing = true; });
@@ -531,13 +709,14 @@ function wipeSite() {
 }
 window.addEventListener('pagehide', () => {
   if (pass) leave();
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
   $('roomName').value = '';
   clearInput();
   wipeSite();
 });
 // A page brought back from the back/forward cache starts afresh.
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted && !$('roomName').value) $('roomName').value = randomPassphrase();
+  if (event.persisted) setMode('join');
 });
 wipeSite();
 
@@ -550,7 +729,8 @@ window.addEventListener('hashchange', () => {
   if (pass) leave();
   if (p) return join(p);
   history.replaceState(null, '', location.pathname);
-  $('roomName').value = typed;
+  setMode('join', typed);
+  mask(false);
   joinFromField();
 });
 
@@ -563,6 +743,10 @@ function translate() {
   if (roomId) $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
   lockState(!!$('lockButton').dataset.locked);
   $('statusText').textContent = statusKey ? t(statusKey) : '';
+  modeText();
+  mask($('roomName').classList.contains('masked'));
+  headCount();
+  if (present) members(present, away, host);
   sendButton();
 }
 $('langSelect').replaceChildren(...Object.entries(LANGS).map(([value, label]) => new Option(label, value, false, value === lang())));
@@ -581,11 +765,12 @@ if (!SECURE) {
   $('insecureNote').hidden = false;
   $('createButton').disabled = true;
 }
+syncSidebar();
 const fromLink = passphraseFromHash(location.hash);
 if (fromLink) join(fromLink);
 else {
   const typed = hashText(location.hash);
   history.replaceState(null, '', location.pathname);
-  $('roomName').value = typed || randomPassphrase();
-  if (typed) joinFromField();
+  setMode('join', typed);
+  if (typed) { mask(false); joinFromField(); }
 }
