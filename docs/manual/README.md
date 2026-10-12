@@ -14,6 +14,7 @@
 | :--- | :--- | :--- |
 | 没有服务器，用 Cloudflare 免费部署 | 个人、小团队，最省事 | [Cloudflare 手册](cloudflare.md) |
 | 境外 VPS + 域名 | 想自己掌控服务器的人 | [VPS 手册](vps.md) |
+| Render、Koyeb、Railway、Zeabur、Fly.io | 不想管服务器，用云平台 | [云平台手册](cloud.md) |
 | 家里的电脑、NAS、树莓派 | 没有公网 IP，不想租服务器 | [家用设备手册](home.md) |
 | 家里、办公室、活动现场的同一个网络 | 只在局域网里用，可以没有互联网 | [局域网手册](lan.md) |
 | 企业 / 学校内网，不能上互联网 | IT 管理员 | [企业内网手册](enterprise.md) |
