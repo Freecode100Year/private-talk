@@ -451,8 +451,6 @@ async function copy(button, text, label) {
   setTimeout(() => { button.textContent = t(label); }, 2500);
 }
 $('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(location.origin, pass), 'copy'));
-// A link alone from someone looks odd; the invitation says what it is.
-$('inviteButton').addEventListener('click', (event) => copy(event.currentTarget, t('invite.text', { link: roomLink(location.origin, pass) }), 'invite'));
 $('qrButton').addEventListener('click', () => {
   if (!pass) return;
   let code;
