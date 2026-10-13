@@ -599,10 +599,13 @@ document.addEventListener('keydown', (event) => {
 function syncViewport() {
   const vv = window.visualViewport;
   if (!vv) return;
-  document.documentElement.style.setProperty('--app-height', `${vv.height}px`);
+  const root = document.documentElement.style;
+  root.setProperty('--app-height', `${vv.height}px`);
+  root.setProperty('--vv-top', `${vv.offsetTop}px`);
   document.body.classList.toggle('keyboard-open', window.innerHeight - vv.height > 150);
 }
 window.visualViewport?.addEventListener('resize', syncViewport);
+window.visualViewport?.addEventListener('scroll', syncViewport);
 syncViewport();
 $('lockButton').addEventListener('click', () => {
   if (ws?.readyState !== WebSocket.OPEN || !isHost()) return;
