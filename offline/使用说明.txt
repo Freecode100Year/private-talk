@@ -10,8 +10,6 @@ Windows：双击 start-lan.cmd
   第一次运行 Windows 防火墙会询问，请勾选“专用网络”并允许。
 macOS / Linux：在终端运行 ./start-lan.sh
   macOS 如提示无法验证开发者：系统设置 → 隐私与安全性 → 仍要打开。
-不带 Node.js 的 app 包（机器上已有 Node.js 22 或更新版本）：
-  在这个目录运行 node server/lan.mjs
 
 启动后窗口会列出地址，例如 https://192.168.1.20:8443/ ，
 同一网络里的人用浏览器打开即可。房间链接：https://地址:8443/#暗号
@@ -23,20 +21,36 @@ macOS / Linux：在终端运行 ./start-lan.sh
   · 把 lan-certs\ca.crt 安装到各设备的“受信任的根证书”，以后不再提示。
 这个证书机构只能为内网地址和 .local/.lan/.internal 等名字签发，
 无法冒充任何公网网站。lan-certs\ca.key 不要发给别人。
+服务器证书快到期时会自动续期（不用重启）；CA 有效期 10 年。
 
-常用设置（环境变量）
+设置
+----
+把 config.env.example 复制为 config.env，去掉行首的 # 再改：
+  PORT       端口，默认 8443
+  LAN_NAMES  额外写进证书的名字或地址，逗号分隔，例如 chat.internal,10.0.5.8
+  TLS_CERT / TLS_KEY  改用公司 IT 签发的证书（两个都要写，填文件路径）
+设置写错时程序不会启动，并会说明哪里不对。
+
+查看状态
+--------
+Windows 双击 status.cmd，macOS / Linux 运行 ./status.sh：
+显示版本、设置、证书还有多少天过期、是否正在运行。不含任何密钥，可以发给帮你排查的人。
+
+更新（不需要联网）
 ------------------
-PORT       端口，默认 8443
-LAN_NAMES  额外写进证书的名字或地址，逗号分隔，例如 chat.internal,10.0.5.8
-           （内网有 DNS 名，或者列出的地址不对时使用）
-TLS_CERT / TLS_KEY  使用公司 IT 签发的证书时，改用：
-           node\node.exe server\server.mjs   （Windows）
-           ./node/bin/node server/server.mjs  （macOS/Linux）
-           并设置 TLS_CERT、TLS_KEY、PORT
+1. 在能上网的电脑上，从发布页下载同一平台的新安装包，以及同名的 .sig 签名文件
+   （例如 private-talk-win-x64.zip 和 private-talk-win-x64.zip.sig），拷进内网。
+2. 关闭正在运行的隐匿对话窗口（或停止服务）。
+3. Windows：把新安装包拖到 update.cmd 上；
+   macOS / Linux：./update.sh /路径/private-talk-linux-x64.tar.gz
+更新程序会核对签名、先试运行新版本，正常才替换；证书和 config.env 原样保留。
+有问题运行 update --rollback（Windows：update.cmd --rollback）回到上一个版本。
+更新会断开当时的聊天，房间和消息不会恢复，大家重新打开房间链接即可。
 
-Windows 设置示例（在 start-lan.cmd 里 "node.exe" 那一行前加）：
-  set PORT=443
-  set LAN_NAMES=chat.internal
+从 2.2 及更早版本升级（只需一次）：把新包解压到新文件夹，在新文件夹里运行
+  update.cmd --import D:\旧文件夹      （macOS / Linux：./update.sh --import /旧文件夹）
+它会把旧文件夹的证书和 start-lan 里的 set 设置搬过来。
 
-完整说明书见 docs\manual（企业内网看 enterprise.md，局域网看 lan.md，
-故障排查看 troubleshooting.md）。启动后在网页右上角点“使用说明”可以看用户手册。项目主页：https://github.com/Freecode100Year/private-talk
+完整说明书见 app\docs\manual（企业内网看 enterprise.md，局域网看 lan.md，
+故障排查看 troubleshooting.md）。启动后在网页右上角点“使用说明”可以看用户手册。
+项目主页：https://github.com/Freecode100Year/private-talk

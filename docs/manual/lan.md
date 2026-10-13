@@ -152,14 +152,23 @@ Docker Desktop（Windows/macOS）上：编辑 `docker-compose.lan.yml`，删掉 
 
 - **停止**：关闭窗口，或在窗口里按 Ctrl+C。所有房间随之消失。
 - **开机自动运行**：Windows 用「任务计划程序」（见[企业内网手册](enterprise.md#windows-server)）；Linux 用 systemd。
-- **证书**：服务器证书一年多有效，到期前 30 天、或电脑 IP 变化时，重新启动程序就会自动换新。各设备装的 `ca.crt` 十年有效，不用重装。
-- **数据**：不存聊天记录，没有要备份的东西；只需保留 `lan-certs` 文件夹（换新版本时复制过去）。
+- **查看状态**：双击 `status.cmd`（macOS / Linux：`./status.sh`），显示版本、设置、证书还有多少天过期、程序是否在运行。不含任何密钥，可以发给帮你排查的人。
+- **设置**：把 `config.env.example` 复制为 `config.env` 再改（端口、额外地址等）。设置写错时程序不会启动，并说明哪里不对。升级不会动它。
+- **证书**：服务器证书一年多有效，到期前 30 天、或电脑 IP 变化时会自动换新（运行中每天检查两次，不用重启）。各设备装的 `ca.crt` 十年有效，不用重装。
+- **数据**：不存聊天记录。需要保留的只有 `config.env` 和 `lan-certs` 文件夹（`ca.key` 是 CA 私钥，别外传）。
 
-## 9. 升级
+## 9. 升级（不需要联网）
 
-1. 下载新版本的包，解压到一个新文件夹。
-2. 把旧文件夹里的 `lan-certs` 文件夹复制到新文件夹里（这样各设备装的证书继续有效）。
-3. 关掉旧窗口，从新文件夹启动。
+1. 在能上网的电脑上，从[发布页](https://github.com/Freecode100Year/private-talk/releases/latest)下载**同一平台**的新安装包，以及同名的 `.sig` 签名文件（例如 `private-talk-win-x64.zip` 和 `private-talk-win-x64.zip.sig`），用 U 盘拷过来，放在一起。
+2. 关掉正在运行的隐匿对话窗口。
+3. 更新：
+   - Windows：把新安装包**拖到 `update.cmd` 上**。
+   - macOS / Linux：`./update.sh /路径/private-talk-linux-x64.tar.gz`
+4. 看到“✓ 已更新”后，照常用 `start-lan` 启动。
+
+更新程序会先核对签名（防止被人换成假的包）、在备用端口试运行新版本，正常才替换。证书和 `config.env` 原样保留，各设备不用重装证书。新版本有问题时运行 `update --rollback`（Windows：`update.cmd --rollback`）回到上一个版本。更新会断开当时的聊天，房间和消息不会恢复。
+
+**从 2.2 及更早版本升级（只需一次）**：旧版本还没有更新程序。把新包解压到一个新文件夹，在新文件夹里运行 `update.cmd --import D:\旧文件夹`（macOS / Linux：`./update.sh --import /旧文件夹`），它会把旧文件夹的证书和设置搬过来。以后就可以直接用 `update` 了。
 
 Node.js 方式：`git pull && npm ci --omit=dev` 后重新启动。Docker：`git pull && docker compose -f docker-compose.lan.yml pull && docker compose -f docker-compose.lan.yml up -d`。
 

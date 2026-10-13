@@ -9,7 +9,7 @@
 // The server certificate it signs lists the machine's LAN addresses and is
 // renewed whenever they change.
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, X509Certificate } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { hostname, networkInterfaces } from 'node:os';
 import { join } from 'node:path';
 
@@ -95,6 +95,12 @@ function certificate({ subject, issuer, spki, signer, issuerSpki, ca, sans, days
   return `-----BEGIN CERTIFICATE-----\n${der.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`;
 }
 
+// Written whole or not at all, so a running server never reads half a file.
+function save(path, data, opts) {
+  writeFileSync(`${path}.tmp`, data, opts);
+  renameSync(`${path}.tmp`, path);
+}
+
 // --- what this machine is called on the network ---------------------------
 const PRIVATE_V4 = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/;
 export function lanAddresses() {
@@ -129,8 +135,8 @@ export function ensure(dir, extra = []) {
     const pair = generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const spki = pair.publicKey.export({ type: 'spki', format: 'der' });
     const label = `隐匿对话 LAN CA ${hostname()} ${randomBytes(3).toString('hex')}`;
-    writeFileSync(caKey, pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
-    writeFileSync(caCrt, certificate({ subject: label, issuer: label, spki, signer: pair.privateKey, issuerSpki: spki, ca: true, days: 3650 }));
+    save(caKey, pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+    save(caCrt, certificate({ subject: label, issuer: label, spki, signer: pair.privateKey, issuerSpki: spki, ca: true, days: 3650 }));
   }
   const caCert = new X509Certificate(readFileSync(caCrt));
   const caPriv = createPrivateKey(readFileSync(caKey));
@@ -146,9 +152,9 @@ export function ensure(dir, extra = []) {
     new Date(current.validTo).getTime() - Date.now() > 30 * 86400e3 && current.verify(caCert.publicKey);
   if (!covers) {
     const pair = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-    writeFileSync(key, pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+    save(key, pair.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
     // 397 days: the longest browsers accept for a server certificate.
-    writeFileSync(crt, certificate({
+    save(crt, certificate({
       subject: sans.find((n) => !/^[\d.:]+$/.test(n) && n !== 'localhost') || sans[0], issuer: caCert.subject.match(/CN=([^\n]+)/)[1],
       spki: pair.publicKey.export({ type: 'spki', format: 'der' }), signer: caPriv, issuerSpki: caSpki, sans, days: 397,
     }));

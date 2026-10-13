@@ -62,7 +62,7 @@ sudo journalctl -u private-talk-lan -n 20        # 查看访问地址
 3. 开机自动运行：任务计划程序 → 创建任务：
    - 常规：「不管用户是否登录都要运行」，勾选「使用最高权限运行」。
    - 触发器：启动时。
-   - 操作：启动程序 `C:\private-talk\node\node.exe`，参数 `server\lan.mjs`，起始于 `C:\private-talk`。
+   - 操作：启动程序 `C:\private-talk\node\node.exe`，参数 `app\server\lan.mjs`，起始于 `C:\private-talk`。（升级时路径不变，不用改计划任务。）
    - 设置：取消「如果任务运行时间超过以下时间，停止任务」。
 4. 防火墙放行入站 TCP 8443（只对内网网段）。
 
@@ -81,18 +81,19 @@ docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
 
 1. 内网 DNS 加一条记录：`chat.内网域名` → 服务器 IP。
 2. 向 IT/PKI 申请这个名字的服务器证书（PEM 格式的证书和私钥）。
-3. 用 `server.mjs` 直接加载它，不用 `lan.mjs`：
+3. 写进程序文件夹里的 `config.env`（Windows 同样适用），程序就直接用它，不再自己生成证书：
 
    ```sh
-   TLS_CERT=/etc/private-talk/cert.pem TLS_KEY=/etc/private-talk/key.pem PORT=443 \
-     /opt/private-talk/node/bin/node server/server.mjs
+   TLS_CERT=/etc/private-talk/cert.pem
+   TLS_KEY=/etc/private-talk/key.pem
+   PORT=443
    ```
 
-   systemd 服务文件里已经写好了对应的注释行，把 `ExecStart` 改成 `server/server.mjs` 即可。用 443 端口时打开 `AmbientCapabilities=CAP_NET_BIND_SERVICE`。
+   证书和私钥不配对、文件不存在时，程序不会启动并说明原因；证书快过期会在启动时提醒。换了新证书文件不用重启，10 分钟内自动载入。systemd 也可以用服务文件里注释好的 `Environment=TLS_CERT=…` 行。用 443 端口时打开 `AmbientCapabilities=CAP_NET_BIND_SERVICE`。
 
 **方案 B：用已有的反向代理**（nginx、F5、IIS ARR 等）
 
-让代理提供 HTTPS 并转发到 `http://服务器:8080`，程序用 `HOST=127.0.0.1 TRUST_PROXY=1 node server/server.mjs` 启动。代理必须转发 WebSocket（`Upgrade`、`Connection` 头），并传 `Host`、`X-Forwarded-Proto`、`X-Forwarded-For`。nginx 示例：[deploy/nginx.conf](../../deploy/nginx.conf)。
+让代理提供 HTTPS 并转发到 `http://服务器:8080`，程序用 `HOST=127.0.0.1 TRUST_PROXY=1 node app/server/server.mjs` 启动（离线包里）。代理必须转发 WebSocket（`Upgrade`、`Connection` 头），并传 `Host`、`X-Forwarded-Proto`、`X-Forwarded-For`。nginx 示例：[deploy/nginx.conf](../../deploy/nginx.conf)。
 
 **方案 C：用程序自己生成的证书**（没有内部 CA 时）
 
@@ -131,11 +132,25 @@ docker compose -f docker-compose.lan.yml up -d     # 文件在任一离线包里
 - **连接上限**：默认最多 2000 个同时在线的连接，超出的会被提示“进入次数太多”；用 `MAX_CONNECTIONS` 调整。
 - **房间管理**：最早进入的人是房主，可以锁定房间、移出成员；不需要管理员账号，服务器上也没有管理后台（不存在可以查看房间的地方）。
 
-## 8. 升级
+## 8. 升级（不需要联网）
 
-1. 在外网下载新版本的包并核对（第 2 步）。
-2. Linux：`sudo systemctl stop private-talk-lan`，解压覆盖 `/opt/private-talk`（证书在 `/var/lib/private-talk`，不受影响），`sudo systemctl start private-talk-lan`。
-3. Windows：解压到新目录，把旧目录的 `lan-certs` 复制过去，修改计划任务的路径。
+每个离线包都带更新程序 `update`。它会核对签名、先在备用端口试运行新版本，正常才替换；证书、`config.env` 原样保留，上一个版本留在 `previous` 文件夹里可以一键回退。
+
+1. 在外网下载**同一平台**的新安装包，以及同名的 `.sig` 签名文件（例如 `private-talk-linux-x64.tar.gz` 和 `private-talk-linux-x64.tar.gz.sig`），放在一起拷进内网。签名由本项目的发布密钥生成，内网里不用联网就能核对；包被改过一个字节都会被拒绝。
+2. 停止服务：
+   - Linux：`sudo systemctl stop private-talk-lan`
+   - Windows：结束计划任务（或关闭窗口）。
+3. 更新：
+   - Linux：`sudo /opt/private-talk/update.sh /路径/private-talk-linux-x64.tar.gz`
+   - Windows：把新安装包拖到 `C:\private-talk\update.cmd` 上，或在命令行运行 `update.cmd D:\private-talk-win-x64.zip`。
+4. 启动服务，运行 `status`（`status.sh` / `status.cmd`）确认版本和“正在运行”。
+5. 有问题：停止服务，运行 `update --rollback`，再启动。
+
+程序路径不变，systemd 服务文件和计划任务都不用改。更新会断开当时的所有聊天；房间和消息在内存里，回退也不会恢复，大家重新打开房间链接即可。
+
+**从 2.2 及更早版本升级（只需一次）**：旧版本没有更新程序。把新包解压到新文件夹，在新文件夹里运行 `update --import <旧文件夹>`，它会复制旧文件夹的 `lan-certs`，并把旧 `start-lan.cmd` 里的 `set` 设置写进 `config.env`。之后换成新文件夹运行（Linux 服务：把新文件夹放到 `/opt/private-talk`，`ExecStart` 改为 `app/server/lan.mjs`）。
+
+**需要备份的东西**：没有聊天记录可备份，但请保留 `config.env`、`lan-certs`（或 `/var/lib/private-talk`）——其中 `ca.key` 是 CA 私钥，单独妥善保管；以及你自己的 `TLS_CERT`/`TLS_KEY`。
 
 ## 9. 卸载
 

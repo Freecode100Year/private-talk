@@ -8,7 +8,8 @@ import { qrSvg } from './qr.js';
 const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
 
 const $ = (id) => document.getElementById(id);
-const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007;
+const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007, CLOSE_CAPACITY = 4008;
+const CLOSE_RESTART = 1012; // the server is restarting (an update): come back shortly
 const PING = '{"type":"ping"}';
 const MAX_ON_SCREEN = 300;      // older messages are dropped from the screen
 const ACK_WAIT = 8000;          // a sent message should come back from the relay within this
@@ -313,6 +314,8 @@ function connect() {
     if (e.code === CLOSE_BUSY) return stop('stop.busy');
     if (e.code === CLOSE_REMOVED) return stop('stop.removed');
     if (e.code === CLOSE_DENIED) return stop('stop.denied');
+    if (e.code === CLOSE_CAPACITY) return stop('stop.capacity');
+    if (e.code === CLOSE_RESTART) { system(t('sys.restart')); return retry(3000); }
     if (e.code === CLOSE_LOCKED) {
       if (!joinedOnce) return stop('stop.locked');
       status('status.lockedWait', false);

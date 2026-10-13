@@ -64,6 +64,7 @@ export const CLOSE_BUSY = 4003;
 export const CLOSE_LEFT = 4000;
 export const CLOSE_REMOVED = 4006;    // the host took this member out of the room
 export const CLOSE_DENIED = 4007;     // no valid access value: wrong or old page
+export const CLOSE_CAPACITY = 4008;   // the server has as many connections as it takes (Node version)
 
 // Headers for every response the relay makes itself (static files get theirs
 // from dist/_headers). NEL max_age 0 replaces Cloudflare's default network

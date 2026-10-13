@@ -11,32 +11,51 @@
 //                Serve/Funnel) whose X-Forwarded-For / X-Forwarded-Proto
 //                should be believed
 //   TLS_CERT     certificate (PEM) and key file: serve HTTPS directly, for a
-//   TLS_KEY      LAN or intranet without a proxy (see scripts/lan.mjs)
+//   TLS_KEY      LAN or intranet without a proxy (see server/lan.mjs)
+//   CONFIG_FILE  a KEY=VALUE file with the settings above (default: config.env
+//                in the working folder, if present; see server/config.mjs)
 import http from 'node:http';
 import https from 'node:https';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { X509Certificate, createPrivateKey } from 'node:crypto';
 import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
+  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
   PROTOCOL, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
-const PORT = Number(process.env.PORT) || 8080;
-const HOST = process.env.HOST || undefined;
-const TRUST_PROXY = process.env.TRUST_PROXY === '1';
-const JOIN_LIMIT = Number(process.env.JOIN_LIMIT) || JOINS_PER_MINUTE;
-const MAX_CONNECTIONS = Number(process.env.MAX_CONNECTIONS) || 2000;
+import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
+import { VERSION } from './version.mjs';
+
+let config;
+try {
+  loadConfigFile();
+  config = checkConfig(process.env, { port: 8080, joinLimit: JOINS_PER_MINUTE });
+} catch (e) {
+  if (!(e instanceof ConfigError)) throw e;
+  console.error(`设置有误，没有启动：${e.message}`);
+  process.exit(2);
+}
+const { port: PORT, host: HOST, trustProxy: TRUST_PROXY, joinLimit: JOIN_LIMIT, maxConnections: MAX_CONNECTIONS } = config;
 // A member whose connection cannot keep up (more than this much unsent) is
 // dropped rather than letting the backlog grow in memory.
 const MAX_BUFFERED = 1 << 20;
 // Browsers only allow the page's encryption (Web Crypto) on HTTPS or
 // localhost, so a LAN address needs a certificate.
-const TLS = process.env.TLS_CERT && process.env.TLS_KEY
-  ? { cert: readFileSync(process.env.TLS_CERT), key: readFileSync(process.env.TLS_KEY) }
-  : null;
+const TLS = config.tlsCert ? { cert: readFileSync(config.tlsCert), key: readFileSync(config.tlsKey) } : null;
+if (TLS) {
+  const cert = new X509Certificate(TLS.cert);
+  if (!cert.checkPrivateKey(createPrivateKey(TLS.key))) {
+    console.error(`设置有误，没有启动：TLS_KEY 不是 TLS_CERT 这张证书的私钥`);
+    process.exit(2);
+  }
+  const days = Math.floor((new Date(cert.validTo) - Date.now()) / 86400e3);
+  if (days < 0) console.error(`警告：证书已经过期（${cert.validTo}），浏览器会拒绝连接。`);
+  else if (days < 30) console.error(`提醒：证书还有 ${days} 天过期（${cert.validTo}）。`);
+}
 const ROOT = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const TYPES = {
@@ -91,6 +110,12 @@ const handler = async (req, res) => {
     return;
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, PLAIN_HEADERS).end(); return; }
+  // For health checks: says only that the process serves and its version;
+  // nothing about rooms or visitors.
+  if (url.pathname === '/healthz') {
+    res.writeHead(stopping ? 503 : 200, { ...PLAIN_HEADERS, 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: !stopping, version: VERSION }));
+    return;
+  }
   let path;
   try { path = decodeURIComponent(url.pathname); } catch { res.writeHead(400, PLAIN_HEADERS).end(); return; }
   if (path.endsWith('/')) path += 'index.html';
@@ -102,6 +127,21 @@ const handler = async (req, res) => {
   res.end(req.method === 'HEAD' ? undefined : body);
 };
 const server = TLS ? https.createServer(TLS, handler) : http.createServer(handler);
+// Certificates renewed on disk (LAN mode renews its own; an admin may replace
+// theirs) are picked up without a restart.
+if (TLS) {
+  let current = TLS.cert.toString();
+  setInterval(() => {
+    try {
+      const cert = readFileSync(config.tlsCert), key = readFileSync(config.tlsKey);
+      if (cert.toString() === current) return;
+      if (!new X509Certificate(cert).checkPrivateKey(createPrivateKey(key))) return; // half-written pair: try again later
+      server.setSecureContext({ cert, key });
+      current = cert.toString();
+      console.log('已载入新的证书');
+    } catch {}
+  }, 10 * 60e3).unref();
+}
 
 // Joins per address per minute, in memory only.
 const joins = new Map();
@@ -148,7 +188,8 @@ const wss = new WebSocketServer({
 });
 
 function enter(ws, roomId, ip, resume) {
-  if (!allowJoin(ip) || wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_BUSY, 'busy');
+  if (wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
+  if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'busy');
   const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
   const inUse = new Map([...room.peers].map((p) => [p.state.n, p.state.resume]));
   const r = admit(room.book, inUse, resume);
@@ -234,5 +275,22 @@ setInterval(() => {
   }
 }, 30000).unref();
 
-server.listen(PORT, HOST, () => console.log(`隐匿对话 listening on ${TLS ? 'https' : 'http'}://${HOST ?? '0.0.0.0'}:${PORT}`));
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(); for (const ws of wss.clients) ws.close(1001); process.exit(0); });
+server.on('error', (e) => {
+  console.error(e.code === 'EADDRINUSE' ? `端口 ${PORT} 已被占用：可能已经开着一个隐匿对话，或者换一个 PORT。` : `无法启动：${e.message}`);
+  process.exit(1);
+});
+server.listen(PORT, HOST, () => console.log(`隐匿对话 ${VERSION} listening on ${TLS ? 'https' : 'http'}://${HOST ?? '0.0.0.0'}:${PORT}`));
+
+// Stopping: no new connections, tell the pages the server is restarting
+// (1012; they reconnect by themselves), give them a moment, then exit.
+let stopping = false;
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => {
+  if (stopping) process.exit(0);
+  stopping = true;
+  server.close();
+  for (const ws of wss.clients) ws.close(1012, 'restart');
+  const deadline = Date.now() + 3000;
+  const check = setInterval(() => {
+    if (!wss.clients.size || Date.now() > deadline) { clearInterval(check); process.exit(0); }
+  }, 100);
+});

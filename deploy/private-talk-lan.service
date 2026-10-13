@@ -1,9 +1,14 @@
 # systemd unit for 隐匿对话 in LAN / intranet mode from the offline package.
 # See docs/manual/enterprise.md.
-#   1. Unpack the linux package to /opt/private-talk
+#   1. Unpack the linux package and move its folder to /opt/private-talk
+#      (tar -xzf private-talk-linux-x64.tar.gz && sudo mv private-talk-*-linux-x64 /opt/private-talk)
 #   2. useradd --system --no-create-home --shell /usr/sbin/nologin private-talk
 #   3. cp deploy/private-talk-lan.service /etc/systemd/system/ && systemctl enable --now private-talk-lan
-# Certificates are kept in /var/lib/private-talk (StateDirectory).
+# Certificates are kept in /var/lib/private-talk (StateDirectory). Settings can
+# also go in /opt/private-talk/config.env. Updating, with no internet:
+#   sudo systemctl stop private-talk-lan
+#   sudo /opt/private-talk/update.sh /path/to/private-talk-linux-x64.tar.gz   (.sig beside it)
+#   sudo systemctl start private-talk-lan        (update.sh --rollback to go back)
 [Unit]
 Description=隐匿对话 private-talk (LAN / intranet)
 After=network-online.target
@@ -18,10 +23,10 @@ Environment=NODE_ENV=production
 Environment=PORT=8443
 Environment=LAN_CERTS=/var/lib/private-talk
 # Environment=LAN_NAMES=chat.internal
-# With the company's own certificate instead (server.mjs, not lan.mjs):
+# With the company's own certificate instead (used as it is, no CA is made):
 # Environment=TLS_CERT=/etc/private-talk/cert.pem
 # Environment=TLS_KEY=/etc/private-talk/key.pem
-ExecStart=/opt/private-talk/node/bin/node server/lan.mjs
+ExecStart=/opt/private-talk/node/bin/node app/server/lan.mjs
 StateDirectory=private-talk
 StateDirectoryMode=0700
 Restart=on-failure

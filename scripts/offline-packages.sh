@@ -17,35 +17,58 @@ OUT="$ROOT/out"; WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT"
 
-# The app with its production dependencies, the same for every platform.
+# Layout of every package (see server/update.mjs):
+#   app/      the program: page, server, docs, dependencies
+#   node/     Node.js (not in the app package)
+#   start-lan, update, status scripts; config.env.example; PLATFORM
+# lan-certs/, config.env and previous/ are made on the user's machine and
+# never shipped, so the updater can replace app/ and node/ around them.
 APP="$WORK/app"
 mkdir -p "$APP/src"
 cp -r "$ROOT/dist" "$ROOT/server" "$ROOT/docs" "$APP/"
 mkdir -p "$APP/deploy" && cp "$ROOT/deploy/private-talk-lan.service" "$APP/deploy/"
 cp "$ROOT/docker-compose.lan.yml" "$APP/"
 cp "$ROOT/src/rules.js" "$APP/src/"
-cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$ROOT/offline/使用说明.txt" "$APP/"
+cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$APP/"
 (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null && rm package-lock.json)
-(cd "$WORK" && cp -r app "private-talk-$VERSION-app" && zip -qr "$OUT/private-talk-app.zip" "private-talk-$VERSION-app")
+
+# skeleton <dir> <platform>: the folder around app/.
+skeleton() {
+  local dir="$1" p="$2"
+  mkdir -p "$dir"
+  cp -r "$APP" "$dir/app"
+  cp "$ROOT/offline/使用说明.txt" "$ROOT/offline/config.env.example" "$dir/"
+  printf '%s\n' "$p" > "$dir/PLATFORM"
+  if [[ $p == win-* ]]; then
+    cp "$ROOT/offline/start-lan.cmd" "$ROOT/offline/update.cmd" "$ROOT/offline/status.cmd" "$dir/"
+    # Windows reads .cmd and .txt in the console code page; CRLF line ends.
+    sed -i 's/$/\r/' "$dir/"*.cmd "$dir/使用说明.txt" "$dir/config.env.example"
+  elif [[ $p == app ]]; then
+    cp "$ROOT/offline/"*.cmd "$ROOT/offline/"*.sh "$dir/"
+    chmod +x "$dir/"*.sh
+  else
+    cp "$ROOT/offline/start-lan.sh" "$ROOT/offline/update.sh" "$ROOT/offline/status.sh" "$dir/"
+    chmod +x "$dir/"*.sh
+  fi
+}
+
+skeleton "$WORK/private-talk-$VERSION-app" app
+(cd "$WORK" && zip -qr "$OUT/private-talk-app.zip" "private-talk-$VERSION-app")
 
 curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt" -o "$WORK/SHASUMS256.txt"
 for p in "${PLATFORMS[@]}"; do
   name="private-talk-$VERSION-$p"; dir="$WORK/$name"
-  cp -r "$APP" "$dir"; mkdir -p "$dir/node"
+  skeleton "$dir" "$p"; mkdir -p "$dir/node"
   if [[ $p == win-* ]]; then file="node-$NODE_VERSION-$p.zip"; else file="node-$NODE_VERSION-$p.tar.xz"; fi
   curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/$file" -o "$WORK/$file"
   (cd "$WORK" && grep " $file\$" SHASUMS256.txt | sha256sum -c --quiet -)
   if [[ $p == win-* ]]; then
     unzip -q -j "$WORK/$file" "node-$NODE_VERSION-$p/node.exe" "node-$NODE_VERSION-$p/LICENSE" -d "$dir/node"
-    cp "$ROOT/offline/start-lan.cmd" "$dir/"
-    # Windows reads .cmd and .txt in the console code page; CRLF line ends.
-    sed -i 's/$/\r/' "$dir/start-lan.cmd" "$dir/使用说明.txt"
     (cd "$WORK" && zip -qr "$OUT/private-talk-$p.zip" "$name")
   else
     mkdir -p "$dir/node/bin"
     tar -xJf "$WORK/$file" -C "$WORK" "node-$NODE_VERSION-$p/bin/node" "node-$NODE_VERSION-$p/LICENSE"
     mv "$WORK/node-$NODE_VERSION-$p/bin/node" "$dir/node/bin/"; mv "$WORK/node-$NODE_VERSION-$p/LICENSE" "$dir/node/"
-    cp "$ROOT/offline/start-lan.sh" "$dir/"; chmod +x "$dir/start-lan.sh"
     tar -czf "$OUT/private-talk-$p.tar.gz" -C "$WORK" "$name"
   fi
   echo "built $name"

@@ -11,7 +11,7 @@
 | [private-talk-linux-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz) | ARM 服务器、树莓派（64 位系统） | 同上 |
 | [private-talk-darwin-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-arm64.tar.gz) | Apple 芯片的 Mac | 同上 |
 | [private-talk-darwin-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-darwin-x64.tar.gz) | Intel 芯片的 Mac | 同上 |
-| [private-talk-app.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-app.zip) | 已装 Node.js 22 或更新版本的机器 | 解压，`node server/lan.mjs` |
+| [private-talk-app.zip](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-app.zip) | 已装 Node.js 22 或更新版本的机器 | 解压，运行 `start-lan`（用系统里的 Node.js） |
 | [private-talk-docker-amd64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-amd64.tar.gz) | 有 Docker 的 x86 服务器 | 见下文 |
 | [private-talk-docker-arm64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-docker-arm64.tar.gz) | 有 Docker 的 ARM 服务器 | 见下文 |
 
@@ -41,6 +41,7 @@ gh attestation verify private-talk-win-x64.zip -R Freecode100Year/private-talk  
 
 - **完全不联网**：页面不加载任何外部资源（字体、脚本、统计都没有），服务器也不连接外部。
 - **防火墙**：放行端口 8443（或你设置的 `PORT`）。Windows 第一次启动会弹窗，选“专用网络”。
-- **长期运行**：Windows 可用任务计划程序在开机时运行 `start-lan.cmd`；Linux 可参考 `deploy/private-talk.service`，把 `ExecStart` 改成包里的 `node/bin/node server/lan.mjs`，并设置 `WorkingDirectory` 为解压目录。
-- **更新**：下载新版本的包，解压到新目录，把旧目录里的 `lan-certs` 文件夹复制过去（各设备已装的证书继续有效），再启动。
+- **长期运行**：Windows 可用任务计划程序在开机时运行 `start-lan.cmd`；Linux 用 `deploy/private-talk-lan.service`（已写好 `app/server/lan.mjs`）。
+- **设置**：写在包里的 `config.env`（复制 `config.env.example`），升级不会动它。
+- **更新**：每个包都带离线更新程序。下载新包和同名的 `.sig` 签名文件，关掉程序，把新包拖到 `update.cmd` 上（或 `./update.sh 新包`）。它核对签名、试运行，正常才替换，`update --rollback` 可回退。详见 [局域网手册第 9 节](manual/lan.md#9-升级不需要联网)。2.2 及更早的文件夹先用 `update --import <旧文件夹>` 搬一次。
 - **安卓手机**：Termux 需要联网安装一次，离线内网里不适用。
