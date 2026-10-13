@@ -1,3 +1,11 @@
+# Caddy's own messages only from warnings up (certificate problems, errors);
+# no access log. Nothing about visitors is written.
+{
+	log {
+		level WARN
+	}
+}
+
 {$DOMAIN} {
 	reverse_proxy app:8080
 }

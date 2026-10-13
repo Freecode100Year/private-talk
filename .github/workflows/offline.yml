@@ -21,6 +21,8 @@ jobs:
 
   build:
     needs: test
+    # Only here: copies of the project (Deploy to Cloudflare) don't publish.
+    if: github.repository == 'Freecode100Year/private-talk'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -134,8 +136,31 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: out/private-talk-*
+      # What this release is made of, in one file: version, commit, protocol,
+      # Node.js, the image digests (from the docker workflow) and checksums.
+      - name: Release manifest
+        env: { RELEASE_SIGNING_KEY: "${{ secrets.RELEASE_SIGNING_KEY }}" }
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          img=ghcr.io/freecode100year/private-talk:$v
+          for i in $(seq 1 60); do docker buildx imagetools inspect "$img" >/dev/null 2>&1 && break; sleep 20; done
+          {
+            echo "private-talk $v"
+            echo "commit      $GITHUB_SHA"
+            echo "protocol    pt2"
+            echo "node        $(grep -o 'NODE_VERSION:-v[0-9.]*' scripts/offline-packages.sh | cut -d- -f2)"
+            echo "image       $img"
+            echo "digest      $(docker buildx imagetools inspect "$img" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+            echo
+            echo "files (sha256):"
+            cat out/SHA256SUMS.txt
+          } > out/RELEASE-MANIFEST.txt
+          cat out/RELEASE-MANIFEST.txt
+          node scripts/sign-release.mjs out/RELEASE-MANIFEST.txt
+      # Assets of a published version are never replaced: a fix is a new
+      # patch version.
       - name: Attach to the release
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "离线安装包见下方附件，用法见 docs/offline.md。"
-          gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          gh release upload "$GITHUB_REF_NAME" out/*

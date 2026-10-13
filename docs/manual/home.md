@@ -11,7 +11,7 @@
 | Windows / Mac | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 | Linux / 树莓派 | Docker：`curl -fsSL https://get.docker.com \| sh` |
 | 群晖 / 威联通 NAS | 套件中心里的 Container Manager / Container Station（不用另外下载） |
-| 所有设备 | 本项目源码：`git clone`，或下载 [main.zip](https://github.com/Freecode100Year/private-talk/archive/refs/heads/main.zip) 解压 |
+| 所有设备 | 部署文件包 [private-talk-compose.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz)（不需要源码） |
 
 镜像 `ghcr.io/freecode100year/private-talk:2` 和 `cloudflare/cloudflared` 在启动时自动下载，不用手动下载 cloudflared。
 
@@ -39,12 +39,21 @@
 ## 3. 在设备上运行
 
 ```sh
-git clone https://github.com/Freecode100Year/private-talk.git
-cd private-talk
-TUNNEL_TOKEN=粘贴隧道令牌 docker compose -f docker-compose.tunnel.yml up -d
+curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
+cd private-talk-docker
+cat > .env <<'EOF2'
+COMPOSE_FILE=docker-compose.tunnel.yml
+TUNNEL_TOKEN=粘贴隧道令牌
+DOMAIN=chat.你的域名
+EOF2
+chmod 600 .env
+docker compose up -d
+./pt status            # 最后一行应是 OK
 ```
 
-NAS 的图形界面：新建项目（Compose），把 `docker-compose.tunnel.yml` 的内容粘进去，在环境变量里填 `TUNNEL_TOKEN`。
+`.env` 里的令牌相当于密码：只留在这台设备上，不要发给别人。以后的命令都在这个文件夹运行，不用再输入令牌。
+
+NAS 的图形界面：新建项目（Compose），把 `docker-compose.tunnel.yml` 的内容粘进去，在环境变量里填 `TUNNEL_TOKEN`（这种方式用不了 `./pt`，升级时把镜像版本号改成新版本）。
 
 一两分钟后打开 `https://chat.你的域名`。
 
@@ -67,9 +76,8 @@ NAS 的图形界面：新建项目（Compose），把 `docker-compose.tunnel.yml
 ## 7. 升级
 
 ```sh
-cd private-talk && git pull
-docker compose -f docker-compose.tunnel.yml pull
-docker compose -f docker-compose.tunnel.yml up -d
+cd private-talk-docker
+./pt upgrade            # 自检不过会自动回到原版本；./pt rollback 手动回退
 ```
 
 ## 8. 安全注意
@@ -81,7 +89,7 @@ docker compose -f docker-compose.tunnel.yml up -d
 ## 9. 卸载
 
 ```sh
-cd private-talk && docker compose -f docker-compose.tunnel.yml down && cd .. && rm -rf private-talk
+cd private-talk-docker && docker compose down && cd .. && rm -rf private-talk-docker
 ```
 
 再到 Cloudflare 后台删除这条隧道和它的公共主机名。
@@ -90,7 +98,7 @@ cd private-talk && docker compose -f docker-compose.tunnel.yml down && cd .. && 
 
 | 现象 | 做法 |
 | :--- | :--- |
-| 打开显示 Cloudflare 错误 1033 | 隧道没连上：设备没开、令牌填错，`docker compose -f docker-compose.tunnel.yml logs cloudflared` 查看 |
+| 打开显示 Cloudflare 错误 1033 | 隧道没连上：设备没开、令牌填错，`./pt logs cloudflared` 查看 |
 | 显示 502 | 公共主机名的服务地址要填 `app:8080`（不是 localhost） |
 
 只想在家里局域网用、不对外？看[局域网手册](lan.md)。更多见 [故障排查](troubleshooting.md)。

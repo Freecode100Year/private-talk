@@ -17,6 +17,8 @@ jobs:
 
   image:
     needs: test
+    # Only here: copies of the project (Deploy to Cloudflare) don't publish.
+    if: github.repository == 'Freecode100Year/private-talk'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,3 +48,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Build provenance and a software bill of materials, attached to the image.
+          provenance: mode=max
+          sbom: true

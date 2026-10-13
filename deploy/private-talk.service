@@ -1,4 +1,7 @@
-# systemd unit for 隐匿对话 without Docker. See docs/vps.md.
+# systemd unit for 隐匿对话 without Docker, from the linux offline package
+# unpacked to /opt/private-talk. Settings in /opt/private-talk/config.env:
+#   PORT=8080  HOST=127.0.0.1  TRUST_PROXY=1   (behind Caddy or nginx)
+# See docs/vps.md (install, update.sh to upgrade, --rollback).
 [Unit]
 Description=隐匿对话 private-talk relay
 After=network-online.target
@@ -10,14 +13,12 @@ User=private-talk
 Group=private-talk
 WorkingDirectory=/opt/private-talk
 Environment=NODE_ENV=production
-Environment=PORT=8080
-Environment=HOST=127.0.0.1
-Environment=TRUST_PROXY=1
-ExecStart=/usr/bin/node server/server.mjs
+ExecStart=/opt/private-talk/node/bin/node app/server/server.mjs
 Restart=on-failure
 RestartSec=3
-# Visitors are never logged; this only keeps the start-up line out of the journal.
-StandardOutput=null
+# The journal gets only the start-up line, warnings and errors: the program
+# never prints visitors, addresses, rooms or passphrases.
+TimeoutStopSec=10
 
 # Hardening: the relay needs nothing but its own files and the network.
 NoNewPrivileges=true

@@ -2,7 +2,7 @@
 
 **适合**：个人或小团队，没有服务器，想几分钟内有一个自己的聊天网址。
 **结果**：`https://private-talk.<你的子域>.workers.dev`，或绑定你自己的域名。
-**费用**：免费版每天有用量上限（大约够房间累计活跃 29 小时），超出后当天无法进房；每月 5 美元的 Workers 付费版不会停。
+**费用**：免费版有每日用量上限，超出后当天无法进房，第二天恢复；Workers 付费版（每月 5 美元起）包含更多用量、超出部分按量计费。实际用量取决于请求数和 Durable Objects 的运行时间，不能简单按“房间开了几小时”估算，请以后台指标为准（[Durable Objects 计费](https://developers.cloudflare.com/durable-objects/platform/pricing/)、[Workers 限制](https://developers.cloudflare.com/workers/platform/limits/)），并在 Cloudflare 后台设置用量通知。
 
 ## 需要下载什么
 
@@ -23,7 +23,7 @@
 
 1. 打开项目主页 <https://github.com/Freecode100Year/private-talk>，点 README 里的「Deploy to Cloudflare」按钮。
 2. 登录 Cloudflare（没有账号就先免费注册，注册后回到这个按钮再点一次）。
-3. 按页面提示连接你的 GitHub 账号：Cloudflare 会把项目复制一份到你的 GitHub（以后升级用）。
+3. 按页面提示连接你的 GitHub 账号：Cloudflare 会把项目**复制**一份到你的 GitHub（是独立的副本，不是 fork；以后升级用）。
 4. 确认项目名（默认 `private-talk`，网址里会用到），其他选项保持默认，点「部署」/「Create and deploy」。
 5. 等两三分钟，页面会给出 `https://private-talk.<子域>.workers.dev` 网址。
    新账号第一次用 Workers 时，会先让你起一个 `workers.dev` 子域名（例如你的英文名），填好再继续。
@@ -65,8 +65,21 @@ Cloudflare 后台 → Workers 和 Pages → private-talk → 设置 → 域和�
 
 ## 7. 升级
 
-- 一键部署的：到你 GitHub 里的那个仓库，点「Sync fork」同步最新代码，Cloudflare 会自动重新部署。
-- 命令行部署的：`git pull && npm install && npx wrangler deploy`。
+- **一键部署的**：你的仓库是副本，GitHub 上没有「Sync fork」。用仓库自带的升级流程：
+  1. 打开你 GitHub 里的这个仓库 → **Actions** → 左侧 **upgrade** → **Run workflow**。
+  2. 版本留空 = 最新发布；也可以填具体版本号（例如 `2.3.0`）。回退就填旧的版本号。
+  3. 它会把仓库内容换成那个发布版本（只保留你的 Worker 名字），提交后 Cloudflare 自动重新部署。你自己往仓库里加的文件会被清掉。
+  4. 第一次用时如果 Actions 页面提示要启用工作流，点启用即可。
+- **命令行部署的**：固定到发布版本，不要直接追 main：
+
+  ```sh
+  git fetch --tags && git checkout v2.3.0      # 换成要升级到的版本
+  npm ci && npx wrangler deploy
+  ```
+
+  回退：`git checkout <旧版本号>` 后同样 `npm ci && npx wrangler deploy`。
+- 确认：在任意装了 Node.js 22 的电脑上，进仓库目录运行 `node server/smoke.mjs https://你的网址`，两个测试客户端互发一条加密消息，最后一行应是 OK。
+- 升级会让当时的房间重新开始（Durable Object 重新加载），页面自动重连，消息不会保留。
 
 ## 8. 安全注意
 

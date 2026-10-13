@@ -4,11 +4,12 @@
 #      tunnel (cloudflared). Copy its token.
 #   2. In the tunnel's Public Hostname tab, add your hostname with service
 #      HTTP → app:8080
-#   3. TUNNEL_TOKEN=<token> docker compose -f docker-compose.tunnel.yml up -d
+#   3. In .env: COMPOSE_FILE=docker-compose.tunnel.yml and TUNNEL_TOKEN=<token>
+#      (and DOMAIN=<your hostname> for ./pt status), then: docker compose up -d
+#      The token is a secret: .env is not shared or committed.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:2
-    build: .
+    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.3.0}
     restart: unless-stopped
     environment:
       TRUST_PROXY: "1"
@@ -16,14 +17,17 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.10.0
     restart: unless-stopped
-    depends_on: [app]
-    command: tunnel --no-autoupdate run
+    depends_on:
+      app: { condition: service_healthy }
+    command: tunnel --no-autoupdate --loglevel warn run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN to the tunnel token from the Cloudflare dashboard}
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }

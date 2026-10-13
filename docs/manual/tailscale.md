@@ -53,7 +53,10 @@ tailscale serve status          # 显示网址
 **Docker**：
 
 ```sh
-TS_AUTHKEY=tskey-auth-... TS_MODE=private docker compose -f docker-compose.tailscale.yml up -d
+curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
+cd private-talk-docker
+printf 'COMPOSE_FILE=docker-compose.tailscale.yml\nTS_AUTHKEY=tskey-auth-...\nTS_MODE=private\n' > .env && chmod 600 .env
+docker compose up -d          # 以后升级：./pt upgrade（.env 里加 PT_URL=https://你的ts.net网址 后，./pt status 会做聊天自检）
 # 公网把 TS_MODE 改成 funnel
 ```
 
@@ -77,7 +80,7 @@ TS_AUTHKEY=tskey-auth-... TS_MODE=private docker compose -f docker-compose.tails
 
 ## 7. 卸载
 
-`tailscale serve reset`（或 `tailscale funnel reset`），停止 `node server/server.mjs`，删除程序目录。Docker：`docker compose -f docker-compose.tailscale.yml down -v`，再到 Tailscale 管理后台删除这台机器。
+`tailscale serve reset`（或 `tailscale funnel reset`），停止 `node server/server.mjs`，删除程序目录。Docker：在 `private-talk-docker` 文件夹运行 `docker compose down -v`，再到 Tailscale 管理后台删除这台机器。
 
 ## 8. 出问题
 

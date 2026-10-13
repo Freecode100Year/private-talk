@@ -7,12 +7,14 @@
 #   1. Tailscale admin console → DNS: enable MagicDNS and HTTPS certificates;
 #      for funnel, also allow the "funnel" node attribute in the access policy.
 #   2. Settings → Keys → generate an auth key.
-#   3. TS_AUTHKEY=tskey-... TS_MODE=funnel docker compose -f docker-compose.tailscale.yml up -d
+#   3. In .env: COMPOSE_FILE=docker-compose.tailscale.yml, TS_AUTHKEY=tskey-...,
+#      TS_MODE=funnel or private; then: docker compose up -d
+# Tailscale's own log upload is turned off (--no-logs-no-support).
 # The address includes your tailnet's name; see docs/tailscale.md before
 # making it public.
 services:
   tailscale:
-    image: tailscale/tailscale:latest
+    image: tailscale/tailscale:v1.102.5
     hostname: ${TS_HOSTNAME:-private-talk}
     restart: unless-stopped
     environment:
@@ -20,15 +22,16 @@ services:
       TS_STATE_DIR: /var/lib/tailscale
       TS_SERVE_CONFIG: /config/${TS_MODE:-private}.json
       TS_USERSPACE: "true"
+      TS_TAILSCALED_EXTRA_ARGS: --no-logs-no-support
     volumes:
       - tailscale-state:/var/lib/tailscale
       - ./deploy/tailscale:/config:ro
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }
 
   app:
-    image: ghcr.io/freecode100year/private-talk:2
-    build: .
+    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.3.0}
     restart: unless-stopped
     network_mode: service:tailscale
     depends_on: [tailscale]
@@ -39,7 +42,8 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }
 
 volumes:
   tailscale-state:

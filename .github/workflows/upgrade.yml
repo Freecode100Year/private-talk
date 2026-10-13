@@ -1,0 +1,40 @@
+# For copies of this project made with the "Deploy to Cloudflare" button
+# (they are copies, not forks, so GitHub has no "Sync fork" for them).
+# Actions → upgrade → Run workflow: brings this repository to a release of
+# Freecode100Year/private-talk, keeping your Worker's name in wrangler.jsonc.
+# Cloudflare then deploys the new commit as usual.
+name: upgrade
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号，例如 2.3.0（留空 = 最新发布）
+        required: false
+permissions:
+  contents: write
+jobs:
+  upgrade:
+    if: github.repository != 'Freecode100Year/private-talk'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Bring in the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${WANT#v}"
+          [ -n "$WANT" ] || tag=$(gh api repos/Freecode100Year/private-talk/releases/latest -q .tag_name)
+          echo "upgrading to $tag"
+          git fetch --no-tags https://github.com/Freecode100Year/private-talk.git "refs/tags/$tag:refs/upstream/$tag"
+          mine=$(node -e "const fs=require('fs');const t=fs.readFileSync('wrangler.jsonc','utf8');console.log((t.match(/\"name\"\s*:\s*\"([^\"]+)\"/)||[])[1]||'')")
+          # Take the release's files as they are (removed files too) …
+          git rm -rq --cached . && git clean -fdxq -e .git
+          git checkout "refs/upstream/$tag" -- .
+          # … but keep this Worker's name, so Cloudflare updates the same Worker.
+          if [ -n "$mine" ]; then node -e "const fs=require('fs');const t=fs.readFileSync('wrangler.jsonc','utf8');fs.writeFileSync('wrangler.jsonc',t.replace(/(\"name\"\s*:\s*\")[^\"]+(\")/,'\$1'+process.argv[1]+'\$2'))" "$mine"; fi
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "升级到 $tag" || { echo "already at $tag"; exit 0; }
+          git push

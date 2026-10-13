@@ -1,14 +1,17 @@
 # 隐匿对话 with automatic HTTPS (Caddy).
 #   1. Point your domain's DNS (A/AAAA) at this server; open ports 80 and 443.
-#   2. DOMAIN=chat.example.com docker compose up -d
-# The ready-made image is pulled from GitHub; add --build to build it here
-# from this checkout instead.
-# Caddy gets and renews the certificate. Neither service writes logs of
-# visitors: Caddy's access log is off unless you turn it on.
+#   2. ./pt setup chat.example.com      (saves DOMAIN and the version in .env)
+#   Then: ./pt status · ./pt upgrade · ./pt rollback · ./pt logs
+# Settings live in .env (see .env.example), so every later command finds them.
+# Versions are pinned: PT_VERSION in .env (default below) and Caddy's here.
+# To build the app from this checkout instead:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# Logs: only start-up, certificate and error messages, kept small; Caddy's
+# access log is off and its own messages are limited to warnings (Caddyfile),
+# so no visitor addresses, rooms or passphrases are recorded.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:2
-    build: .
+    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.3.0}
     restart: unless-stopped
     environment:
       TRUST_PROXY: "1"
@@ -16,12 +19,14 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11.7-alpine
     restart: unless-stopped
-    depends_on: [app]
+    depends_on:
+      app: { condition: service_healthy }
     ports:
       - "80:80"
       - "443:443"
@@ -33,7 +38,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     logging:
-      driver: none
+      driver: local
+      options: { max-size: 1m, max-file: "2" }
 
 volumes:
   caddy_data:

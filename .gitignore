@@ -3,3 +3,5 @@ node_modules/
 wrangler.freedom8964.json
 lan-certs/
 out/
+.env
+.env.previous

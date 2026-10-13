@@ -45,45 +45,49 @@
 
 ## 部署
 
-任何人都可以免费部署自己的一份（[MIT 许可](LICENSE)），不需要我们同意。选一种：
+任何人都可以免费部署自己的一份（[MIT 许可](LICENSE)），不需要我们同意。**大多数人从下面三种里选一种**，每种都有完整的安装、确认成功、升级、回退和卸载步骤：
 
-| 你的情况 | 怎么做 | 说明书 |
-| :--- | :--- | :--- |
-| 没有服务器 | 点下面的按钮，部署到 Cloudflare（免费） | [Cloudflare](docs/manual/cloudflare.md) |
-| 有境外 VPS 和域名 | `DOMAIN=chat.example.com docker compose up -d` | [VPS](docs/manual/vps.md) |
-| 家里的电脑、NAS、树莓派 | Cloudflare Tunnel，不用开端口 | [家用设备](docs/manual/home.md) |
-| 同一个 Wi-Fi、办公室、活动现场 | `npm run lan`，断网也能聊 | [局域网](docs/manual/lan.md) |
-| 企业内网，不能上互联网 | 下载离线包，解压双击运行 | [企业内网](docs/manual/enterprise.md) |
-| 只有一部安卓手机 | Termux 一行安装，开热点大家连上来 | [安卓手机](docs/manual/android.md) |
-| 用 Tailscale | 私人内网，或免域名的公网网址 | [Tailscale](docs/manual/tailscale.md) |
-| 不想管服务器 | Render、Koyeb、Railway 等一键部署 | [云平台](docs/manual/cloud.md) |
+| 你的情况 | 推荐做法 | 升级 | 说明书 |
+| :--- | :--- | :--- | :--- |
+| 没有服务器 | Cloudflare 一键部署（免费额度） | GitHub 里点 Actions → upgrade | [Cloudflare](docs/manual/cloudflare.md) |
+| 有境外 VPS 和域名 | Docker + 自动 HTTPS：`./pt setup 你的域名` | `./pt upgrade`，失败自动回退 | [VPS](docs/manual/vps.md) |
+| 断网的局域网、活动现场、企业内网 | 离线安装包（自带 Node.js），解压运行 `start-lan` | 新包拖到 `update` 上，不用联网 | [局域网](docs/manual/lan.md) · [企业内网](docs/manual/enterprise.md) |
 
-**最快：Cloudflare 一键部署**
+**Cloudflare 一键部署**
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Freecode100Year/private-talk)
 
 登录 Cloudflare，按提示确认，几分钟后得到 `https://private-talk.<你的子域>.workers.dev`。
 
-**一行 Docker（VPS）**
+**VPS（Docker）**
 
 ```sh
-git clone https://github.com/Freecode100Year/private-talk.git && cd private-talk
-DOMAIN=chat.example.com docker compose up -d      # 先把域名指向服务器，开放 80、443
+curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
+cd private-talk-docker && ./pt setup chat.example.com      # 先把域名指向服务器，开放 80、443
 ```
 
-**局域网 / 内网**
+**局域网 / 内网**：从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载自己系统的离线包（Windows、Linux、macOS），U 盘拷进去解压，Windows 双击 `start-lan.cmd`，其他系统 `./start-lan.sh`。
 
-```sh
-npm ci --omit=dev && npm run lan                  # 列出 https://192.168.x.x:8443/ 地址
-```
+<details>
+<summary>其他方式（参考配置，按需使用）</summary>
 
-不能上互联网的内网，从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载离线包（Windows、Linux、macOS，自带 Node.js；另有 Docker 离线镜像），U 盘拷进去解压即用。
+| 情况 | 做法 | 说明书 |
+| :--- | :--- | :--- |
+| 家里的电脑、NAS、树莓派，不想开端口 | Docker + Cloudflare Tunnel | [家用设备](docs/manual/home.md) |
+| 用 Tailscale | 私人内网，或免域名的公网网址 | [Tailscale](docs/manual/tailscale.md) |
+| 不想管服务器 | Render、Koyeb、Railway、Zeabur、Fly.io | [云平台](docs/manual/cloud.md) |
+| 只有一部安卓手机 | Termux，开热点大家连上来 | [安卓手机](docs/manual/android.md) |
+| 已装 Node.js 22+ 的电脑 | `npm ci --omit=dev && npm run lan` | [局域网](docs/manual/lan.md) |
+
+上面三种主推方式每次发布都在 CI 里自动验证（Cloudflare 运行时、Docker + Caddy、各系统离线包含更新与回退）；其他方式是经过测试的配置，但不在每次发布时实测各平台。
+
+</details>
 
 **所有部署都要知道**：
 
 - 必须 HTTPS，浏览器才允许网页加密。上面每种方式都已带好 HTTPS；局域网模式自动生成只能用于内网地址的证书。
 - 用 http:// 打开时页面会提示无法使用。
-- Node.js / Docker 版只能运行一个实例（房间在内存里）。
+- Node.js / Docker 版只能运行一个实例（房间在内存里）；升级或重启会断开当时的聊天，页面会自动重连，但房间和消息不会恢复。
 - 部署账号开启两步验证：它是这个网站的钥匙。
 
 出了问题看 [故障排查](docs/manual/troubleshooting.md)。环境变量、目录结构和开发命令见 [参考](docs/reference.md)。

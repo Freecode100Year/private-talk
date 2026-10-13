@@ -10,7 +10,7 @@
 
 | 方式 | 需要下载 |
 | :--- | :--- |
-| Docker（推荐） | Docker：`curl -fsSL https://get.docker.com \| sh`；本项目源码：`git clone`（第 2 步）。镜像 `ghcr.io/freecode100year/private-talk:2` 和 Caddy 在启动时自动下载 |
+| Docker（推荐） | Docker：`curl -fsSL https://get.docker.com \| sh`；部署文件包 [private-talk-compose.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz)（第 2 步用命令下载，不需要源码）。程序镜像和 Caddy 按固定版本在启动时自动下载 |
 | 不用 Docker | 离线包 [private-talk-linux-x64.tar.gz](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-x64.tar.gz)（ARM 服务器用 [linux-arm64](https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-linux-arm64.tar.gz)），自带 Node.js，不用另装；HTTPS 再装 [Caddy](https://caddyserver.com/docs/install) 或 nginx |
 
 ## 1. 准备
@@ -45,12 +45,16 @@ ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 
 ```sh
 curl -fsSL https://get.docker.com | sh                 # 安装 Docker（已装可跳过）
-git clone https://github.com/Freecode100Year/private-talk.git
-cd private-talk
-DOMAIN=chat.你的域名 docker compose up -d
+curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
+cd private-talk-docker
+./pt setup chat.你的域名
 ```
 
-一两分钟后打开 `https://chat.你的域名`。Caddy 负责 HTTPS，证书自动续期。
+`./pt setup` 会把域名和程序版本存进 `.env`，启动程序和 Caddy，等证书签好后自己做一次聊天自检（两个测试客户端进同一个随机房间互发一条加密消息）。看到“✓ 部署完成”就可以用了。Caddy 负责 HTTPS，证书自动续期。
+
+以后的命令都在 `private-talk-docker` 文件夹里运行，`.env` 会被自动读取，不用再输入域名。`docker compose ps`、`docker compose restart` 等原生命令也照样能用。
+
+（也可以 `git clone` 整个仓库，在仓库目录里运行同样的 `./pt setup`。想从源码自己构建镜像：`docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`。）
 
 **不想用 Docker**：按 [docs/vps.md](../vps.md) 安装 Node.js，用自带的 systemd 服务文件（已做安全加固）开机自启，再用 Caddy 或 nginx 提供 HTTPS。
 
@@ -58,14 +62,13 @@ DOMAIN=chat.你的域名 docker compose up -d
 
 ```sh
 docker run -d --name private-talk --restart unless-stopped --read-only --cap-drop ALL \
-  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2
+  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2.3.0   # 写具体版本
 ```
 
 ## 3. 确认部署成功
 
 ```sh
-docker compose ps                       # app 和 caddy 都是 running，app 显示 healthy
-curl -sI https://chat.你的域名 | head -1   # 应显示 HTTP/2 200
+./pt status        # 版本、容器状态，以及经过真实网址的聊天自检，最后一行应是 OK
 ```
 
 然后在浏览器打开 `https://chat.你的域名`，电脑和手机用同一个暗号进房间互发消息。
@@ -76,19 +79,22 @@ curl -sI https://chat.你的域名 | head -1   # 应显示 HTTP/2 200
 
 ## 5. 日常维护
 
-- 查看是否在运行：`docker compose ps`（状态 healthy 即正常）。
-- 程序不写日志、不存数据，没有需要备份的东西。
+- 查看状态：`./pt status`。
+- 查看日志：`./pt logs`。只有启动、证书和错误信息（每个服务最多约 2 MB，自动轮换）；不记录访客 IP、访问网址、房间或暗号。
+- 备份：没有聊天记录可备份。请保留 `.env`（域名、版本，以及 Tunnel / Tailscale 令牌，是机密）。Caddy 的证书在 Docker 卷 `caddy_data` 里，丢了会自动重新申请。
 - 系统安全更新：Debian / Ubuntu 打开自动安全更新（`apt install unattended-upgrades`）。
 
-## 6. 升级
+## 6. 升级和回退
 
 ```sh
-cd private-talk
-git pull
-docker compose pull && docker compose up -d
+./pt upgrade            # 升级到最新发布版本；也可以写明版本：./pt upgrade 2.3.1
+./pt rollback           # 回到升级前的版本
 ```
 
-镜像标签 `:2` 只会更新到 2.x 的兼容版本，不会突然升级到不兼容的大版本。
+`./pt upgrade` 先下载新镜像（下载失败什么都不改），记下当前版本，切换后等程序健康、再做聊天自检；**自检不通过会自动回到原来的版本**。版本写在 `.env` 的 `PT_VERSION`，所以任何时候都清楚运行的是哪一版。
+
+- 升级会断开当时的所有聊天（几秒钟）。房间和消息只在内存里，升级和回退都不会恢复它们；页面会自动重连，大家重新进房即可。
+- `./pt upgrade` 只升级程序本身。部署文件（compose、Caddyfile、Caddy 版本）有变化时，发布说明里会写明，按说明下载新的部署文件包即可，`.env` 不受影响。
 
 ## 7. 安全注意
 
@@ -100,7 +106,7 @@ docker compose pull && docker compose up -d
 ## 8. 卸载
 
 ```sh
-cd private-talk && docker compose down -v && cd .. && rm -rf private-talk
+cd private-talk-docker && docker compose down -v && cd .. && rm -rf private-talk-docker
 ```
 
 再删除 DNS 里的那条记录。
@@ -109,7 +115,8 @@ cd private-talk && docker compose down -v && cd .. && rm -rf private-talk
 
 | 现象 | 做法 |
 | :--- | :--- |
-| 打不开，浏览器提示证书错误 | DNS 还没生效或 80 端口没开，Caddy 申请不到证书；`docker compose logs caddy` 查看 |
+| 打不开，浏览器提示证书错误 | DNS 还没生效或 80 端口没开，Caddy 申请不到证书；`./pt logs caddy` 查看 |
+| `./pt status` 最后显示 ✗ | 按提示看：证书不被信任 → 证书还没签好；连接被关闭 → 代理没转发 WebSocket；超时 → 防火墙 |
 | 首页能开，进房间一直“正在连接” | nginx 没转发 WebSocket：检查 `Upgrade` / `Connection` 头（见 deploy/nginx.conf） |
 | 同一网络的很多人进不了房 | 他们共用一个公网 IP，触发了每分钟 30 次的进房限制；设置 `JOIN_LIMIT` 调高 |
 

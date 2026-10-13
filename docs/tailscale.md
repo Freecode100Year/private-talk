@@ -34,7 +34,10 @@ tailscale funnel --bg 8080     # 公网：任何人能打开
 ## Docker
 
 ```sh
-TS_AUTHKEY=tskey-auth-... TS_MODE=private docker compose -f docker-compose.tailscale.yml up -d
+curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
+cd private-talk-docker
+printf 'COMPOSE_FILE=docker-compose.tailscale.yml\nTS_AUTHKEY=tskey-auth-...\nTS_MODE=private\n' > .env && chmod 600 .env
+docker compose up -d          # 以后升级：./pt upgrade（.env 里加 PT_URL=https://你的ts.net网址 后，./pt status 会做聊天自检）
 # 公网：TS_MODE=funnel
 ```
 

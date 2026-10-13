@@ -2,6 +2,7 @@
 # Builds the offline packages for networks without internet access:
 #   private-talk-<platform>.zip/.tar.gz   Node.js + app + dependencies
 #   private-talk-app.zip                  app + dependencies, for machines that already have Node.js 22+
+#   private-talk-compose.tar.gz           Docker deployment files (compose, Caddyfile, .env.example, pt)
 # File names carry no version, so .../releases/latest/download/<name> always
 # fetches the newest; the folder inside is named with the version.
 # The Node.js binaries come from nodejs.org and are checked against its SHASUMS256.txt.
@@ -26,7 +27,7 @@ mkdir -p "$OUT"
 APP="$WORK/app"
 mkdir -p "$APP/src"
 cp -r "$ROOT/dist" "$ROOT/server" "$ROOT/docs" "$APP/"
-mkdir -p "$APP/deploy" && cp "$ROOT/deploy/private-talk-lan.service" "$APP/deploy/"
+mkdir -p "$APP/deploy" && cp "$ROOT"/deploy/private-talk-lan.service "$ROOT"/deploy/private-talk.service "$ROOT"/deploy/Caddyfile.vps "$ROOT"/deploy/nginx.conf "$APP/deploy/"
 cp "$ROOT/docker-compose.lan.yml" "$APP/"
 cp "$ROOT/src/rules.js" "$APP/src/"
 cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$APP/"
@@ -51,6 +52,16 @@ skeleton() {
     chmod +x "$dir/"*.sh
   fi
 }
+
+# Docker deployment, no source checkout needed: compose files, Caddyfile,
+# .env.example and the pt helper; images are pulled at the pinned versions.
+D="$WORK/private-talk-docker"
+mkdir -p "$D/deploy/tailscale"
+cp "$ROOT"/docker-compose.yml "$ROOT"/docker-compose.lan.yml "$ROOT"/docker-compose.tunnel.yml "$ROOT"/docker-compose.tailscale.yml \
+   "$ROOT"/Caddyfile "$ROOT"/.env.example "$ROOT"/pt "$D/"
+cp "$ROOT"/deploy/tailscale/*.json "$D/deploy/tailscale/"
+chmod +x "$D/pt"
+tar -czf "$OUT/private-talk-compose.tar.gz" -C "$WORK" private-talk-docker
 
 skeleton "$WORK/private-talk-$VERSION-app" app
 (cd "$WORK" && zip -qr "$OUT/private-talk-app.zip" "private-talk-$VERSION-app")
