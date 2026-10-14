@@ -148,6 +148,7 @@ html[lang=en] .brand small{display:none}
    visible area down instead, past the end of a page that fits the screen, and
    the chat disappears. In a room the page is pinned to the visible area
    (--vv-top, --app-height from app.js), and on small screens the site header
-   steps aside while typing so the messages keep some room. */
+   steps aside while typing so the messages keep some room (the room button
+   and timer come back when the keyboard closes). */
 body.in-chat{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--app-height,100dvh);overflow:hidden}
-@media(max-width:600px){body.in-chat.keyboard-open .site-header{display:none}body.in-chat.keyboard-open .chat-shell{height:var(--app-height,100dvh)}body.in-chat.keyboard-open .room-sidebar,body.in-chat.keyboard-open .drawer-scrim{top:0;max-height:var(--app-height,100dvh)}}
+@media(max-width:600px){body.in-chat.keyboard-open .site-header,body.in-chat.keyboard-open .composer-tools{display:none}body.in-chat.keyboard-open .conversation-header{min-height:0;padding-top:6px;padding-bottom:6px}body.in-chat.keyboard-open .conversation-header h2{margin-bottom:2px}body.in-chat.keyboard-open .chat-shell{height:var(--app-height,100dvh)}body.in-chat.keyboard-open .room-sidebar,body.in-chat.keyboard-open .drawer-scrim{top:0;max-height:var(--app-height,100dvh)}}

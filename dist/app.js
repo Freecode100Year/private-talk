@@ -602,8 +602,14 @@ function syncViewport() {
   const root = document.documentElement.style;
   root.setProperty('--app-height', `${vv.height}px`);
   root.setProperty('--vv-top', `${vv.offsetTop}px`);
-  document.body.classList.toggle('keyboard-open', window.innerHeight - vv.height > 150);
+  // Newer iOS shrinks innerHeight along with the keyboard, so a focused text
+  // field on a touch screen counts as "keyboard open" too.
+  const typing = coarse.matches && document.activeElement?.matches('textarea, input[type=text], input:not([type])');
+  document.body.classList.toggle('keyboard-open', typing || window.innerHeight - vv.height > 150);
 }
+const coarse = matchMedia('(pointer: coarse)');
+document.addEventListener('focusin', syncViewport);
+document.addEventListener('focusout', () => setTimeout(syncViewport, 50));
 window.visualViewport?.addEventListener('resize', syncViewport);
 window.visualViewport?.addEventListener('scroll', syncViewport);
 syncViewport();
