@@ -136,11 +136,11 @@ dialog .muted a{color:#5fd6ff;text-decoration:underline}
 .brand>span:last-child{white-space:nowrap}
 @media(max-width:600px){.site-header nav [data-open-privacy]{display:none}}
 .hero-copy{min-width:0}
-html[lang=en] .headline-secret{white-space:normal}
-html[lang=en] .hero-copy h1{font-size:clamp(40px,4.4vw,64px)}
-@media(max-width:600px){html[lang=en] .hero-copy h1{font-size:32px;letter-spacing:-1px}}
+html[lang=en] .headline-secret,html[lang=es] .headline-secret{white-space:normal}
+html[lang=en] .hero-copy h1,html[lang=es] .hero-copy h1{font-size:clamp(40px,4.4vw,64px)}
+@media(max-width:600px){html[lang=en] .hero-copy h1,html[lang=es] .hero-copy h1{font-size:32px;letter-spacing:-1px}}
 dialog p.muted{margin:0 0 20px}
-html[lang=en] .brand small{display:none}
+html[lang=en] .brand small,html[lang=es] .brand small{display:none}
 @media(max-width:420px){.site-header{padding:0 10px}.site-header nav{gap:0}.site-header .nav-link{min-width:40px;padding:8px 4px}.brand{font-size:17px;gap:7px}.lang-select{max-width:78px}}
 @media(max-width:360px){.site-header .nav-link{min-width:32px;padding:8px 2px}.brand{font-size:15px}.brand-icon{width:32px;height:32px}.lang-select{max-width:64px}}
 
@@ -159,3 +159,5 @@ body.in-chat{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--ap
 body.gone>*{display:none!important}
 body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14px)}
 @media(max-width:600px){.chat-actions{gap:10px}.panic-button span{display:none}}
+/* Tablets: the header has room for icons only */
+@media(min-width:601px) and (max-width:960px){.site-header{padding:0 28px}.site-header nav{gap:18px}.site-header .nav-link span{display:none}}

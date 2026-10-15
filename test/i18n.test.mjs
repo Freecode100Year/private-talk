@@ -12,6 +12,9 @@ test('language follows the browser list; others get English', () => {
   assert.equal(detect(['zh-Hant-TW']), 'zh-Hant');
   assert.equal(detect(['en-GB']), 'en');
   assert.equal(detect(['ja-JP', 'zh-TW']), 'zh-Hant', 'first supported language in the list');
+  assert.equal(detect(['es-ES']), 'es');
+  assert.equal(detect(['es-419', 'en']), 'es');
+  assert.equal(detect(['fr-FR', 'es-MX']), 'es');
   assert.equal(detect(['fr-FR', 'de']), 'en');
   assert.equal(detect([]), 'en');
 });
@@ -34,4 +37,6 @@ test('every key the page uses exists in every language', () => {
   assert.equal(t('sys.joined', { b: '3️⃣' }), '3️⃣ joined');
   setLang('zh-Hant');
   assert.equal(t('copy'), '複製房間連結');
+  setLang('es');
+  assert.equal(t('sys.joined', { b: '3️⃣' }), '3️⃣ ha entrado');
 });
