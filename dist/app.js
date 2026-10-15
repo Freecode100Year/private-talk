@@ -540,10 +540,6 @@ for (const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
 }
 $('leaveButton').addEventListener('click', () => $('leaveDialog').showModal());
-// Close the Android download menu on outside clicks and Escape.
-const androidMenu = document.querySelector('.android-menu');
-document.addEventListener('click', (e) => { if (androidMenu?.open && !androidMenu.contains(e.target)) androidMenu.open = false; });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && androidMenu?.open) androidMenu.open = false; });
 $('confirmLeave').addEventListener('click', () => {
   $('leaveDialog').close();
   leave();

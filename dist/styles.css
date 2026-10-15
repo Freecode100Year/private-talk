@@ -152,14 +152,3 @@ html[lang=en] .brand small{display:none}
    and timer come back when the keyboard closes). */
 body.in-chat{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--app-height,100dvh);overflow:hidden}
 @media(max-width:600px){body.in-chat.keyboard-open .site-header,body.in-chat.keyboard-open .composer-tools{display:none}body.in-chat.keyboard-open .conversation-header{min-height:0;padding-top:6px;padding-bottom:6px}body.in-chat.keyboard-open .conversation-header h2{margin-bottom:2px}body.in-chat.keyboard-open .chat-shell{height:var(--app-height,100dvh)}body.in-chat.keyboard-open .room-sidebar,body.in-chat.keyboard-open .drawer-scrim{top:0;max-height:var(--app-height,100dvh)}}
-/* Android download menu in the header */
-.nav-menu{position:relative}
-.site-header{z-index:10}
-.nav-menu>summary{list-style:none;cursor:pointer}
-.nav-menu>summary::-webkit-details-marker{display:none}
-.nav-menu-list{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:210px;display:grid;gap:2px;padding:6px;border:1px solid rgba(53,215,255,.35);border-radius:12px;background:#08131f;box-shadow:0 12px 30px rgba(0,0,0,.5)}
-.nav-menu-list a{display:grid;gap:2px;padding:9px 12px;border-radius:8px;color:#dce7f3;text-decoration:none}
-.nav-menu-list a:hover,.nav-menu-list a:focus-visible{background:rgba(53,215,255,.12)}
-.nav-menu-list b{font-size:14px;font-weight:600}
-.nav-menu-list small{font-size:12px;color:#8fa1b5}
-@media(max-width:600px){.nav-menu-list{position:fixed;left:12px;right:12px;top:74px;min-width:0}body.in-chat .nav-menu-list{top:66px}}
