@@ -662,17 +662,18 @@ $('messageInput').addEventListener('input', () => {
 });
 // Enter sends, Shift+Enter starts a new line.
 $('messageInput').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-    event.preventDefault();
-    $('messageForm').requestSubmit();
-  }
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  // Enter that confirms a Chinese input method's choice must not send. Only the
+  // Enter key is checked: tapping Send also ends the phone keyboard's composition
+  // (Gboard composes every word), and that tap must still send.
+  if (composing || Date.now() - compositionEnded < 100) return;
+  $('messageForm').requestSubmit();
 });
-// Enter that confirms a Chinese input method's choice must not send.
 $('messageInput').addEventListener('compositionstart', () => { composing = true; });
 $('messageInput').addEventListener('compositionend', () => { composing = false; compositionEnded = Date.now(); });
 $('messageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (composing || Date.now() - compositionEnded < 100) return;
   const text = checkMessage($('messageInput').value);
   const sock = ws;
   if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return;
