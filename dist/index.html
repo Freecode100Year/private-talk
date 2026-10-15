@@ -149,7 +149,10 @@
               <button class="room-mobile-button" id="showSidebar" type="button" aria-label="查看房间成员和操作" data-t-aria="side.open"><svg><use href="#i-users"/></svg></button>
               <div><h2 data-t="chat.title">此刻，只在这里。</h2><p><b class="live-dot" id="statusDot"></b><span id="statusText">正在连接…</span><span class="sep">·</span><span id="headCount"></span></p></div>
             </div>
-            <button class="clear-button" id="clearButton" type="button" title="清空本机屏幕上的消息和输入框（Esc）" data-t-title="clear.title"><svg><use href="#i-trash"/></svg><span data-t="clear">清屏</span><kbd>Esc</kbd></button>
+            <div class="chat-actions">
+              <button class="clear-button" id="clearButton" type="button" title="清空本机屏幕上的消息和输入框（Esc）" data-t-title="clear.title"><svg><use href="#i-trash"/></svg><span data-t="clear">清屏</span><kbd>Esc</kbd></button>
+              <button class="clear-button panic-button" id="panicButton" type="button" title="立即离开房间并清空页面（连按两次 Esc）" aria-label="紧急离开" data-t-title="panic.title" data-t-aria="panic"><svg><use href="#i-close"/></svg><span data-t="panic">紧急离开</span></button>
+            </div>
           </header>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <div class="messages" id="messages" aria-live="polite"></div>

@@ -546,6 +546,27 @@ $('confirmLeave').addEventListener('click', () => {
   $('roomName').focus({ preventScroll: true });
 });
 $('clearButton').addEventListener('click', () => clearScreen(true));
+$('panicButton').addEventListener('click', () => panic());
+
+// panic leaves at once, without asking: the room is left, every dialog closed,
+// the page blanked and the site's browser data wiped. Reloading starts afresh.
+let lastEscape = 0;
+function panic() {
+  for (const d of document.querySelectorAll('dialog[open]')) d.close();
+  if (pass) leave();
+  clearScreen(true);
+  $('roomName').value = '';
+  history.replaceState(null, '', location.pathname);
+  document.title = '';
+  document.body.classList.add('gone');
+  wipeSite();
+}
+
+// Leaving the tab or app veils the conversation, so the app switcher and
+// anyone glancing at the screen see nothing; it clears on coming back.
+document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('veiled', document.visibilityState === 'hidden');
+});
 
 // On phones the members and room actions live in a drawer.
 const phone = matchMedia('(max-width: 600px)');
@@ -590,6 +611,9 @@ document.addEventListener('keydown', (event) => {
     if (document.querySelector('dialog[open]')) return;
     if ($('roomSidebar').classList.contains('open')) { event.preventDefault(); closeSidebar(); return; }
     if (pass) clearScreen(true);
+    // A second Esc straight after is the emergency exit.
+    if (Date.now() - lastEscape < 800) panic();
+    lastEscape = Date.now();
   }
   // Keep Tab inside the open drawer.
   if (event.key === 'Tab' && $('roomSidebar').classList.contains('open') && !document.querySelector('dialog[open]')) {

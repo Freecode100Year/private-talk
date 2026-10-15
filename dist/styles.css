@@ -152,3 +152,10 @@ html[lang=en] .brand small{display:none}
    and timer come back when the keyboard closes). */
 body.in-chat{position:fixed;left:0;right:0;top:var(--vv-top,0px);height:var(--app-height,100dvh);overflow:hidden}
 @media(max-width:600px){body.in-chat.keyboard-open .site-header,body.in-chat.keyboard-open .composer-tools{display:none}body.in-chat.keyboard-open .conversation-header{min-height:0;padding-top:6px;padding-bottom:6px}body.in-chat.keyboard-open .conversation-header h2{margin-bottom:2px}body.in-chat.keyboard-open .chat-shell{height:var(--app-height,100dvh)}body.in-chat.keyboard-open .room-sidebar,body.in-chat.keyboard-open .drawer-scrim{top:0;max-height:var(--app-height,100dvh)}}
+/* Emergency exit and the veil shown while the page is in the background */
+.chat-actions{display:flex;align-items:center;gap:14px}
+.panic-button{color:#ff8f8f}
+.panic-button:hover{color:#ffb4b4}
+body.gone>*{display:none!important}
+body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14px)}
+@media(max-width:600px){.chat-actions{gap:10px}.panic-button span{display:none}}

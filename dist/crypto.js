@@ -25,13 +25,33 @@ export async function deriveRoom(pass) {
 const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
+// Before sealing, every message is padded up to the next of a few fixed sizes
+// (ISO/IEC 7816-4: one 0x80 byte, then zeros), so the ciphertext shows only a
+// size class, not how long the message is. Sealed text is JSON and never ends
+// in 0x80 or 0x00, so unpadded messages from older pages still read correctly.
+export const BUCKETS = [256, 512, 1024, 2048, 4096];
+
+export function pad(bytes) {
+  const size = BUCKETS.find((b) => b > bytes.length) ?? bytes.length + 1;
+  const out = new Uint8Array(size);
+  out.set(bytes);
+  out[bytes.length] = 0x80;
+  return out;
+}
+
+export function unpad(bytes) {
+  let end = bytes.length - 1;
+  while (end >= 0 && bytes[end] === 0) end--;
+  return end >= 0 && bytes[end] === 0x80 ? bytes.subarray(0, end) : bytes;
+}
+
 export async function seal(key, text) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pad(enc.encode(text)));
   return { iv: toB64(iv), ct: toB64(ct) };
 }
 
 export async function open(key, { iv, ct }) {
   const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv) }, key, fromB64(ct));
-  return new TextDecoder().decode(pt);
+  return new TextDecoder().decode(unpad(new Uint8Array(pt)));
 }

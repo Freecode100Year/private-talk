@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPassphrase, checkMessage, passphraseFromHash, roomLink, visitorName } from '../dist/state.js';
-import { deriveRoom, seal, open } from '../dist/crypto.js';
+import { checkPassphrase, checkMessage, passphraseFromHash, roomLink, visitorName, envelope, MAX_TEXT_CHARS, MAX_TEXT_BYTES } from '../dist/state.js';
+import { MAX_FRAME } from '../src/rules.js';
+import { deriveRoom, seal, open, pad, unpad, BUCKETS } from '../dist/crypto.js';
 
 test('passphrase: one or more digits, English letters or Chinese', () => {
   assert.equal(checkPassphrase('  FridayCoffee2026 '), 'FridayCoffee2026');
@@ -146,4 +147,35 @@ test('v2 keys: access and message key are separate; old passphrases still meet',
   assert.notEqual(a.access, a.roomId);
   const sealed = await seal(a.key, 'hello');
   assert.equal(await open(b.key, sealed), 'hello');
+});
+
+test('messages are padded to a few fixed sizes', async () => {
+  const { key } = await deriveRoom('长度测试');
+  const len = async (t) => (await seal(key, envelope(3, t))).ct.length;
+  assert.equal(await len('好'), await len('x'.repeat(150)));
+  assert.notEqual(await len('好'), await len('x'.repeat(300)));
+  for (const t of ['', 'a', '中文', 'x'.repeat(255)]) {
+    const b = new TextEncoder().encode(t);
+    const p = pad(b);
+    assert.ok(BUCKETS.includes(p.length) && p.length > b.length);
+    assert.deepEqual(unpad(p), b);
+  }
+});
+
+test('the longest allowed message still fits in one frame', async () => {
+  const { key } = await deriveRoom('长度测试');
+  for (const text of ['\u0001'.repeat(MAX_TEXT_CHARS), '"'.repeat(MAX_TEXT_CHARS), '中'.repeat(MAX_TEXT_CHARS), 'a'.repeat(MAX_TEXT_BYTES)]) {
+    if (checkMessage(text) !== text) continue;
+    const frame = JSON.stringify({ type: 'msg', ...(await seal(key, envelope(10, text))) });
+    assert.ok(frame.length <= MAX_FRAME, `frame ${frame.length}`);
+    assert.equal(JSON.parse(await open(key, JSON.parse(frame))).text, text);
+  }
+});
+
+test('unpadded messages from older pages still open', async () => {
+  const { key } = await deriveRoom('长度测试');
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode('{"a":1}'));
+  const b64 = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
+  assert.equal(await open(key, { iv: b64(iv), ct: b64(ct) }), '{"a":1}');
 });
