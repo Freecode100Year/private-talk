@@ -4,23 +4,24 @@ import { checkPassphrase, checkMessage, passphraseFromHash, roomLink, visitorNam
 import { MAX_FRAME } from '../src/rules.js';
 import { deriveRoom, seal, open, pad, unpad, BUCKETS } from '../dist/crypto.js';
 
-test('passphrase: one or more digits, English letters or Chinese', () => {
+test('passphrase: one or more letters or digits, in any script', () => {
   assert.equal(checkPassphrase('  FridayCoffee2026 '), 'FridayCoffee2026');
   assert.equal(checkPassphrase('7'), '7');
   assert.equal(checkPassphrase('a'), 'a');
   assert.equal(checkPassphrase('自由'), '自由');
   assert.equal(checkPassphrase('龍門2026'), '龍門2026');
   assert.equal(checkPassphrase('ＡＢ１'), 'AB1', 'full-width folds to plain');
+  for (const p of ['Привет2026', 'مرحبا', 'আমারঘর', 'नमस्ते', 'سلام\u200Cدوست', '안녕하세요', 'Kreyòl', '々〇']) assert.equal(checkPassphrase(p), p);
   assert.throws(() => checkPassphrase('   '), /请输入/);
-  assert.throws(() => checkPassphrase('云雀-周五'), /数字、英文字母和中文/);
-  assert.throws(() => checkPassphrase('a b'), /数字、英文字母和中文/);
-  assert.throws(() => checkPassphrase('😀'), /数字、英文字母和中文/);
+  assert.throws(() => checkPassphrase('云雀-周五'), /文字和数字/);
+  assert.throws(() => checkPassphrase('a b'), /文字和数字/);
+  assert.throws(() => checkPassphrase('😀'), /文字和数字/);
   assert.throws(() => checkPassphrase('abc!'), /不能用符号/);
   assert.throws(() => checkPassphrase('自由。'), /不能用符号/);
   assert.throws(() => checkPassphrase('a_b'), /不能用符号/);
   assert.throws(() => checkPassphrase('#1'), /不能用符号/);
-  assert.throws(() => checkPassphrase('々'), /不能用符号/);
-  assert.throws(() => checkPassphrase('〇'), /不能用符号/);
+  assert.throws(() => checkPassphrase('\u0301a'), /不能用符号/, 'cannot start with a mark');
+  assert.throws(() => checkPassphrase('\u200Ca'), /不能用符号/);
   assert.throws(() => checkPassphrase('⺀'), /不能用符号/);
   assert.throws(() => checkPassphrase('！'), /不能用符号/);
   assert.throws(() => checkPassphrase('字'.repeat(65)), /最多 64/);

@@ -37,7 +37,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 
 | 路径 | 内容 |
 | :--- | :--- |
-| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js`（简体 / 繁体 / 英文）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
+| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js` 与 `lang/`（界面文字，12 种语言）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
 | `src/worker.js` | Cloudflare Worker：静态资源 + `/ws/<房间>` WebSocket 转发（每个房间一个 Durable Object，不存储任何内容） |
 | `src/rules.js` | 两种服务器共用的规则：人数、编号、发送间隔、限速 |
 | `server/server.mjs` | Node.js 版服务器（Docker、VPS、局域网都用它），与 Worker 行为一致 |

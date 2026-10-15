@@ -1,14 +1,29 @@
-// Interface text in Simplified Chinese, Traditional Chinese and English. The
-// page follows the browser's language list; anything else gets English. The
-// switch in the header changes it for this page only (nothing is stored).
-export const LANGS = { 'zh-Hans': '简体中文', 'zh-Hant': '繁體中文', en: 'English', es: 'Español' };
+// Interface text. Simplified and Traditional Chinese, English and Spanish are
+// below; the other languages are in lang/. The page follows the browser's
+// language list; anything else gets English. The switch in the header changes
+// it for this page only (nothing is stored).
+import bn from './lang/bn.js';
+import ru from './lang/ru.js';
+import ar from './lang/ar.js';
+import ht from './lang/ht.js';
+import ko from './lang/ko.js';
+import ur from './lang/ur.js';
+import fr from './lang/fr.js';
+import hi from './lang/hi.js';
+
+export const LANGS = {
+  'zh-Hans': '简体中文', 'zh-Hant': '繁體中文', en: 'English', es: 'Español', bn: 'বাংলা', ru: 'Русский',
+  ar: 'العربية', ht: 'Kreyòl Ayisyen', ko: '한국어', ur: 'اردو', fr: 'Français', hi: 'हिन्दी'
+};
+// Written right to left.
+const RTL = new Set(['ar', 'ur']);
 
 export function detect(list = []) {
   for (const raw of list) {
     const l = String(raw).toLowerCase();
     if (l.startsWith('zh')) return /hant|-tw|-hk|-mo/.test(l) ? 'zh-Hant' : 'zh-Hans';
-    if (l.startsWith('en')) return 'en';
-    if (l.startsWith('es')) return 'es';
+    const base = l.split('-')[0];
+    if (base !== 'zh' && LANGS[base]) return base;
   }
   return 'en';
 }
@@ -81,7 +96,7 @@ const zhHans = {
   'sys.noAck': '刚才那条消息没有收到服务器确认，可能没有发出去，已放回输入框。',
   insecure: '这个网址不是 HTTPS，浏览器不允许网页加密，无法使用。请改用 https:// 开头的地址。',
   'err.empty': '请输入房间暗号',
-  'err.chars': '房间暗号只能用数字、英文字母和中文，不能用符号或空格',
+  'err.chars': '房间暗号只能用文字和数字（任何语言都行），不能用符号或空格',
   'err.long': '房间暗号最多 {max} 个字',
   qr: '房间二维码',
   'qr.title': '扫码进入房间',
@@ -119,7 +134,7 @@ const zhHans = {
   'entry.createDesc': '已随机生成暗号。进入后复制房间链接或出示二维码，邀请信任的人。',
   'entry.joinButton': '进入私密房间',
   'entry.createButton': '创建私密房间',
-  'entry.joinHint': '暗号就是钥匙，请通过可信的渠道分享。只能用数字、英文字母或中文（1–64 个字），不能用符号。',
+  'entry.joinHint': '暗号就是钥匙，请通过可信的渠道分享。可以用任何语言的文字或数字（1–64 个字），不能用符号。',
   'entry.createHint': '建议保留随机暗号；自己设定的短暗号容易被猜中。',
   'form.label': '房间暗号',
   'form.placeholder': '输入房间暗号',
@@ -217,6 +232,8 @@ const zhHant = {
   'clear.title': '清空本機螢幕上的訊息和輸入框（Esc），不影響別人的螢幕',
   'send.aria': '傳送訊息',
   'send.wait': '{s} 秒後可以傳送',
+  me: '我',
+  you: '你',
   'member.away': '{b} 斷線中',
   'sys.back': '{b} 回來了',
   'sys.joined': '{b} 進入了房間',
@@ -248,7 +265,7 @@ const zhHant = {
   'sys.noAck': '剛才那則訊息沒有收到伺服器確認，可能沒有傳出去，已放回輸入框。',
   insecure: '這個網址不是 HTTPS，瀏覽器不允許網頁加密，無法使用。請改用 https:// 開頭的網址。',
   'err.empty': '請輸入房間暗號',
-  'err.chars': '房間暗號只能用數字、英文字母和中文，不能用符號或空格',
+  'err.chars': '房間暗號只能用文字和數字（任何語言都行），不能用符號或空格',
   'err.long': '房間暗號最多 {max} 個字',
   qr: '房間二維碼',
   'qr.title': '掃碼進入房間',
@@ -286,7 +303,7 @@ const zhHant = {
   'entry.createDesc': '已隨機產生暗號。進入後複製房間連結或出示二維碼，邀請信任的人。',
   'entry.joinButton': '進入私密房間',
   'entry.createButton': '建立私密房間',
-  'entry.joinHint': '暗號就是鑰匙，請透過可信的管道分享。只能用數字、英文字母或中文（1–64 個字），不能用符號。',
+  'entry.joinHint': '暗號就是鑰匙，請透過可信的管道分享。可以用任何語言的文字或數字（1–64 個字），不能用符號。',
   'entry.createHint': '建議保留隨機暗號；自己設定的短暗號容易被猜中。',
   'form.label': '房間暗號',
   'form.placeholder': '輸入房間暗號',
@@ -416,7 +433,7 @@ const en = {
   'sys.noAck': 'The server did not confirm that message, so it may not have been sent. It is back in the input box.',
   insecure: 'This address is not HTTPS, so the browser will not let the page encrypt. Use the https:// address instead.',
   'err.empty': 'Please enter a room passphrase',
-  'err.chars': 'Use only digits, English letters and Chinese characters: no symbols or spaces',
+  'err.chars': 'Use only letters and digits (in any language): no symbols or spaces',
   'err.long': 'At most {max} characters',
   qr: 'Room QR code',
   'qr.title': 'Scan to join the room',
@@ -439,7 +456,7 @@ const en = {
   shortcut: 'iOS Shortcut',
   android: 'Android app',
   'nav.privacy': 'Privacy',
-  h1: 'Only for those<br /><span class="headline-secret">who know the passphrase<span class="cyan">.</span></span><br /><em>Talk, then leave light.</em>',
+  h1: 'Only for those <br /><span class="headline-secret">who know the passphrase<span class="cyan">.</span></span><br /><em>Talk, then leave light.</em>',
   'hero.desc': 'No identities swapped, no contact lists built.<br />One passphrase, one room that exists only for now.',
   'tag.e2ee': 'End-to-end encrypted',
   'tag.noSignup': 'No sign-up',
@@ -454,7 +471,7 @@ const en = {
   'entry.createDesc': 'A random passphrase is ready. Once inside, copy the room link or show the QR code to invite people you trust.',
   'entry.joinButton': 'Enter private room',
   'entry.createButton': 'Create private room',
-  'entry.joinHint': 'The passphrase is the key; share it only through channels you trust. Digits, English letters or Chinese (1–64 characters), no symbols.',
+  'entry.joinHint': 'The passphrase is the key; share it only through channels you trust. Letters or digits in any language (1–64 characters), no symbols.',
   'entry.createHint': 'Keep the random passphrase; short ones you make up are easy to guess.',
   'form.label': 'Room passphrase',
   'form.placeholder': 'Enter the room passphrase',
@@ -584,7 +601,7 @@ const es = {
   'sys.noAck': 'El servidor no confirmó ese mensaje, así que puede que no se haya enviado. Ha vuelto al cuadro de texto.',
   insecure: 'Esta dirección no es HTTPS, así que el navegador no deja cifrar a la página. Usa la dirección https://.',
   'err.empty': 'Escribe la contraseña de la sala',
-  'err.chars': 'Usa solo números, letras inglesas y caracteres chinos: sin símbolos ni espacios',
+  'err.chars': 'Usa solo letras y números (de cualquier idioma): sin símbolos ni espacios',
   'err.long': 'Como máximo {max} caracteres',
   qr: 'Código QR de la sala',
   'qr.title': 'Escanea para entrar en la sala',
@@ -607,7 +624,7 @@ const es = {
   shortcut: 'Atajo de iOS',
   android: 'App Android',
   'nav.privacy': 'Privacidad',
-  h1: 'Solo para quien<br /><span class="headline-secret">sabe la contraseña<span class="cyan">.</span></span><br /><em>Habla y vete sin rastro.</em>',
+  h1: 'Solo para quien <br /><span class="headline-secret">sabe la contraseña<span class="cyan">.</span></span><br /><em>Habla y vete sin rastro.</em>',
   'hero.desc': 'Sin intercambiar identidades ni crear listas de contactos.<br />Una contraseña, una sala que solo existe ahora.',
   'tag.e2ee': 'Cifrado de extremo a extremo',
   'tag.noSignup': 'Sin registro',
@@ -622,7 +639,7 @@ const es = {
   'entry.createDesc': 'Ya hay una contraseña aleatoria lista. Una vez dentro, copia el enlace de la sala o muestra el código QR para invitar a quien confíes.',
   'entry.joinButton': 'Entrar en la sala privada',
   'entry.createButton': 'Crear sala privada',
-  'entry.joinHint': 'La contraseña es la llave; compártela solo por canales de confianza. Números, letras inglesas o chino (1–64 caracteres), sin símbolos.',
+  'entry.joinHint': 'La contraseña es la llave; compártela solo por canales de confianza. Letras o números de cualquier idioma (1–64 caracteres), sin símbolos.',
   'entry.createHint': 'Quédate con la contraseña aleatoria; las cortas inventadas son fáciles de adivinar.',
   'form.label': 'Contraseña de la sala',
   'form.placeholder': 'Escribe la contraseña de la sala',
@@ -684,14 +701,14 @@ const es = {
   'leave.stay': 'Seguir hablando'
 };
 
-const TEXT = { 'zh-Hans': zhHans, 'zh-Hant': zhHant, en, es };
+export const TEXT = { 'zh-Hans': zhHans, 'zh-Hant': zhHant, en, es, bn, ru, ar, ht, ko, ur, fr, hi };
 
 let current = detect(typeof navigator === 'undefined' ? [] : navigator.languages ?? [navigator.language]);
 
 export const lang = () => current;
 
 export function t(key, vars = {}) {
-  const s = TEXT[current][key] ?? zhHans[key] ?? key;
+  const s = TEXT[current][key] ?? en[key] ?? key;
   return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
 
@@ -701,6 +718,7 @@ export function t(key, vars = {}) {
 //   data-t-ph / data-t-title / data-t-aria   placeholder, title, aria-label
 export function apply(root = document) {
   document.documentElement.lang = t('html.lang');
+  document.documentElement.dir = RTL.has(current) ? 'rtl' : 'ltr';
   document.title = t('title');
   document.querySelector('meta[name="description"]')?.setAttribute('content', t('meta.desc'));
   for (const el of root.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);

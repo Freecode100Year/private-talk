@@ -7,9 +7,10 @@ export const SEND_GAP_SECONDS = 6;
 
 // The passphrase is the only credential: whoever knows it is in the room, and
 // it is also what the messages are encrypted with. It may be as short as one
-// character: digits, English letters, or Chinese (simplified or traditional).
-// No symbols, punctuation, spaces or emoji. Chinese means ideographs only, so
-// marks like 々 〇 and radicals like ⺀ are refused too.
+// character: letters and digits of any script (Chinese, Latin, Cyrillic,
+// Arabic, Bengali…), with the combining marks those scripts need, and the
+// zero-width (non-)joiners some keyboards put inside words. No symbols,
+// punctuation, spaces or emoji, and it must start with a letter or digit.
 // NFKC folds full-width letters and digits from Chinese input methods into
 // plain ones, so ＡＢ１ and AB1 open the same room. Simplified and traditional
 // forms of a character are different characters, and so different rooms.
@@ -21,7 +22,7 @@ const coded = (code, message) => Object.assign(new Error(message), { code });
 export function checkPassphrase(input) {
   const pass = input.normalize('NFKC').trim();
   if (!pass) throw coded('empty', '请输入房间暗号');
-  if (!/^[A-Za-z0-9\p{Unified_Ideograph}]+$/u.test(pass)) throw coded('chars', '房间暗号只能用数字、英文字母和中文，不能用符号或空格');
+  if (!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}\u200C\u200D]*$/u.test(pass)) throw coded('chars', '房间暗号只能用文字和数字（任何语言都行），不能用符号或空格');
   if (Array.from(pass).length > MAX_PASSPHRASE) throw coded('long', `房间暗号最多 ${MAX_PASSPHRASE} 个字`);
   return pass;
 }
