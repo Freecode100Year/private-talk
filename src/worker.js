@@ -84,11 +84,12 @@ export class Room extends DurableObject {
     const inUse = new Map(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.resume]; }));
     const r = admit(this.book(peers), inUse, resume);
     if (r.refuse) return refuse(r.refuse, 'refused');
-    let seq = r.seq;
+    let seq = r.seq, sent = r.sent ?? 0;
     if (r.replace) {
       const old = peers.find((ws) => ws.deserializeAttachment().n === r.replace);
       const a = old.deserializeAttachment();
       seq = a.seq; // the same person on a new connection keeps their place
+      sent = a.sent ?? 0; // and their message spacing
       a.done = true;
       old.serializeAttachment(a);
       try { old.close(4005, 'replaced'); } catch {}
@@ -96,7 +97,7 @@ export class Room extends DurableObject {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     const mine = token();
-    server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0 });
+    server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent });
     this.saveBook(r.book, this.peers());
     server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine }));
     this.members();
@@ -132,7 +133,7 @@ export class Room extends DurableObject {
       a.done = true;
       ws.serializeAttachment(a);
       const peers = this.peers(ws);
-      this.saveBook(depart(this.book(peers), a.n, a.resume, code === CLOSE_LEFT), peers);
+      this.saveBook(depart(this.book(peers), a.n, a.resume, code === CLOSE_LEFT, Date.now(), a.sent), peers);
     }
     try { ws.close(); } catch {} // may already be closed
     this.members(ws);

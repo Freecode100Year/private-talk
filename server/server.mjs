@@ -196,15 +196,16 @@ function enter(ws, roomId, ip, resume) {
   if (r.refuse) return ws.close(r.refuse, 'refused');
   rooms.set(roomId, room);
   room.book = r.book;
-  let seq = r.seq;
+  let seq = r.seq, sent = r.sent ?? 0;
   if (r.replace) {
     const old = [...room.peers].find((p) => p.state.n === r.replace);
     seq = old.state.seq; // the same person on a new connection keeps their place
+    sent = old.state.sent ?? 0; // and their message spacing
     room.peers.delete(old);
     old.close(4005, 'replaced');
   }
   const n = r.n;
-  ws.state = { n, seq, resume: token(), window: 0, count: 0 };
+  ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
   send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume });
@@ -239,7 +240,7 @@ function enter(ws, roomId, ip, resume) {
   ws.on('close', (code) => {
     if (!room.peers.delete(ws)) return; // replaced by a newer connection
     if (room.peers.size === 0) { rooms.delete(roomId); return; } // the room is gone
-    room.book = depart(room.book, n, ws.state.resume, code === CLOSE_LEFT);
+    room.book = depart(room.book, n, ws.state.resume, code === CLOSE_LEFT, Date.now(), ws.state.sent);
     members(room);
   });
   ws.on('error', () => ws.terminate());

@@ -34,6 +34,17 @@ test('audit F04: a dropped member may come back to a locked room; newcomers may 
   assert.deepEqual(admit(book, inUse([1, 'tok1']), 'wrong', t), { refuse: CLOSE_LOCKED }, 'wrong token');
 });
 
+test('audit L1: coming back after a drop does not reset the message spacing', () => {
+  const t = 1_000_000;
+  const st = { window: 0, count: 0 };
+  assert.ok(checkFrame(msg, st, t).msg);
+  const book = depart({ ...emptyBook(), last: 1 }, 1, 'tok', false, t + 100, st.sent);
+  const back = admit(book, inUse(), 'tok', t + 200);
+  const again = { window: 0, count: 0, sent: back.sent };
+  assert.ok(checkFrame(msg, again, t + 300).wait, 'still has to wait');
+  assert.ok(checkFrame(msg, again, t + SEND_GAP).msg);
+});
+
 test('leaving on purpose frees the number; dropping holds it', () => {
   const t = 1_000_000;
   const left = depart({ ...emptyBook(), last: 3 }, 2, 'tok', true, t);

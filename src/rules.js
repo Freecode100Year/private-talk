@@ -37,7 +37,10 @@ export async function accessMatches(roomId, access) {
   if (!ROOM_ID.test(roomId) || !ACCESS.test(access)) return false;
   const bytes = new Uint8Array(access.match(/../g).map((h) => parseInt(h, 16)));
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('') === roomId;
+  // Compared in constant time, so the timing says nothing about how much matched.
+  let diff = 0;
+  digest.forEach((b, i) => { diff |= b ^ parseInt(roomId.slice(i * 2, i * 2 + 2), 16); });
+  return diff === 0;
 }
 
 // A message is a 12-byte IV and AES-GCM ciphertext, both base64. The sealed
@@ -114,7 +117,8 @@ export function hostOf(members) {
 // their own number back within the grace period, even when the room is
 // locked. If the relay has not noticed the old connection is dead yet, the
 // new one replaces it (replace is the number whose old connection to close).
-// Anyone else is a newcomer.
+// Anyone else is a newcomer. A returning member also gets back the time of
+// their last message (sent), so reconnecting does not skip the SEND_GAP.
 export function admit(book, inUse, resume, now = Date.now()) {
   const away = book.away.filter((a) => a.until > now);
   if (resume) {
@@ -123,7 +127,7 @@ export function admit(book, inUse, resume, now = Date.now()) {
     if (back) {
       if (inUse.size >= MAX_MEMBERS) return { refuse: CLOSE_FULL };
       const seq = (book.seq ?? 0) + 1;
-      return { n: back.n, seq, book: { ...book, seq, away: away.filter((a) => a !== back) } };
+      return { n: back.n, seq, sent: back.sent ?? 0, book: { ...book, seq, away: away.filter((a) => a !== back) } };
     }
   }
   if (book.locked) return { refuse: CLOSE_LOCKED };
@@ -142,11 +146,12 @@ export function admit(book, inUse, resume, now = Date.now()) {
 }
 
 // depart records a member leaving. One who closed on purpose frees their
-// number; one who dropped keeps it, and their resume token, for GRACE.
-export function depart(book, n, resume, onPurpose, now = Date.now()) {
+// number; one who dropped keeps it, their resume token and the time of their
+// last message (sent), for GRACE.
+export function depart(book, n, resume, onPurpose, now = Date.now(), sent = 0) {
   const away = book.away.filter((a) => a.until > now && a.n !== n);
   if (onPurpose || !resume) return { ...book, away, freed: [...book.freed.filter((x) => x !== n), n] };
-  return { ...book, away: [...away, { n, resume, until: now + GRACE }] };
+  return { ...book, away: [...away, { n, resume, until: now + GRACE, sent }] };
 }
 
 // Members whose comeback window is still open.

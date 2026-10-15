@@ -19,7 +19,9 @@ command -v docker >/dev/null || die "没有安装 Docker：curl -fsSL https://ge
 get() { [ -f .env ] && sed -n "s/^$1=//p" .env | tail -n1 || true; }
 put() {
   touch .env
-  if grep -q "^$1=" .env; then sed -i.bak "s|^$1=.*|$1=$2|" .env && rm -f .env.bak; else printf '%s=%s\n' "$1" "$2" >> .env; fi
+  # The value is escaped for sed, so a | or & in it is written as it is.
+  local v; v=$(printf '%s' "$2" | sed 's/[\\|&]/\\&/g')
+  if grep -q "^$1=" .env; then sed -i.bak "s|^$1=.*|$1=$v|" .env && rm -f .env.bak; else printf '%s=%s\n' "$1" "$2" >> .env; fi
 }
 default_version() { sed -n 's/.*private-talk:\${PT_VERSION:-\([0-9][^}]*\)}.*/\1/p' docker-compose.yml | head -n1; }
 current() { local v; v=$(get PT_VERSION); printf '%s' "${v:-$(default_version)}"; }
