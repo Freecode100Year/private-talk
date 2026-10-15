@@ -5,6 +5,11 @@ import {
 import { deriveRoom, seal, open } from './crypto.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
+
+// Android 7–10 ships WebView/Chrome older than 86, which lacks replaceChildren.
+if (!Element.prototype.replaceChildren) {
+  Element.prototype.replaceChildren = function (...nodes) { this.textContent = ''; this.append(...nodes); };
+}
 const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
 
 const $ = (id) => document.getElementById(id);
@@ -589,7 +594,7 @@ document.addEventListener('keydown', (event) => {
   // Keep Tab inside the open drawer.
   if (event.key === 'Tab' && $('roomSidebar').classList.contains('open') && !document.querySelector('dialog[open]')) {
     const items = [...$('roomSidebar').querySelectorAll('button:not(:disabled), summary')].filter((b) => b.getClientRects().length);
-    const first = items[0], last = items.at(-1);
+    const first = items[0], last = items[items.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
