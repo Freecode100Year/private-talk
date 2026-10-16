@@ -166,3 +166,16 @@ test('frames: v3 key announcements skip the message spacing but have their own b
   assert.equal(checkFrame(JSON.stringify({ type: 'msg', iv, ct, h: 'x' }), st2, t + SEND_GAP), null);
   assert.equal(checkFrame(JSON.stringify({ type: 'key', iv: 'short', ct }), st2, t + SEND_GAP), null);
 });
+
+test('frames: the longest message the page allows gets through', async () => {
+  const { deriveRoom, seal } = await import('../dist/crypto.js');
+  const { envelope, checkMessage } = await import('../dist/state.js');
+  const { MAX_FRAME } = await import('../src/rules.js');
+  const r = await deriveRoom('abcdefghijkl');
+  // 500 four-byte characters: 2000 bytes of text, padded to the 4096 bucket.
+  const text = '😀'.repeat(500);
+  assert.equal(checkMessage(text), text);
+  const frame = JSON.stringify({ type: 'msg', ...(await seal(r.key, envelope(10, text))), h: '999999999.999999999' });
+  assert.ok(frame.length <= MAX_FRAME);
+  assert.ok(checkFrame(frame, { window: 0, count: 0 }, 1e12)?.msg);
+});

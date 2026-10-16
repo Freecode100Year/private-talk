@@ -67,13 +67,13 @@ Cloudflare 后台 → Workers 和 Pages → private-talk → 设置 → 域和�
 
 - **一键部署的**：你的仓库是副本，GitHub 上没有「Sync fork」。用仓库自带的升级流程：
   1. 打开你 GitHub 里的这个仓库 → **Actions** → 左侧 **upgrade** → **Run workflow**。
-  2. 版本留空 = 最新发布；也可以填具体版本号（例如 `2.4.0`）。回退就填旧的版本号。
+  2. 版本留空 = 最新发布；也可以填具体版本号（例如 `2.4.1`）。回退就填旧的版本号。
   3. 它会把仓库内容换成那个发布版本（只保留你的 Worker 名字），提交后 Cloudflare 自动重新部署。你自己往仓库里加的文件会被清掉。
   4. 第一次用时如果 Actions 页面提示要启用工作流，点启用即可。
 - **命令行部署的**：固定到发布版本，不要直接追 main：
 
   ```sh
-  git fetch --tags && git checkout v2.4.0      # 换成要升级到的版本
+  git fetch --tags && git checkout v2.4.1      # 换成要升级到的版本
   npm ci && npx wrangler deploy
   ```
 

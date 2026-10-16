@@ -51,10 +51,11 @@ export async function accessMatches(roomId, access) {
 
 // A message is a 12-byte IV and AES-GCM ciphertext, both base64. The sealed
 // envelope holds at most 2048 bytes of text plus JSON escaping and a few
-// fields; 4096 bytes of ciphertext leaves room for that. Valid frames are
-// plain ASCII, so a frame's length in characters is its length in bytes.
+// fields, padded to at most 4096 bytes (crypto.js); with the 16-byte GCM tag
+// that is 4112 bytes, 5484 characters of base64. Valid frames are plain
+// ASCII, so a frame's length in characters is its length in bytes.
 const IV = /^[A-Za-z0-9+/]{16}$/;
-const CT = /^[A-Za-z0-9+/]{24,5464}={0,2}$/;
+const CT = /^[A-Za-z0-9+/]{24,5484}={0,2}$/;
 export const MAX_FRAME = 5600;
 const CHAIN = /^\d{1,9}\.\d{1,9}$/;
 const ASCII = /^[\x20-\x7e]*$/;
