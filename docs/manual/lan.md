@@ -146,7 +146,7 @@ Docker Desktop（Windows/macOS）上：编辑 `docker-compose.lan.yml`，删掉 
 | :--- | :--- | :--- | :--- |
 | `PORT` | 端口，默认 8443 | `set PORT=9443` | `PORT=9443 ./start-lan.sh` |
 | `LAN_NAMES` | 额外写进证书的名字或地址 | `set LAN_NAMES=192.168.1.20,chat.lan` | `LAN_NAMES=192.168.1.20 ./start-lan.sh` |
-| `JOIN_LIMIT` | 每个地址每分钟最多进房次数，默认 30 | `set JOIN_LIMIT=100` | `JOIN_LIMIT=100 ./start-lan.sh` |
+| `JOIN_LIMIT` | 每个地址每分钟最多进房次数，默认 60 | `set JOIN_LIMIT=100` | `JOIN_LIMIT=100 ./start-lan.sh` |
 
 ## 8. 日常维护
 

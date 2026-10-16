@@ -53,6 +53,8 @@ test('visitor names', () => {
   assert.equal(visitorName(2, 2), '2️⃣ 我');
   assert.equal(visitorName(1, 2), '1️⃣');
   assert.equal(visitorName(10, 2), '🔟');
+  assert.equal(visitorName(11, 2), '#11');
+  assert.equal(visitorName(25, 2), '#25');
 });
 
 test('same passphrase, same room and key; the room id reveals neither', async () => {
@@ -114,7 +116,8 @@ test('audit F01/F08: envelope fields and text limits are enforced on receipt', a
   assert.equal(checkEnvelope(make({ text: '字'.repeat(700) }), relayed, newSeen(), now), null, 'over 500 characters');
   assert.equal(checkEnvelope(make({ text: '' }), relayed, newSeen(), now), null, 'empty');
   assert.equal(checkEnvelope(make({ id: 'x' }), relayed, newSeen(), now), null, 'bad id');
-  assert.equal(checkEnvelope(make({ from: 11 }), { from: 11, at: now }, newSeen(), now), null, 'number out of range');
+  assert.equal(checkEnvelope(make({ from: 26 }), { from: 26, at: now }, newSeen(), now), null, 'number out of range');
+  assert.ok(checkEnvelope(make({ from: 25 }), { from: 25, at: now }, newSeen(), now), 'the last seat');
   assert.equal(checkEnvelope(make({ t: 'soon' }), relayed, newSeen(), now), null, 'time not a number');
   assert.equal(checkEnvelope('null', relayed, newSeen(), now), null);
   assert.equal(checkEnvelope('[1]', relayed, newSeen(), now), null);

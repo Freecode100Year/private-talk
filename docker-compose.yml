@@ -11,7 +11,7 @@
 # so no visitor addresses, rooms or passphrases are recorded.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.4.1}
+    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.5.0}
     restart: unless-stopped
     environment:
       TRUST_PROXY: "1"

@@ -1,15 +1,15 @@
 // Rules shared by both relays: the Cloudflare Worker (src/worker.js) and the
 // Docker server (server/server.mjs). Each relay keeps its own room state and
 // calls these functions, so the two behave the same.
-export const MAX_MEMBERS = 10;          // visitors are numbered 1️⃣ to 🔟
-export const RATE_PER_10S = 20;         // frames of any kind per connection per 10 seconds
+export const MAX_MEMBERS = 25;          // visitors are numbered 1️⃣ to 🔟, then #11 to #25
+export const RATE_PER_10S = 30;         // frames of any kind per connection per 10 seconds
 export const SEND_GAP = 6000;           // at least this long between one person's messages
 export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
-export const KEYS_PER_10S = 10;         // v3 key announcements per connection per 10 seconds (also count above)
+export const KEYS_PER_10S = 20;         // v3 key announcements per connection per 10 seconds (also count above; the page sends one or two a second at most)
 export const BAD_FRAMES = 5;            // malformed frames tolerated before the connection is closed
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
-export const JOINS_PER_MINUTE = 30;     // per address
+export const JOINS_PER_MINUTE = 60;     // per address (a 25-person room behind one NAT or VPN exit must fit)
 export const GRACE = 2 * 60 * 1000;     // how long a dropped member may come back, even to a locked room
 export const ROOM_ID = /^[0-9a-f]{64}$/;
 export const RESUME = /^[0-9a-f]{32}$/;
@@ -140,7 +140,7 @@ export function admit(book, inUse, resume, now = Date.now()) {
   }
   if (book.locked) return { refuse: CLOSE_LOCKED };
   if (inUse.size + away.length >= MAX_MEMBERS) return { refuse: CLOSE_FULL };
-  // Numbers run 1 to 10. Unused numbers go first; after that, the one freed
+  // Numbers run 1 to MAX_MEMBERS. Unused numbers go first; after that, the one freed
   // longest ago, so a newcomer does not straight away take the name of
   // someone who just left. Numbers held for dropped members are not reused.
   const held = new Set([...inUse.keys(), ...away.map((a) => a.n)]);

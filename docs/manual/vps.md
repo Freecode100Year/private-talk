@@ -62,7 +62,7 @@ cd private-talk-docker
 
 ```sh
 docker run -d --name private-talk --restart unless-stopped --read-only --cap-drop ALL \
-  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2.4.1   # 写具体版本
+  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2.5.0   # 写具体版本
 ```
 
 ## 3. 确认部署成功
@@ -118,6 +118,6 @@ cd private-talk-docker && docker compose down -v && cd .. && rm -rf private-talk
 | 打不开，浏览器提示证书错误 | DNS 还没生效或 80 端口没开，Caddy 申请不到证书；`./pt logs caddy` 查看 |
 | `./pt status` 最后显示 ✗ | 按提示看：证书不被信任 → 证书还没签好；连接被关闭 → 代理没转发 WebSocket；超时 → 防火墙 |
 | 首页能开，进房间一直“正在连接” | nginx 没转发 WebSocket：检查 `Upgrade` / `Connection` 头（见 deploy/nginx.conf） |
-| 同一网络的很多人进不了房 | 他们共用一个公网 IP，触发了每分钟 30 次的进房限制；设置 `JOIN_LIMIT` 调高 |
+| 同一网络的很多人进不了房 | 他们共用一个公网 IP，触发了每分钟 60 次的进房限制；设置 `JOIN_LIMIT` 调高 |
 
 更多见 [故障排查](troubleshooting.md)。

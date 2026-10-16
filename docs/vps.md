@@ -101,7 +101,7 @@ sudo systemctl stop private-talk && sudo /opt/private-talk/update.sh --rollback 
 | `PORT` | `8080` | 监听端口（同时修改 Caddy 或 nginx 里的端口） |
 | `HOST` | `127.0.0.1` | 监听地址；只让本机的 Caddy / nginx 访问 |
 | `TRUST_PROXY` | `1` | 程序在 Caddy 或 nginx 后面时保持为 1 |
-| `JOIN_LIMIT` | `30`（默认） | 同一 IP 每分钟最多进房次数 |
+| `JOIN_LIMIT` | `60`（默认） | 同一 IP 每分钟最多进房次数 |
 | `MAX_CONNECTIONS` | `2000`（默认） | 同时在线连接上限，超出时新来的人看到“服务器连接数已满” |
 
 ## 8. 日常维护

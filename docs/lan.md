@@ -34,7 +34,7 @@ npm run lan
 | `PORT` | 端口，默认 `8443` |
 | `LAN_NAMES` | 额外加入证书的名字或地址，逗号分隔，例如 `chat.lan,10.0.5.8`（内网 DNS 名、找不到的地址） |
 | `LAN_CERTS` | 证书目录，默认 `./lan-certs` |
-| `JOIN_LIMIT` | 每个地址每分钟最多进入房间次数，默认 30 |
+| `JOIN_LIMIT` | 每个地址每分钟最多进入房间次数，默认 60 |
 
 ## 方式二：Docker（Linux）
 

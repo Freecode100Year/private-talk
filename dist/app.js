@@ -3,7 +3,7 @@ import {
   passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
-import { Group } from './group.js';
+import { Group, KEY_CHUNK } from './group.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -64,6 +64,8 @@ let compositionEnded = 0;
 const seen = newSeen();
 
 const time = (ms) => new Date(ms).toLocaleTimeString(t('html.lang'), { hour: '2-digit', minute: '2-digit' });
+// Avatars show seats past ten as a bare number (badge() gives #11 for text).
+const face = (n) => (n > 10 ? String(n) : badge(n));
 const nameOf = (n) => (n === you ? `${badge(n)} ${t('me')}` : badge(n));
 const isHost = () => you !== 0 && you === host;
 
@@ -146,7 +148,7 @@ function bubble(from, at, text) {
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
   const avatar = document.createElement('span');
   avatar.className = 'avatar';
-  avatar.textContent = badge(from);
+  avatar.textContent = face(from);
   avatar.setAttribute('aria-hidden', 'true');
   const body = document.createElement('div');
   const who = document.createElement('div');
@@ -178,7 +180,7 @@ function members(list, nowAway = [], nowHost = host) {
     div.className = gone ? 'member away' : 'member';
     const avatar = document.createElement('span');
     avatar.className = `avatar c${n}`;
-    avatar.textContent = badge(n);
+    avatar.textContent = face(n);
     avatar.classList.toggle('me', n === you);
     avatar.classList.toggle('host', !gone && n === host);
     if (!gone && n === host) avatar.title = t('host');
@@ -212,6 +214,7 @@ function members(list, nowAway = [], nowHost = host) {
     return div;
   };
   $('memberList').replaceChildren(...list.map((n) => entry(n, false)), ...nowAway.map((n) => entry(n, true)));
+  $('memberList').classList.toggle('many', list.length + nowAway.length > 10);
   if (present) {
     const { joined, left } = joinsAndLeaves(present, list);
     for (const n of joined) if (n !== you) system(t(away.includes(n) ? 'sys.back' : 'sys.joined', { b: badge(n) }));
@@ -458,22 +461,29 @@ async function handle(data, sock, started) {
 
 // Hands this page's sending chain to whoever does not have it yet, in one
 // key announcement shortly after the last change (several changes in a row
-// make one frame).
+// make one frame), and at most one a second, so a full room filling up at
+// once stays inside the relay's budget (KEYS_PER_10S).
+let keysSentAt = 0;
 function sendKeys(hello) {
   if (hello) keysHello = true;
   clearTimeout(keysTimer);
   keysTimer = setTimeout(async () => {
+    keysSentAt = Date.now();
     const g = group, sock = ws, ticket = session;
     if (!g || !sock || sock.readyState !== WebSocket.OPEN || !present && !keysHello) return;
     const to = g.owed(present ?? []);
     if (!to.length && !keysHello) return;
     const hi = keysHello;
     keysHello = false;
-    const frame = JSON.stringify({ type: 'key', ...(await seal(key, await g.announce(to, hi))) });
+    // More than KEY_CHUNK members (a rekey in a big room) take two frames.
+    const frames = [];
+    for (let i = 0; i === 0 || i < to.length; i += KEY_CHUNK) {
+      frames.push(JSON.stringify({ type: 'key', ...(await seal(key, await g.announce(to.slice(i, i + KEY_CHUNK), hi && i === 0))) }));
+    }
     if (ticket !== session || ws !== sock || group !== g || sock.readyState !== WebSocket.OPEN) return;
-    sock.send(frame);
+    for (const frame of frames) sock.send(frame);
     showForwardSecrecy();
-  }, 150);
+  }, Math.max(150, keysSentAt + 1000 - Date.now()));
 }
 
 // Members who have been here a while without a word about v3 keys.

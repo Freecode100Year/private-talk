@@ -32,6 +32,7 @@ import { pad, unpad } from './crypto.js';
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
+export const KEY_CHUNK = 16;         // members per key announcement, so one fits a relay frame (see the test)
 export const MAX_SKIP = 2000;        // the most messages one member's chain may jump ahead
 export const HEADER = /^(\d{1,9})\.(\d{1,9})$/;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;

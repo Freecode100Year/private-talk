@@ -163,3 +163,6 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 @media(min-width:601px) and (max-width:960px){.site-header{padding:0 28px}.site-header nav{gap:18px}.site-header .nav-link span{display:none}}
 @media(min-width:601px) and (max-width:720px){.site-header nav{gap:6px}.site-header .nav-link{min-width:40px;padding:8px 6px}}
 #charCount{direction:ltr;unicode-bidi:isolate}
+/* Up to 25 members: the sidebar scrolls, and a long list is tighter. */
+.room-sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#243e56 transparent}.members.many{gap:9px}.members.many .avatar{width:28px;height:28px}.avatar{font-variant-numeric:tabular-nums}
+@media(pointer:fine){.members.many .remove-button{min-height:28px;padding:2px 9px}}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   admit, depart, emptyBook, awayNumbers, checkFrame, SEND_GAP, RATE_PER_10S, LOCK_GAP, BAD_FRAMES, GRACE,
-  CLOSE_FULL, CLOSE_LOCKED, PING, BYE_HEADERS, PLAIN_HEADERS, KEYS_PER_10S
+  CLOSE_FULL, CLOSE_LOCKED, PING, BYE_HEADERS, PLAIN_HEADERS, KEYS_PER_10S, MAX_MEMBERS
 } from '../src/rules.js';
 
 const iv = 'AAAAAAAAAAAAAAAA';
@@ -14,9 +14,12 @@ test('numbers: unused first, then the one freed longest ago', () => {
   let book = emptyBook();
   const r1 = admit(book, inUse(), null);
   assert.equal(r1.n, 1);
-  book = { ...emptyBook(), last: 10, freed: [6, 7] };
-  assert.equal(admit(book, inUse([1, 'a'], [2, 'b'], [3, 'c'], [4, 'd'], [5, 'e'], [8, 'f'], [9, 'g'], [10, 'h']), null).n, 6);
-  book = { ...emptyBook(), last: 10 };
+  book = { ...emptyBook(), last: 3 };
+  assert.equal(admit(book, inUse([1, 'a'], [2, 'b'], [3, 'c']), null).n, 4, 'unused numbers first');
+  const all = Array.from({ length: MAX_MEMBERS }, (_, i) => i + 1);
+  book = { ...emptyBook(), last: MAX_MEMBERS, freed: [6, 7] };
+  assert.equal(admit(book, inUse(...all.filter((n) => n !== 6 && n !== 7).map((n) => [n, 't' + n])), null).n, 6);
+  book = { ...emptyBook(), last: MAX_MEMBERS };
   assert.equal(admit(book, inUse([1, 'a'], [2, 'b'], [4, 'd']), null).n, 3, 'falls back to the first free');
 });
 
@@ -50,9 +53,9 @@ test('leaving on purpose frees the number; dropping holds it', () => {
   const left = depart({ ...emptyBook(), last: 3 }, 2, 'tok', true, t);
   assert.deepEqual(left.freed, [2]);
   assert.deepEqual(awayNumbers(left, t), []);
-  const dropped = depart({ ...emptyBook(), last: 10 }, 2, 'tok', false, t);
-  const others = inUse(...[1, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [n, 't' + n]));
-  assert.deepEqual(admit(dropped, others, null, t), { refuse: CLOSE_FULL }, 'held place counts toward the ten');
+  const dropped = depart({ ...emptyBook(), last: MAX_MEMBERS }, 2, 'tok', false, t);
+  const others = inUse(...Array.from({ length: MAX_MEMBERS }, (_, i) => i + 1).filter((n) => n !== 2).map((n) => [n, 't' + n]));
+  assert.deepEqual(admit(dropped, others, null, t), { refuse: CLOSE_FULL }, 'held place counts toward the limit');
 });
 
 test('a reconnect that beats the old connection\'s timeout replaces it', () => {

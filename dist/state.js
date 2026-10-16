@@ -1,5 +1,5 @@
 // Rules shared by the page and the tests.
-export const MAX_MEMBERS = 10;
+export const MAX_MEMBERS = 25;
 export const MAX_TEXT_CHARS = 500;
 export const MAX_TEXT_BYTES = 2048;
 export const SHORT_PASSPHRASE = 8; // shorter ones work, with a warning
@@ -55,7 +55,8 @@ export function checkMessage(text) {
   return clean;
 }
 
-// Visitors are numbered 1️⃣ to 🔟.
+// Visitors are numbered 1️⃣ to 🔟, then #11 to #25: there are no keycap emoji
+// past ten, and circled numbers are too small to read in running text.
 export const BADGES = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
 
 export function badge(n) {

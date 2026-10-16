@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRoom, seal, open } from '../dist/crypto.js';
-import { Group, MAX_SKIP } from '../dist/group.js';
+import { Group, MAX_SKIP, KEY_CHUNK } from '../dist/group.js';
 
 // A room of pages that pass announcements straight to each other, as the
 // relay would (sealed with the passphrase key, opened by each receiver).
@@ -114,4 +114,23 @@ test('v3: everyone sees the same safety code; a swapped key changes it', async (
   const impostor = await Group.create(x.r.key, x.r.bind, 3);
   await x.pages.get(1).receive(JSON.parse(await impostor.announce([], true)), 3);
   assert.notEqual(await x.pages.get(1).safetyCode([1, 2, 3]), codes[2]);
+});
+
+test('v3: a key announcement for KEY_CHUNK members fits one relay frame, so a full room takes two', async () => {
+  const { MAX_FRAME, MAX_MEMBERS } = await import('../src/rules.js');
+  const { checkFrame } = await import('../src/rules.js');
+  const r = await deriveRoom('correct horse battery');
+  const pages = [];
+  for (let n = 1; n <= MAX_MEMBERS; n++) pages.push(await Group.create(r.key, r.bind, n));
+  const me = pages[MAX_MEMBERS - 1];
+  for (const g of pages.slice(0, -1)) await me.receive(JSON.parse(await g.announce([], true)), g.me);
+  // The worst case: chain positions and epochs as long as they get.
+  me.mine.epoch = 999999999;
+  me.mine.c = 999999999;
+  assert.ok(MAX_MEMBERS - 1 <= 2 * KEY_CHUNK);
+  const plain = await me.announce(pages.slice(-1 - KEY_CHUNK, -1).map((g) => g.me), true);
+  assert.ok(new TextEncoder().encode(plain).length < 4096, 'stays in the largest padding bucket');
+  const frame = JSON.stringify({ type: 'key', ...(await seal(r.key, plain)) });
+  assert.ok(frame.length <= MAX_FRAME);
+  assert.ok(checkFrame(frame, { window: 0, count: 0 }, 1e12).key);
 });
