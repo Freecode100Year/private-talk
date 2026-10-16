@@ -495,7 +495,8 @@ let fsRun = 0;
 async function showForwardSecrecy() {
   const run = ++fsRun;
   const state = forwardSecrecy();
-  const code = state === 'on' ? await group.safetyCode(present) : '';
+  // Kept in one piece and left to right, also inside Arabic or Urdu text.
+  const code = state === 'on' ? `\u2066${(await group.safetyCode(present)).replace(' ', '\u00a0')}\u2069` : '';
   if (run !== fsRun) return;
   const note = $('safetyNote');
   if (state) {
