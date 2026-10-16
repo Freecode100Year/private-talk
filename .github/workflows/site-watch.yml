@@ -1,0 +1,20 @@
+# Every few hours, from GitHub's machines rather than ours: does
+# chat.freedom8964.com still serve exactly a signed release, no older than
+# the version on main? A failed run means someone should look (GitHub mails
+# the repository owner).
+name: site-watch
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.repository == 'Freecode100Year/private-talk'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/verify-site.mjs https://chat.freedom8964.com --min-version "$(node -p 'require("./package.json").version')"

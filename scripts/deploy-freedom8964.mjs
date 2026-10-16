@@ -11,6 +11,8 @@ const config = {
   preview_urls: false,
   routes: [{ pattern: 'chat.freedom8964.com', custom_domain: true }]
 };
+// The signed file list (scripts/integrity.mjs) goes up with the site.
+execFileSync(process.execPath, ['scripts/integrity.mjs', '--signed'], { stdio: 'inherit' });
 const file = 'wrangler.freedom8964.json';
 writeFileSync(file, JSON.stringify(config, null, 2));
 try {

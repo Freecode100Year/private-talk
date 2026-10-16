@@ -8,7 +8,9 @@
   "scripts": {
     "test": "node --test",
     "start": "node server/server.mjs",
-    "deploy": "wrangler deploy",
+    "deploy": "node scripts/integrity.mjs && wrangler deploy",
+    "integrity": "node scripts/integrity.mjs",
+    "verify-site": "node scripts/verify-site.mjs",
     "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs",
     "lan": "node server/lan.mjs",
     "help": "node scripts/build-help.mjs"

@@ -31,6 +31,14 @@
 
 每个版本的发布页附带：各平台离线包、`private-talk-compose.tar.gz`（Docker 部署文件）、Docker 离线镜像、每个文件的 `.sig` 签名、`SHA256SUMS.txt` 和 `RELEASE-MANIFEST.txt`（版本、提交、协议、Node.js 版本、镜像 digest）。签名是 Ed25519，公钥是 `server/release-key.pem`，随每个包发布；离线更新程序用**已安装版本里的公钥**核对新包，所以不需要联网。发布后的附件不会被覆盖，修正发新的补丁版本。
 
+网页本身也签名：部署（`npm run deploy`、`npm run deploy:freedom8964`）和构建 Docker 镜像、离线包时，`scripts/integrity.mjs` 把 `dist/` 里每个文件的 SHA-256 写进 `dist/integrity.json` 并用同一把发布密钥签名（没有密钥时写入未签名的清单）。任何人都可以从外部核对一个正在运行的网站：
+
+```sh
+node scripts/verify-site.mjs https://chat.freedom8964.com [--min-version 2.4.0]
+```
+
+它核对清单签名，再逐个下载文件比对哈希，并顺着页面的引用检查有没有清单以外的脚本。请从你信任的来源取得这个脚本和 `server/release-key.pem`。`.github/workflows/site-watch.yml` 每 6 小时对 chat.freedom8964.com 跑一次。
+
 Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里的 `JOIN_LIMIT`。
 
 ## 目录
@@ -52,7 +60,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台配置 |
 | `docs/` | 说明书（`docs/manual/`）、隐私设计、各部署方式的技术细节 |
 | `test/` | 规则、加密、防篡改、证书的单元测试 |
-| `.github/workflows/` | 自动测试（三系统、Cloudflare 运行时、Docker + Caddy）；构建 Docker 镜像和离线安装包并签名；`upgrade.yml` 给一键部署的副本升级用 |
+| `.github/workflows/` | 自动测试（三系统、Cloudflare 运行时、Docker + Caddy）；构建 Docker 镜像和离线安装包并签名；`site-watch.yml` 定时核对线上网页；`upgrade.yml` 给一键部署的副本升级用 |
 
 ## 开发
 

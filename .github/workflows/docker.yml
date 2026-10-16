@@ -41,6 +41,10 @@ jobs:
           labels: |
             org.opencontainers.image.title=隐匿对话 private-talk
             org.opencontainers.image.description=匿名、临时、端对端加密的私密聊天室
+      # The signed file list the page is checked against (scripts/verify-site.mjs).
+      - name: Sign the page's file list
+        env: { RELEASE_SIGNING_KEY: "${{ secrets.RELEASE_SIGNING_KEY }}" }
+        run: node scripts/integrity.mjs --signed
       - uses: docker/build-push-action@v6
         with:
           context: .

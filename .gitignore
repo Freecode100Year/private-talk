@@ -5,3 +5,4 @@ lan-certs/
 out/
 .env
 .env.previous
+dist/integrity.json
