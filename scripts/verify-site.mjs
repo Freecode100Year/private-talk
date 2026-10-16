@@ -27,7 +27,8 @@ const newer = (a, b) => {
 };
 
 async function get(path) {
-  const r = await fetch(new URL(path, base), { cache: 'no-store' });
+  // One retry: a dropped connection is not a changed file.
+  const r = await fetch(new URL(path, base), { cache: 'no-store' }).catch(() => fetch(new URL(path, base), { cache: 'no-store' }));
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
   // Cloudflare answers /help.html with a redirect to /help; anywhere else is wrong.
   if (new URL(r.url).host !== new URL(base).host) throw new Error(`${path}: redirected to another site`);
