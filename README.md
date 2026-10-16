@@ -13,7 +13,7 @@
 - **不审查**：没有敏感词过滤、没有内容审核、没有举报和封号，也没有后门。服务器看不懂消息，也不按内容做任何判断；限制只有人数、发送频率和长度，用来防止被刷爆。
 - **随处可部署**：Cloudflare 免费一键部署、一行 Docker、断网的局域网、不能上互联网的企业内网，甚至一部安卓手机。
 
-在线使用：<https://chat.freedom8964.com>　·　[iOS 捷径](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)　·　[说明书](docs/manual/README.md)　·　[隐私设计](docs/privacy.md)
+在线使用：<https://chat.freedom8964.com>（Cloudflare）、<https://chat.nya.je>（独立 VPS，备用）　·　[iOS 捷径](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)　·　[说明书](docs/manual/README.md)　·　[隐私设计](docs/privacy.md)
 
 ## 30 秒上手
 
