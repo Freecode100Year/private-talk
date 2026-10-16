@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { listFiles, signedPart, verifyManifest } from '../scripts/integrity.mjs';
 
 test('the file list covers the served files and nothing else', () => {
-  const files = listFiles(new URL('../dist/', import.meta.url).pathname);
+  const files = listFiles(fileURLToPath(new URL('../dist/', import.meta.url)));
   assert.ok(files.includes('index.html') && files.includes('app.js') && files.includes('lang/ar.js'));
   assert.ok(!files.includes('_headers') && !files.includes('integrity.json'));
 });
