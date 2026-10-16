@@ -12,6 +12,10 @@ if (!Element.prototype.replaceChildren) {
   Element.prototype.replaceChildren = function (...nodes) { this.textContent = ''; this.append(...nodes); };
 }
 const SECURE = window.isSecureContext && !!globalThis.crypto?.subtle;
+// The folder the page is served from: / normally, or a secret path on a
+// self-hosted server with ENTRY_PATH set. The relay and /bye live there too.
+const BASE = location.pathname.replace(/[^/]*$/, '');
+const HOME = location.origin + BASE.replace(/\/$/, '');
 
 const $ = (id) => document.getElementById(id);
 const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007, CLOSE_CAPACITY = 4008;
@@ -316,7 +320,7 @@ function connect() {
   // The access value and resume token travel in the subprotocol header, not
   // the URL (see src/rules.js).
   const protocols = ['pt2', `a${access}`, ...(resume ? [`r${resume}`] : [])];
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/${roomId}`, protocols);
+  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${BASE}ws/${roomId}`, protocols);
   ws = sock;
   lastHeard = Date.now();
   // Messages are handled one at a time, in order, each checked against the
@@ -812,11 +816,11 @@ async function copy(button, text, label) {
   }
   setTimeout(() => { span.textContent = t(label); }, 2500);
 }
-$('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(location.origin, pass), 'copy'));
+$('copyButton').addEventListener('click', (event) => copy(event.currentTarget, roomLink(HOME, pass), 'copy'));
 $('qrButton').addEventListener('click', () => {
   if (!pass) return;
   let code;
-  try { code = qrSvg(roomLink(location.origin, pass)); } catch { system(t('qr.tooLong')); return; }
+  try { code = qrSvg(roomLink(HOME, pass)); } catch { system(t('qr.tooLong')); return; }
   $('qrCode').replaceChildren(code);
   $('qrDialog').showModal();
 });
@@ -898,9 +902,9 @@ document.addEventListener('visibilitychange', () => {
 // visit that ended in a crash. sendBeacon only promises the request is queued.
 function wipeSite() {
   try {
-    if (navigator.sendBeacon?.('/bye')) return;
+    if (navigator.sendBeacon?.(`${BASE}bye`)) return;
   } catch {}
-  try { fetch('/bye', { method: 'POST', keepalive: true, cache: 'no-store' }).catch(() => {}); } catch {}
+  try { fetch(`${BASE}bye`, { method: 'POST', keepalive: true, cache: 'no-store' }).catch(() => {}); } catch {}
 }
 window.addEventListener('pagehide', () => {
   if (pass) leave();
@@ -933,8 +937,8 @@ window.addEventListener('hashchange', () => {
 function translate() {
   apply();
   // The how-to shows this site's own address, so self-hosted copies are right too.
-  for (const el of document.querySelectorAll('.origin-hash')) el.textContent = `${location.origin}/#`;
-  for (const el of document.querySelectorAll('.origin-example')) el.textContent = `${location.origin}/#${t('howto.examplePass')}`;
+  for (const el of document.querySelectorAll('.origin-hash')) el.textContent = `${HOME}/#`;
+  for (const el of document.querySelectorAll('.origin-example')) el.textContent = `${HOME}/#${t('howto.examplePass')}`;
   if (roomId) $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
   lockState(!!$('lockButton').dataset.locked);
   $('statusText').textContent = statusKey ? t(statusKey) : '';

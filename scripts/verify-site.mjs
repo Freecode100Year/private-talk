@@ -13,10 +13,12 @@
 import { NAME, sha256, verifyManifest } from './integrity.mjs';
 
 const args = process.argv.slice(2);
-const base = args.find((a) => /^https?:\/\//.test(a));
+const given = args.find((a) => /^https?:\/\//.test(a));
+// A site under a secret path (ENTRY_PATH) is checked from there.
+const base = given && (given.endsWith('/') ? given : `${given}/`);
 const minAt = args.indexOf('--min-version');
 const minVersion = minAt >= 0 ? args[minAt + 1] : null;
-if (!base) { console.error('usage: node scripts/verify-site.mjs <https://site> [--min-version x.y.z]'); process.exit(2); }
+if (!given) { console.error('usage: node scripts/verify-site.mjs <https://site> [--min-version x.y.z]'); process.exit(2); }
 
 const newer = (a, b) => {
   const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
@@ -66,7 +68,7 @@ while (toCheck.length) {
   done.add(path);
   if (!(path in m.files)) { problems.push(`${path}: used by the page but not in the signed list`); continue; }
   let buf;
-  try { buf = await get(path === 'index.html' ? '/' : path); } catch (e) { problems.push(e.message); continue; }
+  try { buf = await get(path === 'index.html' ? '' : path); } catch (e) { problems.push(e.message); continue; }
   if (sha256(buf) !== m.files[path]) { problems.push(`${path}: differs from the signed version`); continue; }
   if (/\.(html|js|css)$/.test(path)) for (const ref of references(path, buf.toString('utf8'))) toCheck.push(ref);
 }

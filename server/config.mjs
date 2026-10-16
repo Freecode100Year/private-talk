@@ -5,8 +5,9 @@
 // clear message instead of being quietly replaced by a default.
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { ENTRY } from '../src/rules.js';
 
-export const KNOWN = ['PORT', 'HOST', 'JOIN_LIMIT', 'MAX_CONNECTIONS', 'TRUST_PROXY', 'TLS_CERT', 'TLS_KEY', 'LAN_CERTS', 'LAN_NAMES'];
+export const KNOWN = ['PORT', 'HOST', 'JOIN_LIMIT', 'MAX_CONNECTIONS', 'TRUST_PROXY', 'TLS_CERT', 'TLS_KEY', 'LAN_CERTS', 'LAN_NAMES', 'ENTRY_PATH'];
 
 export function parseEnvFile(text) {
   const out = {};
@@ -54,7 +55,13 @@ export function checkConfig(env = process.env, { port = 8080, joinLimit = 30 } =
     trustProxy: env.TRUST_PROXY === '1',
     tlsCert: env.TLS_CERT || null,
     tlsKey: env.TLS_KEY || null,
+    entry: null,
   };
+  if (env.ENTRY_PATH) {
+    const e = `/${env.ENTRY_PATH.trim().replace(/^\/+|\/+$/g, '')}/`;
+    if (!ENTRY.test(e)) throw new ConfigError(`ENTRY_PATH=${env.ENTRY_PATH} 不对：应为 8–64 个字母、数字、- 或 _，例如 ENTRY_PATH=k7Qp2xVm9aLd`);
+    c.entry = e;
+  }
   if (env.TRUST_PROXY !== undefined && !['', '0', '1'].includes(env.TRUST_PROXY)) throw new ConfigError(`TRUST_PROXY=${env.TRUST_PROXY} 不对：应为 1 或 0`);
   if (!!c.tlsCert !== !!c.tlsKey) throw new ConfigError('TLS_CERT 和 TLS_KEY 要一起设置（证书和私钥）');
   for (const f of [c.tlsCert, c.tlsKey]) if (f && !existsSync(f)) throw new ConfigError(`找不到文件 ${f}`);

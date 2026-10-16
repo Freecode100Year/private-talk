@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
-  PROTOCOL, WIRE_VERSION, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
+  PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
@@ -39,7 +39,7 @@ try {
   console.error(`设置有误，没有启动：${e.message}`);
   process.exit(2);
 }
-const { port: PORT, host: HOST, trustProxy: TRUST_PROXY, joinLimit: JOIN_LIMIT, maxConnections: MAX_CONNECTIONS } = config;
+const { port: PORT, host: HOST, trustProxy: TRUST_PROXY, joinLimit: JOIN_LIMIT, maxConnections: MAX_CONNECTIONS, entry: ENTRY_PATH } = config;
 // A member whose connection cannot keep up (more than this much unsent) is
 // dropped rather than letting the backlog grow in memory.
 const MAX_BUFFERED = 1 << 20;
@@ -102,8 +102,18 @@ function clientIP(req) {
   return req.socket.remoteAddress || 'unknown';
 }
 
+// A health check made on this machine (status, the Docker healthcheck), not
+// one passed on by a proxy: with ENTRY_PATH set, /healthz answers only that.
+const localCheck = (req) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress) && !req.headers['x-forwarded-for'];
+
 const handler = async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (ENTRY_PATH && !(url.pathname === '/healthz' && localCheck(req))) {
+    const path = inside(url.pathname, ENTRY_PATH);
+    if (path === null) { res.writeHead(COVER.status, COVER.headers).end(COVER.body); return; }
+    if (path === 'redirect') { res.writeHead(301, { Location: ENTRY_PATH }).end(); return; }
+    url.pathname = path;
+  }
   if (url.pathname === '/bye') {
     if (req.method !== 'POST' || !sameOrigin(req)) { res.writeHead(405, PLAIN_HEADERS).end(); return; }
     res.writeHead(204, BYE_HEADERS).end();
@@ -249,11 +259,16 @@ function enter(ws, roomId, ip, resume) {
 
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://x');
-  const m = url.pathname.match(/^\/ws\/([0-9a-f]+)$/);
+  const path = inside(url.pathname, ENTRY_PATH);
+  const m = typeof path === 'string' && path.match(/^\/ws\/([0-9a-f]+)$/);
   const reject = (status) => {
     const headers = Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     socket.end(`HTTP/1.1 ${status}\r\n${headers}Connection: close\r\n\r\n`);
   };
+  if (path === null) {
+    const headers = Object.entries(COVER.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
+    return socket.end(`HTTP/1.1 404 Not Found\r\n${headers}Content-Length: ${COVER.body.length}\r\nConnection: close\r\n\r\n${COVER.body}`);
+  }
   if (!m || !ROOM_ID.test(m[1])) return reject('400 Bad Request');
   // Stops other web pages from connecting through a visitor's browser.
   // Programs outside a browser can send any Origin they like.

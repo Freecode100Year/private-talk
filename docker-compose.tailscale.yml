@@ -36,6 +36,7 @@ services:
     network_mode: service:tailscale
     depends_on: [tailscale]
     environment:
+      ENTRY_PATH: ${ENTRY_PATH:-}
       HOST: 127.0.0.1
       TRUST_PROXY: "1"
     read_only: true

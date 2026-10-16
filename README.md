@@ -1,5 +1,7 @@
 # 隐匿对话
 
+[English](README.en.md)
+
 **iPhone / iPad**：[添加本项目的 iOS 捷径「隐匿对话」](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)
 
 **安卓**：[联网版 APK（0.9 MB，网页内置）](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.4.0/PrivateTalk-online-v2.4.apk) · [离线版 APK（58 MB，arm64，免互联网，一部手机开热点当服务器）](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v3/PrivateTalk-offline-arm64-v3.apk)（说明与校验值：[联网版](https://github.com/Freecode100Year/private-talk/releases/tag/android-online-v2.4.0)、[离线版](https://github.com/Freecode100Year/private-talk/releases/tag/android-offline-v3)）
@@ -40,10 +42,10 @@
 
 **做不到的**（请务必知道）：
 
-- 知道暗号的人都能进来。暗号越短越容易被猜中，重要的谈话用随机暗号。邀请链接不会过期，同一个暗号永远是同一把钥匙（没有前向保密）。
+- 知道暗号的人都能进来，也能听到以后的对话。暗号越短越容易被猜中，重要的谈话用随机暗号。邀请链接不会过期。房间里有旧版本的成员时会退回没有前向保密的旧方式（页面会提示）。
 - 服务器能看到 IP。要隐藏 IP，请配合可信的 VPN。
 - 不能证明房间里的人是谁；对方可以截图、复制；输入法、被监控的设备超出网页能保护的范围。「清屏」只清你自己的屏幕。
-- 网页代码由服务器下发：部署者账号被盗，代码可能被替换。
+- 网页代码由服务器下发：部署者账号被盗，代码可能被替换。可以用签名清单核对，但只针对某一个人的替换核对不出来；最稳妥是用安卓 App 或离线包。
 
 完整说明见 [隐私与安全设计](docs/privacy.md)。
 
@@ -93,6 +95,7 @@ cd private-talk-docker && ./pt setup chat.example.com      # 先把域名指向�
 - 用 http:// 打开时页面会提示无法使用。
 - Node.js / Docker 版只能运行一个实例（房间在内存里）；升级或重启会断开当时的聊天，页面会自动重连，但房间和消息不会恢复。
 - 部署账号开启两步验证：它是这个网站的钥匙。
+- 自己部署时可以设 `ENTRY_PATH` 开启**隐身入口**：网站只在秘密路径下打开，其他地址都回答普通的 404，扫描的人看不出这里是什么（见 [VPS 说明](docs/vps.md#隐身入口可选)）。
 
 出了问题看 [故障排查](docs/manual/troubleshooting.md)。环境变量、目录结构和开发命令见 [参考](docs/reference.md)。
 

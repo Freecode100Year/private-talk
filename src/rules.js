@@ -211,3 +211,21 @@ export function checkFrame(raw, state, now = Date.now()) {
   state.sent = now;
   return { msg: { iv: msg.iv, ct: msg.ct, ...(msg.h !== undefined && { h: msg.h }) }, at: now };
 }
+
+// Self-hosted servers may hide the site behind a secret path (ENTRY_PATH,
+// Node version only): the page, its files, the relay and /bye all live under
+// it, and every other address answers like an empty web server. Someone
+// scanning addresses sees nothing that says what runs here; whoever has a
+// room link has the path. It hides the site from a casual look, not from
+// someone who watches a member's traffic or holds a link.
+export const ENTRY = /^\/[A-Za-z0-9_-]{8,64}\/$/;
+// inside(pathname, entry): the path within the site, 'redirect' for the entry
+// without its final slash, or null for anything outside it.
+export function inside(pathname, entry) {
+  if (!entry) return pathname;
+  if (pathname === entry.slice(0, -1)) return 'redirect';
+  return pathname.startsWith(entry) ? pathname.slice(entry.length - 1) : null;
+}
+// What an address outside the entry gets: the reply of a bare Go web server,
+// with none of this site's headers.
+export const COVER = { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff' }, body: '404 page not found\n' };

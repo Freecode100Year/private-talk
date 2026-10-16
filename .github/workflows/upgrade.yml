@@ -3,8 +3,15 @@
 # Actions → upgrade → Run workflow: brings this repository to a release of
 # Freecode100Year/private-talk, keeping your Worker's name in wrangler.jsonc.
 # Cloudflare then deploys the new commit as usual.
+#
+# Automatic upgrades (off unless you turn them on): Settings → Secrets and
+# variables → Actions → Variables → New variable AUTO_UPGRADE with
+#   patch   every day, take new patch releases (2.5.0 → 2.5.1): fixes only
+#   all     every day, take every new release (2.5 → 2.6 too)
 name: upgrade
 on:
+  schedule:
+    - cron: '23 3 * * *'
   workflow_dispatch:
     inputs:
       version:
@@ -14,7 +21,7 @@ permissions:
   contents: write
 jobs:
   upgrade:
-    if: github.repository != 'Freecode100Year/private-talk'
+    if: github.repository != 'Freecode100Year/private-talk' && (github.event_name != 'schedule' || vars.AUTO_UPGRADE == 'patch' || vars.AUTO_UPGRADE == 'all')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +30,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           WANT: ${{ inputs.version }}
+          AUTO: ${{ github.event_name == 'schedule' && vars.AUTO_UPGRADE || '' }}
         run: |
           set -euo pipefail
           tag="v${WANT#v}"
           [ -n "$WANT" ] || tag=$(gh api repos/Freecode100Year/private-talk/releases/latest -q .tag_name)
+          if [ "$AUTO" = patch ]; then
+            have=$(node -p 'require("./package.json").version')
+            if [ "${have%.*}" != "$(echo "${tag#v}" | cut -d. -f1-2)" ]; then echo "$tag is a new minor version; AUTO_UPGRADE=patch leaves it for you"; exit 0; fi
+          fi
           echo "upgrading to $tag"
           git fetch --no-tags https://github.com/Freecode100Year/private-talk.git "refs/tags/$tag:refs/upstream/$tag"
           mine=$(node -e "const fs=require('fs');const t=fs.readFileSync('wrangler.jsonc','utf8');console.log((t.match(/\"name\"\s*:\s*\"([^\"]+)\"/)||[])[1]||'')")

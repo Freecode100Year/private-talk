@@ -32,6 +32,14 @@ jobs:
           curl -fsI http://127.0.0.1:8099/ | grep -i 'cache-control: no-store'
           curl -fs -X POST -H 'Origin: http://127.0.0.1:8099' -D - -o /dev/null http://127.0.0.1:8099/bye | grep -i clear-site-data
           node server/smoke.mjs http://127.0.0.1:8099
+      - name: Behind a secret entry path, everything else is a bare 404
+        shell: bash
+        run: |
+          ENTRY_PATH=k7Qp2xVm9aLd PORT=8098 node server/server.mjs &
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8098/k7Qp2xVm9aLd/ >/dev/null && break; sleep 0.5; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8098/)" = 404
+          ! curl -sI http://127.0.0.1:8098/ | grep -iE 'content-security|strict-transport|referrer'
+          node server/smoke.mjs http://127.0.0.1:8098/k7Qp2xVm9aLd
       - name: LAN mode makes its certificate and serves HTTPS
         shell: bash
         run: |

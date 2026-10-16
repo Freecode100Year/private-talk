@@ -102,6 +102,7 @@ sudo systemctl stop private-talk && sudo /opt/private-talk/update.sh --rollback 
 | `HOST` | `127.0.0.1` | 监听地址；只让本机的 Caddy / nginx 访问 |
 | `TRUST_PROXY` | `1` | 程序在 Caddy 或 nginx 后面时保持为 1 |
 | `JOIN_LIMIT` | `60`（默认） | 同一 IP 每分钟最多进房次数 |
+| `ENTRY_PATH` | 例如 `k7Qp2xVm9aLd` | 隐身入口，见下文 |
 | `MAX_CONNECTIONS` | `2000`（默认） | 同时在线连接上限，超出时新来的人看到“服务器连接数已满” |
 
 ## 8. 日常维护
@@ -109,3 +110,15 @@ sudo systemctl stop private-talk && sudo /opt/private-talk/update.sh --rollback 
 - 状态：`cd /opt/private-talk && sudo ./status.sh`（版本、设置、是否在运行）。
 - 日志：`journalctl -u private-talk`。只有启动、警告和错误，不含访客信息。
 - 备份：没有聊天记录可备份；保留 `/opt/private-talk/config.env` 即可。
+
+## 隐身入口（可选）
+
+在 `config.env`（Docker 版是 `.env`）里加一行：
+
+```sh
+ENTRY_PATH=k7Qp2xVm9aLd        # 自己随便编 8–64 个字母数字，别用这个例子
+```
+
+重启后网站只在 `https://你的域名/k7Qp2xVm9aLd/` 打开，房间链接也带上这个路径；其他任何地址（包括首页）都回答一句普通的 `404 page not found`，看起来像一台什么都没放的网页服务器。用来对付按特征扫描、批量封锁这类网站的做法。
+
+它防不了：拿到房间链接的人（链接里就有路径）；监视某个成员上网记录的人（能看到他访问了这个域名，HTTPS 只藏住路径）；Caddy 等前置程序自己的特征。路径泄露了就换一个，旧链接随之失效。

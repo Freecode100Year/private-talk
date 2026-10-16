@@ -15,13 +15,15 @@ const [base, ...flags] = process.argv.slice(2);
 if (!base) { console.error('usage: node server/smoke.mjs <https://address> [--insecure]'); process.exit(2); }
 const insecure = flags.includes('--insecure');
 const url = new URL(base);
-const wsBase = `${url.protocol === 'https:' ? 'wss' : 'ws'}://${url.host}`;
+// A site under a secret path (ENTRY_PATH): the relay is there too.
+const dir = url.pathname.replace(/\/$/, '');
+const wsBase = `${url.protocol === 'https:' ? 'wss' : 'ws'}://${url.host}${dir}`;
 const step = (s) => console.log(`✓ ${s}`);
 function fail(s) { console.error(`✗ ${s}`); process.exit(1); }
 setTimeout(() => fail('timed out after 30 s'), 30000).unref();
 
 const health = await new Promise((done) => {
-  (url.protocol === 'https:' ? https : http).get(new URL('/healthz', url), { rejectUnauthorized: !insecure }, (r) => {
+  (url.protocol === 'https:' ? https : http).get(new URL(`${dir}/healthz`, url), { rejectUnauthorized: !insecure }, (r) => {
     let b = ''; r.on('data', (d) => { b += d; }); r.on('end', () => done(r.statusCode === 200 ? b : null));
   }).on('error', (e) => done(e.code === 'DEPTH_ZERO_SELF_SIGNED_CERT' || /certificate/i.test(e.message) ? fail(`certificate not trusted (${e.code}); add --insecure for a LAN server`) : null));
 });
