@@ -9,7 +9,7 @@
 // shared with the Docker server.
 import { DurableObject } from 'cloudflare:workers';
 import {
-  MAX_MEMBERS, ROOM_ID, PING, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, PROTOCOL,
+  MAX_MEMBERS, ROOM_ID, PING, PONG, CLOSE_BUSY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, PROTOCOL, WIRE_VERSION,
   emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from './rules.js';
 
@@ -99,7 +99,7 @@ export class Room extends DurableObject {
     const mine = token();
     server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent });
     this.saveBook(r.book, this.peers());
-    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine }));
+    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION }));
     this.members();
     return new Response(null, { status: 101, webSocket: client, headers: WS_HEADERS });
   }
@@ -121,6 +121,7 @@ export class Room extends DurableObject {
       if (a.n !== this.host()) return ws.send(JSON.stringify({ type: 'denied' }));
       return 'lock' in r ? this.lock(r.lock, a.n) : this.remove(r.remove, a.n);
     }
+    if (r.key) return this.broadcast({ type: 'key', from: a.n, ...r.key });
     this.broadcast({ type: 'msg', from: a.n, at: r.at, ...r.msg });
   }
 

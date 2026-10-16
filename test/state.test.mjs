@@ -180,3 +180,16 @@ test('unpadded messages from older pages still open', async () => {
   const b64 = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
   assert.equal(await open(key, { iv: b64(iv), ct: b64(ct) }), '{"a":1}');
 });
+
+test('key announcements: right sender, recent, once', async () => {
+  const { checkKeys, newSeen } = await import('../dist/state.js');
+  const seen = newSeen();
+  const now = 5_000_000;
+  const a = (o = {}) => JSON.stringify({ kind: 'keys', from: 2, id: '0123456789abcdef', t: now, epk: 'x', w: {}, ...o });
+  assert.equal(checkKeys(a(), { from: 3 }, seen, now), null, 'relayed from someone else');
+  assert.equal(checkKeys(a({ t: now - 11 * 60 * 1000 }), { from: 2 }, seen, now), null, 'too old');
+  assert.equal(checkKeys(a({ kind: 'msg' }), { from: 2 }, seen, now), null);
+  assert.equal(checkKeys('not json', { from: 2 }, seen, now), null);
+  assert.ok(checkKeys(a(), { from: 2 }, seen, now));
+  assert.equal(checkKeys(a(), { from: 2 }, seen, now), null, 'replayed');
+});

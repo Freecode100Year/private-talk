@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
-  PROTOCOL, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
+  PROTOCOL, WIRE_VERSION, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
@@ -208,7 +208,7 @@ function enter(ws, roomId, ip, resume) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION });
   members(room);
 
   ws.on('pong', () => { ws.alive = true; });
@@ -235,6 +235,7 @@ function enter(ws, roomId, ip, resume) {
       broadcast(room, { type: 'removed', n: r.remove, by: n });
       return members(room);
     }
+    if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });
   ws.on('close', (code) => {

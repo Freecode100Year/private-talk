@@ -4,6 +4,7 @@
 //   access  shown to the relay to be let in; the room address is its SHA-256,
 //           so the relay can check it but cannot work it out from the address
 //   key     the AES-256-GCM message key, which never leaves the browser
+//   bind    salt for protocol v3's short-lived keys (group.js)
 // Knowing the access value does not help find the key, and neither reveals
 // the passphrase.
 const enc = new TextEncoder();
@@ -19,7 +20,9 @@ export async function deriveRoom(pass) {
   const access = await crypto.subtle.deriveBits(info('private-talk/v2/access'), hkdf, 256);
   const roomId = hex(await crypto.subtle.digest('SHA-256', access));
   const key = await crypto.subtle.deriveKey(info('private-talk/v2/key'), hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-  return { roomId, access: hex(access), key };
+  // Salt for the v3 pairwise keys (group.js), so they belong to this room.
+  const bind = new Uint8Array(await crypto.subtle.deriveBits(info('private-talk/v3/bind'), hkdf, 256));
+  return { roomId, access: hex(access), key, bind };
 }
 
 const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));

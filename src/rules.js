@@ -6,6 +6,7 @@ export const RATE_PER_10S = 20;         // frames of any kind per connection per
 export const SEND_GAP = 6000;           // at least this long between one person's messages
 export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
+export const KEYS_PER_10S = 10;         // v3 key announcements per connection per 10 seconds (also count above)
 export const BAD_FRAMES = 5;            // malformed frames tolerated before the connection is closed
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
 export const JOINS_PER_MINUTE = 30;     // per address
@@ -23,6 +24,11 @@ export const ACCESS = /^[0-9a-f]{64}$/;
 // The page sends the access value and its resume token in the WebSocket
 // subprotocol header, not in the URL, where proxies tend to log them.
 export const PROTOCOL = 'pt2';
+// The message format version this relay passes on. 3 adds key announcements
+// (frames of type "key") and a chain position ("h") on messages, both opaque
+// to the relay (dist/group.js). The page learns it from hello and keeps to
+// v2 with a relay that does not say 3.
+export const WIRE_VERSION = 3;
 export function parseProtocols(header) {
   const list = String(header || '').split(',').map((s) => s.trim());
   const access = list.find((p) => p.startsWith('a'))?.slice(1);
@@ -50,6 +56,7 @@ export async function accessMatches(roomId, access) {
 const IV = /^[A-Za-z0-9+/]{16}$/;
 const CT = /^[A-Za-z0-9+/]{24,5464}={0,2}$/;
 export const MAX_FRAME = 5600;
+const CHAIN = /^\d{1,9}\.\d{1,9}$/;
 const ASCII = /^[\x20-\x7e]*$/;
 
 // Heartbeat: the page sends PING every 25 seconds and expects PONG back. On
@@ -167,7 +174,8 @@ export function awayNumbers(book, now = Date.now()) {
 //   { lock: boolean }           lock or unlock the room (the relay checks the sender is host)
 //   { remove: n }               take member n out (likewise host only)
 //   { wait: ms }                a message too soon after the last one
-//   { msg: { iv, ct }, at }     a message to pass on
+//   { msg: { iv, ct, h? }, at } a message to pass on
+//   { key: { iv, ct } }         a v3 key announcement to pass on (no spacing)
 //   null                        ignore
 export function checkFrame(raw, state, now = Date.now()) {
   const window = Math.floor(now / 10000);
@@ -189,9 +197,16 @@ export function checkFrame(raw, state, now = Date.now()) {
     state.lockAt = now;
     return msg.type === 'lock' ? { lock: msg.locked } : { remove: msg.n };
   }
-  if (msg.type !== 'msg' || typeof msg.iv !== 'string' || typeof msg.ct !== 'string' || !IV.test(msg.iv) || !CT.test(msg.ct)) return bad();
+  if (msg.type !== 'msg' && msg.type !== 'key') return bad();
+  if (typeof msg.iv !== 'string' || typeof msg.ct !== 'string' || !IV.test(msg.iv) || !CT.test(msg.ct)) return bad();
+  if (msg.type === 'key') {
+    state.keys = state.keysWindow === window ? (state.keys ?? 0) + 1 : 1;
+    state.keysWindow = window;
+    return state.keys > KEYS_PER_10S ? { close: [1008, 'too many keys'] } : { key: { iv: msg.iv, ct: msg.ct } };
+  }
+  if (msg.h !== undefined && (typeof msg.h !== 'string' || !CHAIN.test(msg.h))) return bad();
   const wait = (state.sent ?? 0) + SEND_GAP - GAP_SLACK - now;
   if (wait > 0) return { wait: wait + GAP_SLACK };
   state.sent = now;
-  return { msg: { iv: msg.iv, ct: msg.ct }, at: now };
+  return { msg: { iv: msg.iv, ct: msg.ct, ...(msg.h !== undefined && { h: msg.h }) }, at: now };
 }

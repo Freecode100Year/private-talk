@@ -1,8 +1,9 @@
 import {
   MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, MAX_SKEW, checkPassphrase, isShortPassphrase, checkMessage,
-  passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, joinsAndLeaves
+  passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
+import { Group } from './group.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -20,6 +21,7 @@ const MAX_ON_SCREEN = 300;      // older messages are dropped from the screen
 const ACK_WAIT = 8000;          // a sent message should come back from the relay within this
 const HEARTBEAT = 25000;        // ping the relay this often
 const SILENCE = 60000;          // and treat the connection as dead after this long without a word
+const LEGACY_WAIT = 5000;       // a member silent about v3 keys this long after arriving runs an older version
 
 // One room visit is a session. Everything below belongs to the current one
 // and is reset when it ends.
@@ -28,6 +30,14 @@ let key = null;
 let pass = null;
 let roomId = null;
 let access = null;       // shown to the relay to be let in (see crypto.js)
+let bind = null;         // salt for the v3 keys (see crypto.js)
+let group = null;        // this visit's v3 keys (group.js); null with a relay older than v3
+let relayV3 = false;     // the relay passes v3 frames on
+const firstSeen = new Map(); // member → when this page first saw them in the room
+let fsShown = '';        // the forward secrecy notice last shown: '', 'on' or 'off'
+let keysTimer = 0;
+let keysHello = false;   // the next key announcement asks everyone for theirs
+const ownSent = new Map(); // chain position → sealed text of this page's v3 messages not yet back
 let host = 0;            // the member who may lock and take people out
 let you = 0;
 let resume = null;      // lets this page take its own place back after a dropped connection
@@ -275,6 +285,8 @@ async function join(p) {
   history.replaceState(null, '', location.pathname);
   retries = 0;
   resume = null;
+  group = null;
+  fsShown = '';
   present = null;
   away = [];
   joinedOnce = false;
@@ -287,6 +299,7 @@ async function join(p) {
   const room = await deriveRoom(pass);
   if (ticket !== session) return; // left or switched rooms while the key was being made
   key = room.key;
+  bind = room.bind;
   roomId = room.roomId;
   access = room.access;
   $('chatRoomName').textContent = t('room.code', { code: roomCode(roomId) });
@@ -357,11 +370,46 @@ async function handle(data, sock, started) {
     }
     joinedOnce = true;
     startHeartbeat();
+    // v3: a fresh key pair for a new member number; the same one, with a new
+    // sending chain, after a reconnect (what was handed out before may not
+    // have arrived). Then ask the room for everyone's keys.
+    relayV3 = msg.v === 3;
+    if (relayV3) {
+      if (!group || group.me !== you) group = await Group.create(key, bind, you);
+      else await group.rekey();
+      if (!current()) return;
+      sendKeys(true);
+    } else group = null;
+    showForwardSecrecy();
     // On phones a focused box opens the keyboard over the conversation.
     if (!matchMedia('(pointer: coarse)').matches && !matchMedia('(max-width: 850px)').matches) $('messageInput').focus({ preventScroll: true });
   } else if (msg.type === 'members' && Array.isArray(msg.members)) {
-    members(msg.members, Array.isArray(msg.away) ? msg.away : [], Number.isInteger(msg.host) ? msg.host : 0);
+    const list = msg.members;
+    // Whoever is no longer here (left, dropped or taken out) had this page's
+    // sending chain: start a new one for those who stay.
+    const gone = group ? [...group.peers.keys()].filter((n) => !list.includes(n)) : [];
+    for (const n of gone) group.forget(n);
+    if (gone.length) await group.rekey();
+    if (!current()) return;
+    for (const n of list) if (!firstSeen.has(n)) firstSeen.set(n, Date.now());
+    for (const n of [...firstSeen.keys()]) if (!list.includes(n)) firstSeen.delete(n);
+    members(list, Array.isArray(msg.away) ? msg.away : [], Number.isInteger(msg.host) ? msg.host : 0);
     lockState(!!msg.locked);
+    sendKeys(false);
+    showForwardSecrecy();
+    setTimeout(showForwardSecrecy, LEGACY_WAIT + 100);
+  } else if (msg.type === 'key') {
+    if (!group || msg.from === you) return;
+    try {
+      const a = checkKeys(await open(key, msg), msg, seen, Date.now());
+      if (!current() || !a) return;
+      await group.receive(a, msg.from);
+    } catch {
+      return;
+    }
+    if (!current()) return;
+    sendKeys(false);
+    showForwardSecrecy();
   } else if (msg.type === 'wait') {
     cooldown(Number(msg.ms) || SEND_GAP_SECONDS * 1000);
     const text = pending?.text;
@@ -377,9 +425,20 @@ async function handle(data, sock, started) {
   } else if (msg.type === 'removed') {
     system(t('sys.removed', { b: badge(msg.n), who: msg.by === you ? t('you') : badge(msg.by) }));
   } else if (msg.type === 'msg') {
-    let got = null;
+    let got = null, missed = 0;
     try {
-      const plain = await open(key, msg);
+      let plain;
+      if (msg.h === undefined) plain = await open(key, msg);
+      else if (msg.from === you) {
+        // This page's own v3 message back from the relay: its chain is not
+        // one this page can open, so it remembers what it sent.
+        plain = ownSent.get(msg.h);
+        ownSent.delete(msg.h);
+        if (plain === undefined) throw new Error('not ours');
+      } else {
+        if (!group) throw new Error('no keys');
+        ({ text: plain, missed } = await group.open(msg, msg.from));
+      }
       if (!current() || started.view !== view) return; // the room changed or the screen was cleared meanwhile
       got = checkEnvelope(plain, msg, seen, Date.now());
     } catch {
@@ -392,8 +451,82 @@ async function handle(data, sock, started) {
       return;
     }
     if (msg.from === you && pending?.id === got.id) { clearTimeout(pending.timer); pending = null; }
+    if (missed) system(t('sys.missed', { b: badge(msg.from), n: missed }));
     bubble(msg.from, msg.at, got.text);
   }
+}
+
+// Hands this page's sending chain to whoever does not have it yet, in one
+// key announcement shortly after the last change (several changes in a row
+// make one frame).
+function sendKeys(hello) {
+  if (hello) keysHello = true;
+  clearTimeout(keysTimer);
+  keysTimer = setTimeout(async () => {
+    const g = group, sock = ws, ticket = session;
+    if (!g || !sock || sock.readyState !== WebSocket.OPEN || !present && !keysHello) return;
+    const to = g.owed(present ?? []);
+    if (!to.length && !keysHello) return;
+    const hi = keysHello;
+    keysHello = false;
+    const frame = JSON.stringify({ type: 'key', ...(await seal(key, await g.announce(to, hi))) });
+    if (ticket !== session || ws !== sock || group !== g || sock.readyState !== WebSocket.OPEN) return;
+    sock.send(frame);
+    showForwardSecrecy();
+  }, 150);
+}
+
+// Members who have been here a while without a word about v3 keys.
+function olderPages() {
+  return (present ?? []).filter((n) => n !== you && !group?.peers.has(n) && Date.now() - (firstSeen.get(n) ?? Date.now()) > LEGACY_WAIT);
+}
+
+// 'on' when this page can read every other member's v3 messages, 'off' when
+// v3 cannot be used (an older relay or member), '' while keys are on the way.
+function forwardSecrecy() {
+  if (!online || !present) return '';
+  if (!relayV3 || !group || olderPages().length) return 'off';
+  return present.every((n) => n === you || group.peers.get(n)?.recv) ? 'on' : '';
+}
+
+// The sidebar line (with the safety code) and, when it changes, a note in
+// the conversation.
+let fsRun = 0;
+async function showForwardSecrecy() {
+  const run = ++fsRun;
+  const state = forwardSecrecy();
+  const code = state === 'on' ? await group.safetyCode(present) : '';
+  if (run !== fsRun) return;
+  const note = $('safetyNote');
+  if (state) {
+    note.textContent = t(state === 'on' ? 'fs.on' : 'fs.off', { code });
+    note.title = state === 'on' ? t('fs.hint') : '';
+  }
+  note.hidden = !state;
+  if (state && state !== fsShown) {
+    fsShown = state;
+    system(t(state === 'on' ? 'sys.fsOn' : 'sys.fsOff'));
+  }
+}
+
+// Seals a message the best way everyone here can read: v3 once everyone has
+// this page's chain (waiting a moment for keys still on the way), the
+// passphrase key otherwise.
+async function sealOut(text) {
+  const g = group;
+  if (g && relayV3) {
+    const until = Date.now() + LEGACY_WAIT;
+    while (group === g && !g.ready(present ?? []) && !olderPages().length && Date.now() < until) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (group === g && g.ready(present ?? [])) {
+      const out = await g.seal(text);
+      ownSent.set(out.h, text);
+      while (ownSent.size > 20) ownSent.delete(ownSent.keys().next().value);
+      return out;
+    }
+  }
+  return seal(key, text);
 }
 
 // A heartbeat finds connections that died without closing, which phones
@@ -428,6 +561,8 @@ function stop(key) {
   ws = null;
   // Out of the room: the member list no longer applies.
   present = null;
+  fsShown = '';
+  $('safetyNote').hidden = true;
   members([], [], 0);
 }
 
@@ -441,7 +576,14 @@ function leave() {
   const old = ws;
   ws = null;
   try { old?.close(CLOSE_LEFT, 'leave'); } catch {}
-  key = pass = roomId = access = resume = null;
+  key = pass = roomId = access = resume = bind = group = null;
+  relayV3 = false;
+  firstSeen.clear();
+  ownSent.clear();
+  clearTimeout(keysTimer);
+  keysHello = false;
+  fsShown = '';
+  $('safetyNote').hidden = true;
   you = 0;
   host = 0;
   present = null;
@@ -704,7 +846,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   const started = { session, version: inputVersion };
   cooldown(SEND_GAP_SECONDS * 1000);
   const sealed = envelope(you, text, Date.now());
-  const frame = JSON.stringify({ type: 'msg', ...(await seal(key, sealed)) });
+  const frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });
   if (started.session !== session) return; // left the room meanwhile; the text went with it
   if (ws !== sock || sock.readyState !== WebSocket.OPEN) {
     cooldownUntil = 0;
@@ -790,6 +932,7 @@ function translate() {
   headCount();
   if (present) members(present, away, host);
   sendButton();
+  if (fsShown) showForwardSecrecy();
 }
 $('langSelect').replaceChildren(...Object.entries(LANGS).map(([value, label]) => new Option(label, value, false, value === lang())));
 $('langSelect').addEventListener('change', (event) => { setLang(event.target.value); translate(); });

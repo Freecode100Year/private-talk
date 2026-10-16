@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   admit, depart, emptyBook, awayNumbers, checkFrame, SEND_GAP, RATE_PER_10S, LOCK_GAP, BAD_FRAMES, GRACE,
-  CLOSE_FULL, CLOSE_LOCKED, PING, BYE_HEADERS, PLAIN_HEADERS
+  CLOSE_FULL, CLOSE_LOCKED, PING, BYE_HEADERS, PLAIN_HEADERS, KEYS_PER_10S
 } from '../src/rules.js';
 
 const iv = 'AAAAAAAAAAAAAAAA';
@@ -148,4 +148,21 @@ test('v2: access value travels in the subprotocol and must hash to the room', as
   assert.equal(parseProtocols(`a${room.access}`).ok, false, 'pt2 is required');
   assert.equal(parseProtocols('pt2, ax').ok, false);
   assert.equal(parseProtocols('pt2, a' + room.access + ', rnothex').resume, null);
+});
+
+test('frames: v3 key announcements skip the message spacing but have their own budget', () => {
+  const st = { window: 0, count: 0 };
+  const t = 2_000_000;
+  const key = JSON.stringify({ type: 'key', iv, ct });
+  assert.deepEqual(checkFrame(msg, st, t), { msg: { iv, ct }, at: t });
+  assert.deepEqual(checkFrame(key, st, t + 1), { key: { iv, ct } }, 'right after a message');
+  for (let i = 1; i < KEYS_PER_10S; i++) assert.ok(checkFrame(key, st, t + 2).key);
+  assert.deepEqual(checkFrame(key, st, t + 3).close, [1008, 'too many keys']);
+  const later = { window: 0, count: 0 };
+  assert.ok(checkFrame(key, later, t + 20000).key, 'a new window, a new budget');
+  // The chain position is passed on as it is, and must look like one.
+  const st2 = { window: 0, count: 0 };
+  assert.deepEqual(checkFrame(JSON.stringify({ type: 'msg', iv, ct, h: '3.17' }), st2, t), { msg: { iv, ct, h: '3.17' }, at: t });
+  assert.equal(checkFrame(JSON.stringify({ type: 'msg', iv, ct, h: 'x' }), st2, t + SEND_GAP), null);
+  assert.equal(checkFrame(JSON.stringify({ type: 'key', iv: 'short', ct }), st2, t + SEND_GAP), null);
 });
