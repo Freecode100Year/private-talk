@@ -150,7 +150,7 @@ jobs:
           {
             echo "private-talk $v"
             echo "commit      $GITHUB_SHA"
-            echo "protocol    pt2, messages v3 (falls back to v2)"
+            echo "protocol    pt2, messages v3.1 (strict by default)"
             echo "node        $(grep -o 'NODE_VERSION:-v[0-9.]*' scripts/offline-packages.sh | cut -d- -f2)"
             echo "image       $img"
             echo "digest      $(docker buildx imagetools inspect "$img" --format '{{json .Manifest.Digest}}' | tr -d '"')"

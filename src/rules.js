@@ -3,7 +3,8 @@
 // calls these functions, so the two behave the same.
 export const MAX_MEMBERS = 25;          // visitors are numbered 1️⃣ to 🔟, then #11 to #25
 export const RATE_PER_10S = 30;         // frames of any kind per connection per 10 seconds
-export const SEND_GAP = 6000;           // at least this long between one person's messages
+export const SEND_GAP = 6000;           // one message per this long per person, on average
+export const SEND_BURST = 3;            // up to this many in a row first (a quick reply, a correction)
 export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
 export const KEYS_PER_10S = 20;         // v3 key announcements per connection per 10 seconds (also count above; the page sends one or two a second at most)
@@ -125,8 +126,8 @@ export function hostOf(members) {
 // their own number back within the grace period, even when the room is
 // locked. If the relay has not noticed the old connection is dead yet, the
 // new one replaces it (replace is the number whose old connection to close).
-// Anyone else is a newcomer. A returning member also gets back the time of
-// their last message (sent), so reconnecting does not skip the SEND_GAP.
+// Anyone else is a newcomer. A returning member also gets back their message
+// allowance (sent, see checkFrame), so reconnecting does not refill it.
 export function admit(book, inUse, resume, now = Date.now()) {
   const away = book.away.filter((a) => a.until > now);
   if (resume) {
@@ -206,9 +207,13 @@ export function checkFrame(raw, state, now = Date.now()) {
     return state.keys > KEYS_PER_10S ? { close: [1008, 'too many keys'] } : { key: { iv: msg.iv, ct: msg.ct } };
   }
   if (msg.h !== undefined && (typeof msg.h !== 'string' || !CHAIN.test(msg.h))) return bad();
-  const wait = (state.sent ?? 0) + SEND_GAP - GAP_SLACK - now;
+  // A leaky bucket (GCRA): sent is the time the person's allowance is spent
+  // up to, one SEND_GAP per message; up to SEND_BURST messages may run ahead
+  // of now. So a few go at once, but over time still one per SEND_GAP.
+  const due = Math.max(state.sent ?? 0, now);
+  const wait = due - now - (SEND_BURST - 1) * SEND_GAP - GAP_SLACK;
   if (wait > 0) return { wait: wait + GAP_SLACK };
-  state.sent = now;
+  state.sent = due + SEND_GAP;
   return { msg: { iv: msg.iv, ct: msg.ct, ...(msg.h !== undefined && { h: msg.h }) }, at: now };
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  admit, depart, emptyBook, awayNumbers, checkFrame, SEND_GAP, RATE_PER_10S, LOCK_GAP, BAD_FRAMES, GRACE,
+  admit, depart, emptyBook, awayNumbers, checkFrame, SEND_GAP, SEND_BURST, RATE_PER_10S, LOCK_GAP, BAD_FRAMES, GRACE,
   CLOSE_FULL, CLOSE_LOCKED, PING, BYE_HEADERS, PLAIN_HEADERS, KEYS_PER_10S, MAX_MEMBERS
 } from '../src/rules.js';
 
@@ -40,7 +40,7 @@ test('audit F04: a dropped member may come back to a locked room; newcomers may 
 test('audit L1: coming back after a drop does not reset the message spacing', () => {
   const t = 1_000_000;
   const st = { window: 0, count: 0 };
-  assert.ok(checkFrame(msg, st, t).msg);
+  for (let i = 0; i < SEND_BURST; i++) assert.ok(checkFrame(msg, st, t + i).msg, 'a burst');
   const book = depart({ ...emptyBook(), last: 1 }, 1, 'tok', false, t + 100, st.sent);
   const back = admit(book, inUse(), 'tok', t + 200);
   const again = { window: 0, count: 0, sent: back.sent };
@@ -64,12 +64,20 @@ test('a reconnect that beats the old connection\'s timeout replaces it', () => {
   assert.equal(r.replace, 2);
 });
 
-test('frames: six seconds between messages, flood and size limits', () => {
+test('frames: a short burst, then one message per SEND_GAP; flood and size limits', () => {
   const st = { window: 0, count: 0 };
   const t = 1_000_000;
   assert.deepEqual(checkFrame(msg, st, t), { msg: { iv, ct }, at: t });
-  assert.ok(checkFrame(msg, st, t + 3000).wait > 2000, 'three seconds is too soon');
-  assert.ok(checkFrame(msg, st, t + SEND_GAP).msg, 'six seconds is fine');
+  for (let i = 1; i < SEND_BURST; i++) assert.ok(checkFrame(msg, st, t + i * 500).msg, `message ${i + 1} of a burst`);
+  const w = checkFrame(msg, st, t + 1500).wait;
+  assert.ok(w > SEND_GAP - 2000 && w <= SEND_GAP, 'then a wait of about one gap: ' + w);
+  assert.ok(checkFrame(msg, st, t + SEND_GAP).msg, 'one more after a gap');
+  assert.ok(checkFrame(msg, st, t + SEND_GAP + 100).wait, 'but not two');
+  // Over a minute, still one per gap (plus the first burst).
+  const long = { window: 0, count: 0 };
+  let sent = 0;
+  for (let ms = 0; ms < 60000; ms += 1000) if (checkFrame(msg, long, t + ms).msg) sent++;
+  assert.ok(sent >= SEND_BURST + 60000 / SEND_GAP - 1 && sent <= SEND_BURST + 60000 / SEND_GAP, `${sent} in a minute`);
   assert.deepEqual(checkFrame(JSON.stringify({ type: 'lock', locked: true }), st, t + SEND_GAP), { lock: true });
   assert.deepEqual(checkFrame('x'.repeat(6000), st, t), { close: [1009, 'bad frame'] });
   assert.deepEqual(checkFrame(PING, st, t), { pong: true });

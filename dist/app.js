@@ -1,5 +1,5 @@
 import {
-  MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, MAX_TEXT_BYTES, MAX_SKEW, checkPassphrase, isShortPassphrase, checkMessage,
+  MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, SEND_BURST, MAX_TEXT_BYTES, MAX_SKEW, checkPassphrase, isShortPassphrase, checkMessage,
   passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
@@ -42,6 +42,12 @@ let fsShown = '';        // the forward secrecy notice last shown: '', 'on' or '
 let keysTimer = 0;
 let keysHello = false;   // the next key announcement asks everyone for theirs
 const ownSent = new Map(); // chain position → sealed text of this page's v3 messages not yet back
+// Strict by default: only signed v3.1 messages go out or are shown. Older
+// pages (v2, or v3.0 without signatures) take part only when the person
+// allows them in the sidebar, for this visit.
+let allowOld = false;
+let verifiedCode = '';   // the safety code this person said they checked, '' if none
+let lastStrictNotice = 0;
 let host = 0;            // the member who may lock and take people out
 let you = 0;
 let resume = null;      // lets this page take its own place back after a dropped connection
@@ -55,6 +61,7 @@ let view = 0;           // bumps whenever the screen is cleared, so late results
 let clockSkew = 0;      // server time minus this device's, only to warn about a wrong clock
 let online = false;
 let cooldownUntil = 0;  // no sending before this time
+let allowance = 0;      // the relay's message allowance, mirrored (see checkFrame in src/rules.js)
 let cooldownTimer = 0;
 let pending = null;     // { id, text, timer }: sent, not yet seen coming back
 let lastHeard = 0;
@@ -118,6 +125,16 @@ function composerStatus() {
 function headCount() {
   $('headCount').textContent = online && present ? t('head.count', { n: present.length }) : '';
   $('headCount').previousElementSibling.hidden = !$('headCount').textContent;
+}
+
+// Spends one message from the allowance; the button waits only once the
+// burst is used up. Returns what to restore if the message does not go.
+function spend() {
+  const before = allowance;
+  const gap = SEND_GAP_SECONDS * 1000;
+  allowance = Math.max(allowance, Date.now()) + gap;
+  cooldown(allowance - (SEND_BURST - 1) * gap - Date.now());
+  return () => { allowance = before; cooldownUntil = 0; sendButton(); };
 }
 
 function cooldown(ms) {
@@ -415,10 +432,13 @@ async function handle(data, sock, started) {
       return;
     }
     if (!current()) return;
+    for (const n of group.takeChanged()) system(t('sys.keyChanged', { b: badge(n) }));
     sendKeys(false);
     showForwardSecrecy();
   } else if (msg.type === 'wait') {
-    cooldown(Number(msg.ms) || SEND_GAP_SECONDS * 1000);
+    const ms = Number(msg.ms) || SEND_GAP_SECONDS * 1000;
+    allowance = Date.now() + ms + (SEND_BURST - 1) * SEND_GAP_SECONDS * 1000;
+    cooldown(ms);
     const text = pending?.text;
     if (pending) { clearTimeout(pending.timer); pending = null; }
     giveBack(text);
@@ -432,10 +452,10 @@ async function handle(data, sock, started) {
   } else if (msg.type === 'removed') {
     system(t('sys.removed', { b: badge(msg.n), who: msg.by === you ? t('you') : badge(msg.by) }));
   } else if (msg.type === 'msg') {
-    let got = null, missed = 0;
+    let got = null, missed = 0, signed = true;
     try {
       let plain;
-      if (msg.h === undefined) plain = await open(key, msg);
+      if (msg.h === undefined) { plain = await open(key, msg); signed = false; }
       else if (msg.from === you) {
         // This page's own v3 message back from the relay: its chain is not
         // one this page can open, so it remembers what it sent.
@@ -444,7 +464,7 @@ async function handle(data, sock, started) {
         if (plain === undefined) throw new Error('not ours');
       } else {
         if (!group) throw new Error('no keys');
-        ({ text: plain, missed } = await group.open(msg, msg.from));
+        ({ text: plain, missed, signed } = await group.open(msg, msg.from));
       }
       if (!current() || started.view !== view) return; // the room changed or the screen was cleared meanwhile
       got = checkEnvelope(plain, msg, seen, Date.now());
@@ -455,6 +475,12 @@ async function handle(data, sock, started) {
       // One notice at most every ten seconds, however many bad messages come.
       if (Date.now() - lastBadNotice > 10000) system(t('sys.bad'));
       lastBadNotice = Date.now();
+      return;
+    }
+    if (!signed && msg.from !== you && !allowOld) {
+      // An older page's message: no signature, maybe no forward secrecy.
+      if (Date.now() - lastStrictNotice > 10000) system(t('sys.strictDropped'));
+      lastStrictNotice = Date.now();
       return;
     }
     if (msg.from === you && pending?.id === got.id) { clearTimeout(pending.timer); pending = null; }
@@ -497,11 +523,18 @@ function olderPages() {
 
 // 'on' when this page can read every other member's v3 messages, 'off' when
 // v3 cannot be used (an older relay or member), '' while keys are on the way.
+// The room's protection, for the sidebar and the send button:
+//   'on'       everyone runs 3.1: forward secrecy and signatures
+//   'old'      older pages are here (v2, or 3.0 without signatures)
+//   'relay'    the relay is older than v3
+//   ''         keys are still on the way
 function forwardSecrecy() {
   if (!online || !present) return '';
-  if (!relayV3 || !group || olderPages().length) return 'off';
+  if (!relayV3 || !group) return 'relay';
+  if (olderPages().length || group.older(present).length) return 'old';
   return present.every((n) => n === you || group.peers.get(n)?.recv) ? 'on' : '';
 }
+const olderNames = () => [...olderPages(), ...(group ? group.older(present ?? []) : [])].map(badge).join(' ');
 
 // The sidebar line (with the safety code) and, when it changes, a note in
 // the conversation.
@@ -509,40 +542,63 @@ let fsRun = 0;
 async function showForwardSecrecy() {
   const run = ++fsRun;
   const state = forwardSecrecy();
-  // Kept in one piece and left to right, also inside Arabic or Urdu text.
-  const code = state === 'on' ? `\u2066${(await group.safetyCode(present)).replace(' ', '\u00a0')}\u2069` : '';
+  const raw = state === 'on' ? await group.safetyCode(present) : '';
   if (run !== fsRun) return;
-  const note = $('safetyNote');
-  if (state) {
-    note.textContent = t(state === 'on' ? 'fs.on' : 'fs.off', { code });
-    note.title = state === 'on' ? t('fs.hint') : '';
+  // A checked code holds only while it stays the same.
+  if (verifiedCode && raw && raw !== verifiedCode) {
+    verifiedCode = '';
+    system(t('sys.verifyLost'));
   }
+  // Kept in one piece and left to right, also inside Arabic or Urdu text.
+  const code = raw && `\u2066${raw.replace(/ /g, '\u00a0')}\u2069`;
+  const note = $('safetyNote');
+  if (state === 'on') note.textContent = t(verifiedCode ? 'fs.verified' : 'fs.on', { code });
+  else if (state === 'old') note.textContent = t(allowOld ? 'fs.old' : 'fs.blocked', { who: olderNames() });
+  else if (state === 'relay') note.textContent = t(allowOld ? 'fs.off' : 'fs.blockedRelay');
+  note.title = state === 'on' ? t('fs.hint') : '';
   note.hidden = !state;
+  note.classList.toggle('warn', state === 'old' || state === 'relay');
+  $('verifyButton').hidden = state !== 'on' || !!verifiedCode;
+  $('verifyButton').title = t('fs.hint');
   if (state && state !== fsShown) {
     fsShown = state;
-    system(t(state === 'on' ? 'sys.fsOn' : 'sys.fsOff'));
+    if (state === 'on') system(t('sys.fsOn'));
+    else if (allowOld) system(t('sys.fsOff'));
   }
 }
 
 // Seals a message the best way everyone here can read: v3 once everyone has
 // this page's chain (waiting a moment for keys still on the way), the
 // passphrase key otherwise.
+// In strict mode (the default), a message that cannot go as signed v3.1 to
+// everyone does not go at all: sealOut throws Blocked with the reason.
+class Blocked extends Error {}
 async function sealOut(text) {
   const g = group;
+  const strict = !allowOld;
   if (g && relayV3) {
     const until = Date.now() + LEGACY_WAIT;
-    while (group === g && !g.ready(present ?? []) && !olderPages().length && Date.now() < until) {
+    while (group === g && !g.ready(present ?? [], strict) && !olderPages().length && !(strict && g.older(present ?? []).length) && Date.now() < until) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    if (group === g && g.ready(present ?? [])) {
+    if (group === g && g.ready(present ?? [], strict)) {
       const out = await g.seal(text);
       ownSent.set(out.h, text);
       while (ownSent.size > 20) ownSent.delete(ownSent.keys().next().value);
+      // A scheduled rekey: a new chain and ECDH key every so many messages.
+      if (g.due()) { await g.rekey(); sendKeys(false); }
       return out;
     }
-  }
+    if (strict) throw new Blocked(olderNames() ? t('sys.strictBlocked', { who: olderNames() }) : t('sys.strictWait'));
+  } else if (strict) throw new Blocked(t('sys.strictRelay'));
   return seal(key, text);
 }
+
+// Rekeys on time too, for rooms that are quiet for a while.
+setInterval(async () => {
+  const g = group;
+  if (g && relayV3 && online && g.due()) { await g.rekey(); if (group === g) sendKeys(false); }
+}, 30000);
 
 // A heartbeat finds connections that died without closing, which phones
 // switching networks leave behind.
@@ -577,7 +633,9 @@ function stop(key) {
   // Out of the room: the member list no longer applies.
   present = null;
   fsShown = '';
+  verifiedCode = '';
   $('safetyNote').hidden = true;
+  $('verifyButton').hidden = true;
   members([], [], 0);
 }
 
@@ -593,17 +651,22 @@ function leave() {
   try { old?.close(CLOSE_LEFT, 'leave'); } catch {}
   key = pass = roomId = access = resume = bind = group = null;
   relayV3 = false;
+  allowOld = false;
+  $('allowOld').checked = false;
   firstSeen.clear();
   ownSent.clear();
   clearTimeout(keysTimer);
   keysHello = false;
   fsShown = '';
+  verifiedCode = '';
   $('safetyNote').hidden = true;
+  $('verifyButton').hidden = true;
   you = 0;
   host = 0;
   present = null;
   away = [];
   cooldownUntil = 0;
+  allowance = 0;
   clearScreen(true);
   members([]);
   status('', false);
@@ -703,6 +766,21 @@ $('confirmLeave').addEventListener('click', () => {
   $('roomName').focus({ preventScroll: true });
 });
 $('clearButton').addEventListener('click', () => clearScreen(true));
+// The safety code, checked over another channel: kept until it changes.
+$('verifyButton').addEventListener('click', async () => {
+  if (forwardSecrecy() !== 'on') return;
+  verifiedCode = await group.safetyCode(present);
+  system(t('sys.verified'));
+  showForwardSecrecy();
+});
+// Older versions, for this visit only: their messages have no signature and
+// (v2) no forward secrecy.
+$('allowOld').addEventListener('change', (event) => {
+  allowOld = event.target.checked;
+  system(t(allowOld ? 'sys.allowOldOn' : 'sys.allowOldOff'));
+  fsShown = '';
+  showForwardSecrecy();
+});
 $('panicButton').addEventListener('click', () => panic());
 
 // panic leaves at once, without asking: the room is left, every dialog closed,
@@ -859,13 +937,20 @@ $('messageForm').addEventListener('submit', async (event) => {
   const sock = ws;
   if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return;
   const started = { session, version: inputVersion };
-  cooldown(SEND_GAP_SECONDS * 1000);
+  const refund = spend();
   const sealed = envelope(you, text, Date.now());
-  const frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });
+  let frame;
+  try {
+    frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });
+  } catch (error) {
+    if (!(error instanceof Blocked)) throw error;
+    refund();
+    if (started.session === session) system(error.message);
+    return;
+  }
   if (started.session !== session) return; // left the room meanwhile; the text went with it
   if (ws !== sock || sock.readyState !== WebSocket.OPEN) {
-    cooldownUntil = 0;
-    sendButton();
+    refund();
     system(t('sys.notSent'));
     return;
   }

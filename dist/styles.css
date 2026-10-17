@@ -166,3 +166,6 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 /* Up to 25 members: the sidebar scrolls, and a long list is tighter. */
 .room-sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#243e56 transparent}.members.many{gap:9px}.members.many .avatar{width:28px;height:28px}.avatar{font-variant-numeric:tabular-nums}
 @media(pointer:fine){.members.many .remove-button{min-height:28px;padding:2px 9px}}
+/* Protocol 3.1: the safety code check and the older-versions switch. */
+#safetyNote{overflow-wrap:anywhere}#safetyNote.warn{color:#ffc7a0}.verify-button{margin:-12px 0 18px}.allow-old{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.6;color:#8ea8bf;margin:0 0 22px;cursor:pointer}.allow-old input{margin-top:3px;accent-color:#13c8f6}
+@media(max-width:600px){.allow-old{font-size:13px}}

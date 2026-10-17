@@ -4,6 +4,7 @@ export const MAX_TEXT_CHARS = 500;
 export const MAX_TEXT_BYTES = 2048;
 export const SHORT_PASSPHRASE = 8; // shorter ones work, with a warning
 export const SEND_GAP_SECONDS = 6;
+export const SEND_BURST = 3; // as src/rules.js: a few in a row, then one per SEND_GAP_SECONDS
 
 // The passphrase is the only credential: whoever knows it is in the room, and
 // it is also what the messages are encrypted with. It may be as short as one
