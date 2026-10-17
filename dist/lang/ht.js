@@ -59,6 +59,7 @@ export default {
   'sys.shortPass': 'Atansyon: sa a se yon modpas kout ou chwazi tèt ou; yon moun ka devine l, antre e li tout sa n ap di. Pou bagay enpòtan, sèvi ak yon modpas o aza.',
   'sys.clock': 'Atansyon: lè aparèy sa a diferan ak lè sèvè a apeprè {min} minit. Mesaj yo verifye ak lè aparèy sa a, e y ap refize si diferans lan depase 10 minit; aktive lè otomatik nan paramèt yo.',
   'sys.wait': 'Yon mesaj chak {s} segonn: mesaj sa a pa t voye, li tounen nan bwat ekriti a.',
+  'sys.waitAuto': 'Twò vit: mesaj sa a ap pati poukont li nan {s} segonn.',
   'sys.locked': '{who} fèmen chanm nan; okenn nouvo moun pa ka antre.',
   'sys.unlocked': '{who} louvri chanm nan.',
   'sys.bad': 'Yon mesaj ki pa t ka dechifre oswa verifye te inyore.',

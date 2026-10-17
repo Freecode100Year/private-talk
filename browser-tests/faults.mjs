@@ -7,14 +7,15 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
 const rnd = () => Math.random().toString(36).slice(2, 12);
 // A page whose relay connection passes through `filter` (frames from the
 // relay to the page); filter returns false to drop one. close() cuts it.
-async function page(pass, filter = () => true) {
+// outgoing(m, ws) sees the page's frames the same way.
+async function page(pass, filter = () => true, outgoing = () => true) {
   const ctx = await b.newContext({ locale: 'zh-CN' });
   const p = await ctx.newPage();
   const sent = [];
   p.cut = null;
   await p.routeWebSocket(/\/ws\//, (ws) => {
     const server = ws.connectToServer();
-    ws.onMessage((m) => { sent.push(String(m)); server.send(m); });
+    ws.onMessage((m) => { sent.push(String(m)); if (outgoing(String(m), ws)) server.send(m); });
     server.onMessage((m) => { if (filter(String(m))) ws.send(m); });
     p.cut = () => ws.close({ code: 1006 });
   });
@@ -103,6 +104,29 @@ const fsOn = (p) => p.waitForFunction(() => /\d{5}/.test(document.getElementById
   ok(r.every(Boolean), '4: A and B read each other through the churn ' + r.join(','));
   if (!r.every(Boolean)) { console.log('--A--\n' + (await text(A)).slice(-1500)); console.log('--B--\n' + (await text(B)).slice(-1500)); }
   ok(!(await text(A)).includes('无法解密') && !(await text(B)).includes('无法解密'), '4: no unreadable-message notices');
+  await A.context().close(); await B.context().close();
+}
+// 5. The relay asks A to wait (the burst used up, as the relay counts it):
+// the message goes again by itself, and B sees no gap.
+{
+  const pass = 'f5' + rnd();
+  let bounced = 0;
+  const A = await page(pass, () => true, (m, ws) => {
+    if (bounced || !m.includes('"type":"msg"')) return true;
+    bounced++;
+    ws.send(JSON.stringify({ type: 'wait', ms: 2000 }));
+    return false;
+  });
+  const B = await page(pass);
+  await A.waitForTimeout(7000);
+  await send(A, 'bounced once');
+  ok(await waitText(A, '自动发出'), '5: A is told the message will go by itself');
+  ok(await waitText(B, 'bounced once', 10000), '5: B gets the message after the wait');
+  await A.waitForTimeout(6500);
+  await send(A, 'and the next');
+  ok(await waitText(B, 'and the next'), '5: the next message arrives too');
+  ok(!(await text(B)).includes('没有送到') && !(await text(B)).includes('无法解密'), '5: B sees no lost or unreadable message');
+  ok((await A.inputValue('#messageInput')) === '', '5: the text is not put back in A\'s box');
   await A.context().close(); await B.context().close();
 }
 await b.close();

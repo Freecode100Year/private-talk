@@ -9,7 +9,7 @@
 #      The token is a secret: .env is not shared or committed.
 services:
   app:
-    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.7.1}
+    image: ghcr.io/freecode100year/private-talk:${PT_VERSION:-2.7.2}
     restart: unless-stopped
     environment:
       ENTRY_PATH: ${ENTRY_PATH:-}

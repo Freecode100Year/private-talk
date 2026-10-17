@@ -63,7 +63,7 @@ let online = false;
 let cooldownUntil = 0;  // no sending before this time
 let allowance = 0;      // the relay's message allowance, mirrored (see checkFrame in src/rules.js)
 let cooldownTimer = 0;
-let pending = null;     // { id, text, timer }: sent, not yet seen coming back
+let pending = null;     // { id, text, frame, sock, timer }: sent, not yet seen coming back
 let lastHeard = 0;
 let heartbeatTimer = 0;
 let lastBadNotice = 0;
@@ -290,6 +290,27 @@ function clearInput() {
   if (pending) { clearTimeout(pending.timer); pending = null; }
 }
 
+// The relay never echoed the message.
+function noAck(p) {
+  if (pending !== p) return;
+  pending = null;
+  system(t('sys.noAck'));
+  giveBack(p.text);
+}
+
+// Sends a message the relay asked to wait with once more, the same frame.
+function resend(p) {
+  if (pending !== p) return;
+  if (ws !== p.sock || p.sock.readyState !== WebSocket.OPEN) {
+    pending = null;
+    system(t('sys.notSent'));
+    giveBack(p.text);
+    return;
+  }
+  p.sock.send(p.frame);
+  p.timer = setTimeout(() => noAck(p), ACK_WAIT);
+}
+
 // Relay reported a message it could not pass on, or never echoed it: put the
 // text back for the person to send again, unless they have typed since.
 function giveBack(text) {
@@ -445,10 +466,19 @@ async function handle(data, sock, started, retry = false) {
     const ms = Number(msg.ms) || SEND_GAP_SECONDS * 1000;
     allowance = Date.now() + ms + (SEND_BURST - 1) * SEND_GAP_SECONDS * 1000;
     cooldown(ms);
-    const text = pending?.text;
-    if (pending) { clearTimeout(pending.timer); pending = null; }
-    giveBack(text);
-    system(t('sys.wait', { s: SEND_GAP_SECONDS }));
+    const p = pending;
+    if (p?.frame && p.sock === ws && ws.readyState === WebSocket.OPEN) {
+      // The sealed message already took its place in this page's chain, so it
+      // goes again as it is once the wait is over: sealing the text anew would
+      // leave a gap the others see as a lost message.
+      clearTimeout(p.timer);
+      p.timer = setTimeout(() => resend(p), ms);
+      system(t('sys.waitAuto', { s: Math.ceil(ms / 1000) }));
+    } else {
+      if (p) { clearTimeout(p.timer); pending = null; }
+      giveBack(p?.text);
+      system(t('sys.wait', { s: SEND_GAP_SECONDS }));
+    }
   } else if (msg.type === 'lock') {
     lockState(!!msg.locked);
     const who = msg.by === you ? t('you') : badge(msg.by);
@@ -988,16 +1018,8 @@ $('messageForm').addEventListener('submit', async (event) => {
     return;
   }
   sock.send(frame);
-  const id = JSON.parse(sealed).id;
-  pending = {
-    id, text,
-    timer: setTimeout(() => {
-      if (pending?.id !== id) return;
-      pending = null;
-      system(t('sys.noAck'));
-      giveBack(text);
-    }, ACK_WAIT)
-  };
+  pending = { id: JSON.parse(sealed).id, text, frame, sock };
+  pending.timer = setTimeout(() => noAck(pending), ACK_WAIT);
   // Clear the box only if nothing was typed while the message was being sealed.
   if (inputVersion === started.version) {
     $('messageInput').value = '';

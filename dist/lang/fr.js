@@ -59,6 +59,7 @@ export default {
   'sys.shortPass': 'Attention : ce mot de passe est court et choisi à la main ; quelqu’un pourrait le deviner, entrer et tout lire. Pour les sujets importants, utilisez un mot de passe aléatoire.',
   'sys.clock': 'Attention : l’horloge de cet appareil diffère d’environ {min} minutes de celle du serveur. Les messages sont vérifiés avec l’horloge de cet appareil et seront refusés au-delà de 10 minutes d’écart ; activez l’heure automatique dans les réglages.',
   'sys.wait': 'Un message toutes les {s} secondes : celui-ci n’a pas été envoyé et est revenu dans la zone de saisie.',
+  'sys.waitAuto': 'Trop rapide : celui-ci partira tout seul dans {s} secondes.',
   'sys.locked': '{who} a verrouillé le salon ; plus de nouveaux arrivants.',
   'sys.unlocked': '{who} a déverrouillé le salon.',
   'sys.bad': 'Un message impossible à déchiffrer ou à vérifier a été ignoré.',
