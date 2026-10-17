@@ -57,6 +57,22 @@ jobs:
           if ($r.StatusCode -ne 200) { throw "status $($r.StatusCode)" }
           "Schannel accepted the name-constrained LAN certificate"
 
+  # Real browsers against the Node server: protocol v3.1, strict mode, the
+  # safety code check, a full room of 25, and relay or network faults.
+  browsers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci --ignore-scripts
+      - run: npm i --no-save playwright && npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: |
+          PORT=8099 node server/server.mjs &
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
+          for t in v3 verify faults full25; do echo "== $t"; node browser-tests/$t.mjs http://127.0.0.1:8099; done
+
   # The Cloudflare version in its own runtime (workerd, via wrangler dev; no
   # account needed): two clients chat through the Worker and Durable Object.
   cloudflare:

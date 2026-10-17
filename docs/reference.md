@@ -61,6 +61,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台配置 |
 | `docs/` | 说明书（`docs/manual/`）、隐私设计、各部署方式的技术细节 |
 | `test/` | 规则、加密、防篡改、证书的单元测试 |
+| `browser-tests/` | 真浏览器测试：协议 v3.1、严格模式、核对安全码、25 人满员，以及服务器丢密钥帧、断线、人员快速进出等故障（CI 每次运行） |
 | `.github/workflows/` | 自动测试（三系统、Cloudflare 运行时、Docker + Caddy）；构建 Docker 镜像和离线安装包并签名；`site-watch.yml` 定时核对线上网页；`upgrade.yml` 给一键部署的副本升级用 |
 
 ## 开发

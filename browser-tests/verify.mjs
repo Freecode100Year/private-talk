@@ -1,0 +1,20 @@
+import { chromium } from 'playwright';
+const BASE = process.argv[2] || 'http://127.0.0.1:8099';
+const b = await chromium.launch();
+let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
+const PASS = 'verify' + Math.random().toString(36).slice(2, 12);
+const mk = async (vp, locale = 'zh-CN') => { const p = await (await b.newContext({ viewport: vp, locale })).newPage(); await p.goto(`${BASE}/#${PASS}`); await p.waitForSelector('#sendButton:not([disabled])'); return p; };
+const A = await mk({ width: 1366, height: 850 }), B = await mk({ width: 390, height: 844 }, 'ar'), C = await mk({ width: 1366, height: 850 });
+const note = (p) => p.locator('#safetyNote').innerText();
+await A.waitForFunction(() => /\d{5}/.test(document.getElementById('safetyNote').innerText) && !document.getElementById('verifyButton').hidden, null, { timeout: 15000 });
+await A.click('#verifyButton');
+ok(/^✅/.test(await note(A)), 'after checking: ' + await note(A));
+ok(await A.locator('#verifyButton').isHidden(), 'button gone once checked');
+await C.click('#leaveButton'); await C.click('#confirmLeave');
+const lost = await A.waitForFunction(() => document.getElementById('messages').innerText.includes('之前的核对已作废'), null, { timeout: 15000 }).then(() => true, () => false);
+ok(lost, 'a member leaving voids the check');
+ok(/^🔐/.test(await note(A)) && await A.locator('#verifyButton').isVisible(), 'back to unchecked: ' + await note(A));
+
+await b.close();
+console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
+process.exit(fails ? 1 : 0);

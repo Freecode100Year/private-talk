@@ -51,6 +51,15 @@ export const KEY_CHUNK = 14;         // members per key announcement, so one fit
 export const MAX_SKIP = 2000;        // the most messages one member's chain may jump ahead
 export const REKEY_MESSAGES = 100;   // a member starts a new chain after this many messages
 export const REKEY_MS = 10 * 60 * 1000; // or after this long
+// A chain position handed to a member is kept this long, so the chain can be
+// handed again from there if the announcement was lost (the member asks).
+// Older positions are forgotten: that is the forward secrecy.
+export const RESEND_MS = 60 * 1000;
+// The ECDH key changes at a rekey at most this often (people coming and going
+// quickly would otherwise replace it faster than wraps can catch up), and the
+// last few are kept this long for wraps still on their way.
+export const ROTATE_MS = 20 * 1000;
+const OLD_ECDH = 4;
 export const HEADER = /^(\d{1,9})\.(\d{1,9})$/;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
 // The signature at the end of a signed message: ,"s":"<base64>"}
@@ -105,7 +114,8 @@ export class Group {
     g.signing = await crypto.subtle.generateKey(ECDSA, false, ['sign', 'verify']);
     g.spk = toB64(await crypto.subtle.exportKey('raw', g.signing.publicKey));
     g.ecdh = await newEcdh();
-    g.oldEcdh = null; // the one before the last rekey, for wraps already on their way
+    g.ecdhSince = Date.now();
+    g.oldEcdh = []; // the ones before, newest first: [{ ecdh, until }], for wraps already on their way
     // n → { epk, spk, verify, wraps: Map(own epk → pairwise key), recv: { epoch, ck, c } | null,
     //       prev: the chain before, sent: epoch handed to them, v: 30 or 31 }
     g.peers = new Map();
@@ -118,12 +128,14 @@ export class Group {
 
   // A new sending chain and ECDH key, to be handed to everyone still here.
   async rekey(epoch = this.mine.epoch + 1, now = Date.now()) {
-    if (this.mine) {
-      this.oldEcdh = this.ecdh;
+    if (this.mine && now - this.ecdhSince >= ROTATE_MS) {
+      this.oldEcdh = [{ ecdh: this.ecdh, until: now + RESEND_MS }, ...this.oldEcdh].slice(0, OLD_ECDH);
       this.ecdh = await newEcdh();
+      this.ecdhSince = now;
     }
-    this.mine = { epoch, ck: crypto.getRandomValues(new Uint8Array(32)), c: 0, since: now };
-    for (const p of this.peers.values()) p.sent = -1;
+    this.oldEcdh = this.oldEcdh.filter((o) => o.until > now);
+    this.mine = { epoch, ck: crypto.getRandomValues(new Uint8Array(32)), c: 0, since: now, handed: new Map() };
+    for (const p of this.peers.values()) { p.sent = -1; p.gotAt = null; }
   }
 
   // Whether this page's chain is due for a scheduled rekey.
@@ -158,10 +170,17 @@ export class Group {
   // everyone to answer with theirs. The caller seals it with the passphrase key.
   async announce(to, hello, now = Date.now()) {
     const w = {};
+    const m = this.mine;
+    for (const [c, h] of m.handed) if (now - h.at > RESEND_MS) m.handed.delete(c);
     for (const n of to) {
       const p = this.peers.get(n);
       if (!p) continue;
-      const body = enc.encode(JSON.stringify({ e: this.mine.epoch, ck: toB64(this.mine.ck), c: this.mine.c }));
+      // Handed again (they asked): from where they got it first, if kept.
+      const again = p.gotAt != null && m.handed.has(p.gotAt);
+      const c = again ? p.gotAt : m.c;
+      const ck = again ? m.handed.get(c).ck : m.ck;
+      if (!again) { p.gotAt = c; if (!m.handed.has(c)) m.handed.set(c, { ck, at: now }); }
+      const body = enc.encode(JSON.stringify({ e: m.epoch, ck: toB64(ck), c }));
       w[n] = await sealWith(await this.pairKey(this.ecdh, p), body, `pt3w|${this.me}|${n}|${p.epk}`);
       p.sent = this.mine.epoch;
     }
@@ -192,25 +211,26 @@ export class Group {
       p = null;
     }
     if (!p) {
-      p = { epk: a.epk, spk: v31 ? a.spk : null, verify, wraps: new Map(), recv: null, prev: null, sent: -1, v: v31 ? 31 : 30 };
+      p = { epk: a.epk, spk: v31 ? a.spk : null, verify, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: v31 ? 31 : 30 };
       this.peers.set(from, p);
     } else if (p.epk !== a.epk) {
       // A rekey on their side: wraps from now on use the new key.
       if (v31) { p.epk = a.epk; p.wraps = new Map(); }
-      else { p = { epk: a.epk, spk: null, verify: null, wraps: new Map(), recv: null, prev: null, sent: -1, v: 30 }; this.peers.set(from, p); }
+      else { p = { epk: a.epk, spk: null, verify: null, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: 30 }; this.peers.set(from, p); }
     }
     const wrapped = a.w[this.me];
     if (wrapped && typeof wrapped.iv === 'string' && typeof wrapped.ct === 'string') {
       // Made for this page's current ECDH key, or the one before when it was
       // sent before our last rekey reached them.
-      const target = [this.ecdh, this.oldEcdh].filter(Boolean);
+      const target = [this.ecdh, ...this.oldEcdh.map((o) => o.ecdh)];
       let body = null;
       for (const own of target) {
         try { body = JSON.parse(dec.decode(await openWith(await this.pairKey(own, p), wrapped, `pt3w|${from}|${this.me}|${own.epk}`))); break; } catch {}
       }
-      if (!body) throw new Error('cannot unwrap');
-      const ck = fromB64(body.ck);
-      if (Number.isInteger(body.e) && Number.isInteger(body.c) && body.c >= 0 && ck.length === 32 && (!p.recv || body.e > p.recv.epoch)) {
+      // Made for a key this page no longer has: the caller asks for it again.
+      p.lost = !body;
+      const ck = body ? fromB64(body.ck) : new Uint8Array(0);
+      if (body && Number.isInteger(body.e) && Number.isInteger(body.c) && body.c >= 0 && ck.length === 32 && (!p.recv || body.e > p.recv.epoch)) {
         // The chain before stays readable too: a message sealed with it may
         // still be on its way (sent before this announcement, read after).
         p.prev = p.recv;

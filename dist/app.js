@@ -369,7 +369,7 @@ function connect() {
   };
 }
 
-async function handle(data, sock, started) {
+async function handle(data, sock, started, retry = false) {
   const current = () => ws === sock && started.session === session;
   if (!current()) return;
   let msg;
@@ -427,12 +427,18 @@ async function handle(data, sock, started) {
     try {
       const a = checkKeys(await open(key, msg), msg, seen, Date.now());
       if (!current() || !a) return;
-      await group.receive(a, msg.from);
+      const peer = await group.receive(a, msg.from);
+      // Their chain was wrapped for an ECDH key this page has since replaced.
+      if (peer?.lost) askForKeys();
     } catch {
       return;
     }
     if (!current()) return;
     for (const n of group.takeChanged()) system(t('sys.keyChanged', { b: badge(n) }));
+    // Messages from this member that waited for these keys get another try.
+    const ready = held.filter((h) => h.from === msg.from);
+    held = held.filter((h) => h.from !== msg.from);
+    for (const h of ready) await handle(h.data, h.sock, h.started, true);
     sendKeys(false);
     showForwardSecrecy();
   } else if (msg.type === 'wait') {
@@ -468,15 +474,16 @@ async function handle(data, sock, started) {
       }
       if (!current() || started.view !== view) return; // the room changed or the screen was cleared meanwhile
       got = checkEnvelope(plain, msg, seen, Date.now());
-    } catch {
+    } catch (error) {
       if (!current() || started.view !== view) return;
+      // Sealed with a chain this page has not been given yet (its key
+      // announcement was lost or is late): hold it and ask for the keys.
+      if (!retry && msg.h !== undefined && msg.from !== you && /no key|out of step/.test(error?.message)) {
+        holdForKeys(data, msg.from, sock, started);
+        return;
+      }
     }
-    if (!got) {
-      // One notice at most every ten seconds, however many bad messages come.
-      if (Date.now() - lastBadNotice > 10000) system(t('sys.bad'));
-      lastBadNotice = Date.now();
-      return;
-    }
+    if (!got) return badNotice();
     if (!signed && msg.from !== you && !allowOld) {
       // An older page's message: no signature, maybe no forward secrecy.
       if (Date.now() - lastStrictNotice > 10000) system(t('sys.strictDropped'));
@@ -487,6 +494,32 @@ async function handle(data, sock, started) {
     if (missed) system(t('sys.missed', { b: badge(msg.from), n: missed }));
     bubble(msg.from, msg.at, got.text);
   }
+}
+
+// Messages waiting for a chain this page lacks: at most HELD_MAX, for at most
+// HELD_MS, then they count as unreadable. Asking for keys is a key
+// announcement with hello set, at most once every few seconds; everyone
+// then sends their current chain again.
+const HELD_MAX = 20, HELD_MS = 30000;
+let held = [];
+let askedKeysAt = 0;
+function holdForKeys(data, from, sock, started) {
+  held.push({ data, from, sock, started, at: Date.now() });
+  if (held.length > HELD_MAX) { held.shift(); badNotice(); }
+  askForKeys();
+}
+function askForKeys() {
+  if (Date.now() - askedKeysAt > 3000) { askedKeysAt = Date.now(); sendKeys(true); }
+}
+setInterval(() => {
+  const now = Date.now();
+  if (held.some((h) => now - h.at > HELD_MS)) badNotice();
+  held = held.filter((h) => now - h.at <= HELD_MS && h.sock === ws);
+}, 5000);
+function badNotice() {
+  // One notice at most every ten seconds, however many bad messages come.
+  if (Date.now() - lastBadNotice > 10000) system(t('sys.bad'));
+  lastBadNotice = Date.now();
 }
 
 // Hands this page's sending chain to whoever does not have it yet, in one

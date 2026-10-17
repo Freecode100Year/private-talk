@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRoom, seal, open } from '../dist/crypto.js';
-import { Group, MAX_SKIP, KEY_CHUNK, REKEY_MESSAGES } from '../dist/group.js';
+import { Group, MAX_SKIP, KEY_CHUNK, REKEY_MESSAGES, ROTATE_MS } from '../dist/group.js';
 import { Group as Group30 } from './fixtures/group-3.0.js';
 
 // Messages are sealed envelopes: JSON objects.
@@ -95,7 +95,8 @@ test('v3: a wrap made for one page does not open on another page of the same num
   const fresh = await Group.create(x.r.key, x.r.bind, 2); // member 2 reloaded
   const a = x.pages.get(1);
   const old = JSON.parse(await a.announce([2], false)); // still made for the old page
-  await assert.rejects(fresh.receive(old, 1));
+  const p = await fresh.receive(old, 1);
+  assert.ok(p.lost && !p.recv, 'not opened; flagged so the page asks again');
 });
 
 test('v3: a different passphrase gives different pairwise keys', async () => {
@@ -105,7 +106,8 @@ test('v3: a different passphrase gives different pairwise keys', async () => {
   const a = x.pages.get(1);
   await b.receive(JSON.parse(await a.announce([], true)), 1);
   // b wraps its chain for a, but under a key salted with the other passphrase.
-  await assert.rejects(a.receive(JSON.parse(await b.announce([1], false)), 2));
+  const p = await a.receive(JSON.parse(await b.announce([1], false)), 2);
+  assert.ok(p.lost && !p.recv);
 });
 
 test('v3: everyone sees the same safety code; a swapped key changes it', async () => {
@@ -186,7 +188,7 @@ test('v3.1: a rekey replaces the ECDH key, keeps the signing key and the safety 
   const code = await a.safetyCode([1, 2]);
   const { epk, spk } = a;
   const inFlight = await b.announce([1], false); // b's chain, wrapped for a's old ECDH key
-  await a.rekey();
+  await a.rekey(undefined, Date.now() + ROTATE_MS);
   assert.notEqual(a.epk, epk);
   assert.equal(a.spk, spk);
   await a.receive(JSON.parse(inFlight), 2); // still opens with the key before
@@ -221,4 +223,40 @@ test('v3.1 and 3.0 pages read each other; strict mode tells them apart', async (
   assert.deepEqual(JSON.parse(got.text).text, 'to the old page');
   const back = await a.open(await old.seal(J('from the old page')), 2);
   assert.deepEqual(back, { text: J('from the old page'), missed: 0, signed: false });
+});
+
+test('v3.1: a lost key announcement is recovered by asking; newcomers still only get the chain from now on', async () => {
+  const x = await room('correct horse battery', [1, 2]);
+  await exchange(x);
+  const a = x.pages.get(1), b = x.pages.get(2);
+  await a.rekey();
+  await a.announce(a.owed([1, 2]), false); // lost on the way to b
+  const sent = [await a.seal(J('m0')), await a.seal(J('m1')), await a.seal(J('m2'))];
+  await assert.rejects(b.open(sent[0], 1), /out of step|no key/);
+  // b asks (hello); a hands its chain again from where b was given it.
+  await a.receive(JSON.parse(await b.announce([], true)), 2);
+  await b.receive(JSON.parse(await a.announce(a.owed([1, 2]), false)), 1);
+  for (const [i, m] of sent.entries()) assert.equal((await b.open(m, 1)).text, J(`m${i}`));
+  // Someone arriving now is handed the chain at the current position.
+  const c = await Group.create(x.r.key, x.r.bind, 3);
+  await a.receive(JSON.parse(await c.announce([], true)), 3);
+  await c.receive(JSON.parse(await a.announce([3], false)), 1);
+  await assert.rejects(c.open(sent[2], 1), /out of step/);
+  assert.equal((await c.open(await a.seal(J('m3')), 1)).text, J('m3'));
+});
+
+test('v3.1: quick rekeys share an ECDH key; wraps for the last few keys still open', async () => {
+  const x = await room('correct horse battery', [1, 2]);
+  await exchange(x);
+  const a = x.pages.get(1), b = x.pages.get(2);
+  const t0 = Date.now();
+  const e0 = a.epk;
+  await a.rekey(undefined, t0 + 1000);
+  assert.equal(a.epk, e0, 'not rotated twice within ROTATE_MS');
+  const late = await b.announce([1], false); // for e0
+  await a.rekey(undefined, t0 + ROTATE_MS);
+  await a.rekey(undefined, t0 + 2 * ROTATE_MS);
+  assert.notEqual(a.epk, e0);
+  const p = await a.receive(JSON.parse(late), 2);
+  assert.ok(!p.lost && p.recv, 'a wrap for a key two rotations back still opens');
 });
