@@ -702,8 +702,7 @@ function pactNote(note) {
   const list = (ns) => ns.map(badge).join(' ');
   if (note.k === 'tr-new') system(t('tr.started', { b: badge(note.by), list: list(note.players) }));
   if (note.k === 'tr-result') {
-    const lines = note.results.map((x) => t('tr.result', { a: badge(x.a), ca: choiceWord(x.ca), b: badge(x.b), cb: choiceWord(x.cb), pa: x.pa, pb: x.pb }));
-    system(`${t('tr.roundEnd', { r: note.round })}${lines.join('；')}。`);
+    for (const x of note.results) system(t('tr.roundEnd', { r: note.round }) + t('tr.result', { a: badge(x.a), ca: choiceWord(x.ca), b: badge(x.b), cb: choiceWord(x.cb), pa: x.pa, pb: x.pb }));
     for (const x of note.results) for (const n of x.hid) system(t('tr.hid', { b: badge(n) }));
     if (note.end) system(pactEndText(note.end));
   }
