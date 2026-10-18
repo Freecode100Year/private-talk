@@ -170,3 +170,18 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 /* Protocol 3.1: the safety code check and the older-versions switch. */
 #safetyNote{overflow-wrap:anywhere}#safetyNote.warn{color:#ffc7a0}.verify-button{margin:-12px 0 18px}.allow-old{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.6;color:#8ea8bf;margin:0 0 22px;cursor:pointer}.allow-old input{margin-top:3px;accent-color:#13c8f6}
 @media(max-width:600px){.allow-old{font-size:13px}}
+.game-start{margin-top:12px}
+.game-panel{margin:0;padding:12px 30px;border-bottom:1px solid #23506b;background:linear-gradient(100deg,#13253acc,#0b1a2acc);color:#d6e8f5;font-size:12px}
+.game-panel[hidden]{display:none}
+.game-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.game-head span{font-size:13px;letter-spacing:1px}
+#gameLine{margin:6px 0 8px;color:#b9d3e6;line-height:1.6}
+.game-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.game-actions .secondary-button{width:auto;min-height:36px;padding:6px 12px}
+.game-word{user-select:none;-webkit-user-select:none;touch-action:none;min-width:130px}
+.game-word.open{background:#1d5b3d;border-color:#43c787;color:#f0fff6;font-size:15px;font-weight:600}
+.game-votes{display:flex;flex-wrap:wrap;gap:6px}
+.game-votes .secondary-button{min-width:48px}
+.ghost-button{background:transparent;border:1px solid #31506b;border-radius:6px;color:#9fb8cc;min-height:36px;padding:6px 12px;font-size:11px}
+.message.said .bubble{border-color:#d9a441;box-shadow:0 0 0 1px #d9a44155}
+@media(max-width:600px){.game-panel{padding:10px 16px;font-size:14px}.game-actions .secondary-button,.ghost-button{min-height:44px;font-size:14px}}

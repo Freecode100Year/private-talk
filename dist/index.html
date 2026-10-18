@@ -123,6 +123,7 @@
           <p class="sidebar-note" id="safetyNote" hidden></p>
           <button class="secondary-button verify-button" id="verifyButton" type="button" hidden><span data-t="verify.button">我已核对安全码</span></button>
           <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
+          <button class="secondary-button game-start" id="gameStart" type="button" disabled><span data-t="game.start">🕵️ 开一局暗号潜伏</span></button>
           <div class="sidebar-actions">
             <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
             <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
@@ -158,6 +159,16 @@
             </div>
           </header>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
+          <section class="game-panel" id="gamePanel" hidden aria-live="polite">
+            <div class="game-head"><strong id="gameTitle"></strong><span id="gamePlayers"></span></div>
+            <p id="gameLine"></p>
+            <div class="game-actions">
+              <button class="secondary-button game-word" id="gameWord" type="button" data-t="game.holdButton">按住看我的词</button>
+              <span class="game-votes" id="gameVotes"></span>
+              <button class="ghost-button" id="gameEnd" type="button" hidden data-t="game.end">结束本局</button>
+              <button class="ghost-button" id="gameClose" type="button" hidden data-t="game.close">关闭</button>
+            </div>
+          </section>
           <div class="messages" id="messages" aria-live="polite"></div>
           <div class="composer-area">
             <div class="composer-tools">

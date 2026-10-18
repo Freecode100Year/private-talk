@@ -101,9 +101,10 @@ export function roomCode(roomId) {
 export const MAX_SKEW = 10 * 60 * 1000;
 const ID = /^[0-9a-f]{16}$/;
 
-export function envelope(from, text, now = Date.now()) {
+// g: a game event (game.js) riding along; text is then what older pages show.
+export function envelope(from, text, now = Date.now(), g) {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
-  return JSON.stringify({ from, id, t: now, text });
+  return JSON.stringify({ from, id, t: now, text, ...(g && { g }) });
 }
 
 // seen remembers message ids (not their text) for as long as a message could
@@ -112,7 +113,7 @@ export function newSeen() {
   return new Map();
 }
 
-// checkEnvelope returns { text, id } or null. now is the receiving device's
+// checkEnvelope returns { text, id, g } or null (g: a game event, if any). now is the receiving device's
 // clock, or the server's when this device's is known to be wrong.
 export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   let e;
@@ -125,7 +126,8 @@ export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   for (const [id, t] of seen) if (Math.abs(now - t) > 2 * MAX_SKEW) seen.delete(id);
   if (seen.has(e.id)) return null;
   seen.set(e.id, e.t);
-  return { text: e.text, id: e.id };
+  const g = e.g && typeof e.g === 'object' && !Array.isArray(e.g) ? e.g : undefined;
+  return { text: e.text, id: e.id, g };
 }
 
 // checkKeys is checkEnvelope for v3 key announcements (group.js), and with

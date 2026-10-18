@@ -4,6 +4,7 @@ import {
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 import { Group } from './group.js';
+import { deal, apply as applyGame, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -164,7 +165,7 @@ function system(text) {
   append(div, atBottom());
 }
 
-function bubble(from, at, text, h) {
+function bubble(from, at, text, h, said = false) {
   const mine = from === you;
   const row = document.createElement('article');
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
@@ -188,6 +189,10 @@ function bubble(from, at, text, h) {
   const p = document.createElement('p');
   p.className = 'bubble';
   p.textContent = text;
+  if (said) {
+    row.classList.add('said');
+    who.prepend(`🗣 ${t('game.said')} · `);
+  }
   body.append(who, p);
   if (mine) row.append(body, avatar);
   else row.append(avatar, body);
@@ -423,7 +428,7 @@ async function handle(data, sock, started, retry = false) {
     relayV3 = msg.v === 3;
     relaySeen = msg.seen === true;
     if (relayV3) {
-      if (!group || group.me !== you) { group = await Group.create(key, bind, you); ownSeen.clear(); earlySeen.clear(); seenQueue = []; }
+      if (!group || group.me !== you) { group = await Group.create(key, bind, you); ownSeen.clear(); earlySeen.clear(); seenQueue = []; endGame(); }
       else await group.rekey();
       if (!current()) return;
       sendKeys(true);
@@ -446,6 +451,7 @@ async function handle(data, sock, started, retry = false) {
     sendKeys(false);
     showForwardSecrecy();
     setTimeout(showForwardSecrecy, LEGACY_WAIT + 100);
+    gameMembers();
   } else if (msg.type === 'key') {
     if (!group || msg.from === you) return;
     try {
@@ -525,6 +531,15 @@ async function handle(data, sock, started, retry = false) {
     }
     if (msg.from === you && pending?.id === got.id) { clearTimeout(pending.timer); pending = null; }
     if (missed) system(t('sys.missed', { b: badge(msg.from), n: missed }));
+    // A game event: shown by the game panel, except descriptions, which are
+    // messages too.
+    if (got.g && group && relayV3) {
+      const said = await gameEvent(got.g, msg.from);
+      if (!current()) return;
+      if (said) bubble(msg.from, msg.at, got.text, msg.h, true);
+      if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
+      return;
+    }
     bubble(msg.from, msg.at, got.text, msg.h);
     if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
   } else if (msg.type === 'seen') {
@@ -535,6 +550,173 @@ async function handle(data, sock, started, retry = false) {
     } catch {}
   }
 }
+
+// 暗号潜伏, the party game (game.js). Its events ride in ordinary messages
+// (the g field), so they are encrypted, signed and rate limited like any
+// other; every page builds the same game state from them. The page that
+// starts a game deals and keeps the secret part (dealer below).
+let game = null;        // the game state, null when there is none
+let myWord = '';        // this page's card
+let dealer = null;      // this page deals: { secret, ballots: Map(voter → choice), done: Set }
+let gameOut = [];       // game events waiting for the send allowance: [text, g]
+let gameTick = 0;
+const gameRoom = () => present ?? [];
+function canStartGame() {
+  const n = gameRoom().length;
+  return online && group && relayV3 && (!game || game.phase === 'over') && n >= MIN_PLAYERS && n <= MAX_PLAYERS && group.quantumSafe(gameRoom());
+}
+// Game events go out one by one, as the allowance permits.
+function queueGame(g) {
+  gameOut.push(g);
+  pumpGame();
+}
+let pumping = false;
+async function pumpGame() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    while (gameOut.length && online) {
+      if (pending || Date.now() < cooldownUntil) { await new Promise((r) => setTimeout(r, 250)); continue; }
+      if (await sendMessage(t('game.wire'), gameOut[0], false)) gameOut.shift();
+      else await new Promise((r) => setTimeout(r, 1000));
+    }
+  } finally { pumping = false; }
+}
+async function startGame() {
+  if (!canStartGame()) return;
+  const players = gameRoom().slice();
+  const d = deal(players, document.documentElement.lang);
+  const cards = {};
+  for (const n of players) if (n !== you) cards[n] = await group.sealFor(n, d.cards.get(n), `card|${d.deal.gid}`);
+  dealer = { gid: d.deal.gid, secret: d.secret, ballots: new Map(), done: new Set() };
+  myWord = d.cards.get(you);
+  queueGame({ k: 'new', ...d.deal, cards });
+}
+// Takes in one game event from a message. Returns true for a description
+// (shown as a message too).
+async function gameEvent(g, from) {
+  if (g.k === 'new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
+    try { myWord = await group.openFrom(from, g.cards?.[you], `card|${g.gid}`); } catch { myWord = ''; }
+  }
+  if (g.k === 'ballot' && dealer && game && g.gid === dealer.gid && from !== you && game.phase === 'vote' && !game.voted.includes(from)) {
+    try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
+  }
+  const before = game;
+  const { s, note } = applyGame(game, g, from, Date.now());
+  game = s;
+  if (note) gameNote(note);
+  if (before !== game) { renderGame(); dealerStep(); }
+  return note?.k === 'say';
+}
+function gameNote(note) {
+  const list = (ns) => ns.map(badge).join(' ');
+  if (note.k === 'new') system(t('game.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('game.hold')}` : ''));
+  else if (note.k === 'skip') system(t('game.skipped', { b: badge(note.n) }));
+  if ((note.k === 'say' || note.k === 'skip') && note.talk) system(t('game.talk'));
+  if (note.k === 'vote') system(t('game.voteNow'));
+  if (note.k === 'result') {
+    const votes = Object.entries(note.votes).map(([v, c]) => `${badge(Number(v))}→${badge(Number(c))}`).join('，');
+    system((votes ? `${t('game.votes')}${votes}。` : '') + (note.out ? t('game.out', { b: badge(note.out) }) : t('game.tie')));
+    if (note.end) system(endText(note.end));
+  }
+  if (note.k === 'abort') system(t('game.aborted'));
+}
+function endText(end) {
+  const why = end.why === 'left' ? `${t('game.spyLeft')} ` : '';
+  return `${why}${t(end.winner === 'spy' ? 'game.spyWins' : 'game.civWins')} ${t('game.reveal', { b: badge(end.spy), spy: end.words?.spy ?? '', civ: end.words?.civ ?? '' })}`;
+}
+function endGame() {
+  game = null;
+  myWord = '';
+  dealer = null;
+  gameOut = [];
+  clearInterval(gameTick);
+  gameTick = 0;
+  if ($('gamePanel')) renderGame();
+}
+// The room changed: a dealer who left ends the game; the dealer moves it on.
+function gameMembers() {
+  if (game && game.phase !== 'over' && !gameRoom().includes(game.dealer)) {
+    game = { ...game, phase: 'over', end: null };
+    system(t('game.dealerLeft'));
+  }
+  renderGame();
+  dealerStep();
+}
+// What only the dealer's page does: skip someone whose turn ran out (or who
+// left), call the vote after the talk, count once all votes are in.
+function dealerStep() {
+  if (!dealer || !game || game.gid !== dealer.gid || game.phase === 'over') return;
+  const here = gameRoom();
+  const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
+  const gid = game.gid;
+  if (!here.includes(dealer.secret.spy)) {
+    return once(`left|${game.round}`, { k: 'result', gid, out: 0, votes: {}, end: ending(game.alive, dealer.secret, 0, 'left') });
+  }
+  const late = Date.now() >= game.deadline;
+  if (game.phase === 'say') {
+    const n = speaker(game);
+    if (late || !here.includes(n)) once(`skip|${game.round}|${game.turn}`, { k: 'skip', gid, n });
+  } else if (game.phase === 'talk') {
+    if (late) once(`vote|${game.round}`, { k: 'vote', gid });
+  } else if (game.phase === 'vote') {
+    const waiting = game.alive.filter((n) => here.includes(n) && !dealer.ballots.has(n));
+    if (late || !waiting.length) once(`result|${game.round}`, { k: 'result', gid, ...countVotes(game, dealer.secret, dealer.ballots) });
+  }
+}
+async function voteFor(n) {
+  if (!game || game.phase !== 'vote' || game.voted.includes(you) || !game.alive.includes(you)) return;
+  const g = { k: 'ballot', gid: game.gid, r: game.round };
+  if (dealer && dealer.gid === game.gid) dealer.ballots.set(you, n);
+  else g.b = await group.sealFor(game.dealer, String(n), `vote|${game.gid}|${game.round}`);
+  $('gameVotes').replaceChildren();
+  queueGame(g);
+}
+function renderGame() {
+  const panel = $('gamePanel');
+  $('gameStart').disabled = !canStartGame();
+  $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
+  panel.hidden = !game;
+  if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const playing = game.players.includes(you);
+  $('gameTitle').textContent = t('game.title', { r: game.round });
+  let line = '';
+  if (game.phase === 'say') line = speaker(game) === you ? t('game.yourTurn', { s: left }) : t('game.turn', { b: badge(speaker(game)), s: left });
+  else if (game.phase === 'talk') line = t('game.talking', { s: left });
+  else if (game.phase === 'vote') line = t('game.voting', { s: left, n: game.voted.length, total: game.alive.length });
+  else line = game.end ? endText(game.end) : t('game.aborted');
+  $('gameLine').textContent = line;
+  $('gamePlayers').textContent = game.players.map((n) => (game.alive.includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
+  $('gameWord').hidden = !playing || !myWord || game.phase === 'over';
+  const votes = $('gameVotes');
+  const canVote = game.phase === 'vote' && game.alive.includes(you) && !game.voted.includes(you);
+  if (!canVote) votes.replaceChildren();
+  else if (!votes.childElementCount) {
+    votes.replaceChildren(...game.alive.filter((n) => n !== you).map((n) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'secondary-button';
+      b.textContent = badge(n);
+      b.addEventListener('click', () => voteFor(n));
+      return b;
+    }));
+  }
+  $('gameEnd').hidden = !(dealer && game.phase !== 'over');
+  $('gameClose').hidden = game.phase !== 'over';
+  $('messageInput').placeholder = speaker(game) === you ? t('game.describe') : t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = game.phase === 'over' ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+$('gameStart').addEventListener('click', () => { startGame(); });
+$('gameEnd').addEventListener('click', () => { if (dealer && game) queueGame({ k: 'abort', gid: game.gid }); });
+$('gameClose').addEventListener('click', () => { endGame(); });
+// The card shows only while it is held down.
+const showWord = (on) => { $('gameWord').textContent = on ? myWord : t('game.holdButton'); $('gameWord').classList.toggle('open', on); };
+$('gameWord').addEventListener('pointerdown', (e) => { e.preventDefault(); showWord(true); });
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) $('gameWord').addEventListener(ev, () => showWord(false));
+$('gameWord').addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); showWord(true); } });
+$('gameWord').addEventListener('keyup', () => showWord(false));
 
 // Delivery receipts. Each page tells the room, sealed with the passphrase key
 // (so the relay can neither read nor forge them), which v3 messages it has
@@ -691,6 +873,7 @@ async function showForwardSecrecy() {
   note.classList.toggle('warn', state === 'old' || state === 'relay');
   $('verifyButton').hidden = state !== 'on' || !!verifiedCode;
   $('verifyButton').title = t('fs.hint');
+  renderGame();
   if (state && state !== fsShown) {
     fsShown = state;
     if (state === 'on') system(t('sys.fsOn'));
@@ -786,6 +969,7 @@ function leave() {
   $('allowOld').checked = false;
   firstSeen.clear();
   ownSent.clear();
+  endGame();
   ownSeen.clear();
   earlySeen.clear();
   seenQueue = [];
@@ -1066,14 +1250,14 @@ $('messageInput').addEventListener('keydown', (event) => {
 });
 $('messageInput').addEventListener('compositionstart', () => { composing = true; });
 $('messageInput').addEventListener('compositionend', () => { composing = false; compositionEnded = Date.now(); });
-$('messageForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const text = checkMessage($('messageInput').value);
+// Seals and sends one message: text from the input box (fromInput), or a
+// game event (g) with a short text for older pages. Returns whether it went.
+async function sendMessage(text, g, fromInput) {
   const sock = ws;
-  if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return;
+  if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return false;
   const started = { session, version: inputVersion };
   const refund = spend();
-  const sealed = envelope(you, text, Date.now());
+  const sealed = envelope(you, text, Date.now(), g);
   let frame;
   try {
     frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });
@@ -1081,22 +1265,30 @@ $('messageForm').addEventListener('submit', async (event) => {
     if (!(error instanceof Blocked)) throw error;
     refund();
     if (started.session === session) system(error.message);
-    return;
+    return false;
   }
-  if (started.session !== session) return; // left the room meanwhile; the text went with it
+  if (started.session !== session) return false; // left the room meanwhile; the text went with it
   if (ws !== sock || sock.readyState !== WebSocket.OPEN) {
     refund();
     system(t('sys.notSent'));
-    return;
+    return false;
   }
   sock.send(frame);
-  pending = { id: JSON.parse(sealed).id, text, frame, sock };
+  pending = { id: JSON.parse(sealed).id, text: fromInput ? text : '', frame, sock };
   pending.timer = setTimeout(() => noAck(pending), ACK_WAIT);
   // Clear the box only if nothing was typed while the message was being sealed.
-  if (inputVersion === started.version) {
+  if (fromInput && inputVersion === started.version) {
     $('messageInput').value = '';
     $('messageInput').dispatchEvent(new Event('input'));
   }
+  return true;
+}
+$('messageForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = checkMessage($('messageInput').value);
+  // On this page's turn in a game, the message is its description.
+  const say = game && speaker(game) === you ? { k: 'say', gid: game.gid } : undefined;
+  await sendMessage(text, say, true);
 });
 // Phones drop connections in the background; reconnect as soon as the page
 // is looked at again.

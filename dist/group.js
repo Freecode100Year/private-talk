@@ -363,6 +363,27 @@ export class Group {
     return present.filter((n) => n !== this.me && this.peers.get(n)?.v === 30);
   }
 
+  // A short secret for one member only, inside a message everyone receives
+  // (game cards and votes, game.js): sealed with a key from the pair's ML-KEM
+  // secret, which stays the same for the visit, so it does not depend on
+  // which ECDH keys either side has at the moment. Needs that secret (both
+  // pages 3.2); label ties it to its purpose.
+  async pairSecret(n, label) {
+    const p = this.peers.get(n);
+    if (!p?.ss) throw new Error('no pair secret');
+    const hkdf = await crypto.subtle.importKey('raw', p.ss, 'HKDF', false, ['deriveKey']);
+    const info = enc.encode(`private-talk/v3.2/for|${label}|${Math.min(n, this.me)}|${Math.max(n, this.me)}`);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: this.bind, info }, hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  async sealFor(n, text, label) {
+    return sealWith(await this.pairSecret(n, label), enc.encode(text), `pt32f|${this.me}|${n}|${label}`);
+  }
+
+  async openFrom(from, sealed, label) {
+    return dec.decode(await openWith(await this.pairSecret(from, label), sealed, `pt32f|${from}|${this.me}|${label}`));
+  }
+
   // Seals the plain text with the next key from this page's chain and signs
   // it. Returns the frame fields { iv, ct, h }.
   async seal(text) {
