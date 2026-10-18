@@ -4,7 +4,8 @@ import {
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 import { Group } from './group.js';
-import { deal, apply as applyGame, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
+import { deal, apply as applyUndercover, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
+import * as Escape from './escape.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -551,19 +552,26 @@ async function handle(data, sock, started, retry = false) {
   }
 }
 
-// 暗号潜伏, the party game (game.js). Its events ride in ordinary messages
-// (the g field), so they are encrypted, signed and rate limited like any
-// other; every page builds the same game state from them. The page that
-// starts a game deals and keeps the secret part (dealer below).
+// The games: 暗号潜伏 (game.js) and 密电逃脱 (escape.js). Their events ride
+// in ordinary messages (the g field), so they are encrypted, signed and rate
+// limited like any other; every page builds the same game state from them.
+// The page that starts a game deals and keeps the secret part (dealer below).
 let game = null;        // the game state, null when there is none
-let myWord = '';        // this page's card
-let dealer = null;      // this page deals: { secret, ballots: Map(voter → choice), done: Set }
+let myWord = '';        // this page's card (暗号潜伏)
+let myClues = null;     // this page's clues, one list per lock (密电逃脱)
+let dealer = null;      // this page deals: { gid, secret, ballots: Map(voter → choice), done: Set } or, for 密电逃脱, { gid, codes, hands, done }
 let gameOut = [];       // game events waiting for the send allowance: [text, g]
 let gameTick = 0;
 const gameRoom = () => present ?? [];
-function canStartGame() {
+const isEscape = (g) => g.k.startsWith('esc-');
+function applyGame(s, g, from, now) {
+  if (typeof g?.k !== 'string') return { s, note: null };
+  return isEscape(g) || (s?.type === 'esc' && g.k !== 'new') ? Escape.apply(s, g, from, now) : applyUndercover(s, g, from, now);
+}
+function canStartGame(kind = 'spy') {
   const n = gameRoom().length;
-  return online && group && relayV3 && (!game || game.phase === 'over') && n >= MIN_PLAYERS && n <= MAX_PLAYERS && group.quantumSafe(gameRoom());
+  const [min, max] = kind === 'esc' ? [Escape.MIN_PLAYERS, Escape.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
+  return online && group && relayV3 && (!game || game.phase === 'over') && n >= min && n <= max && group.quantumSafe(gameRoom());
 }
 // Game events go out one by one, as the allowance permits.
 function queueGame(g) {
@@ -577,7 +585,7 @@ async function pumpGame() {
   try {
     while (gameOut.length && online) {
       if (pending || Date.now() < cooldownUntil) { await new Promise((r) => setTimeout(r, 250)); continue; }
-      if (await sendMessage(t('game.wire'), gameOut[0], false)) gameOut.shift();
+      if (await sendMessage(t(isEscape(gameOut[0]) || game?.type === 'esc' ? 'esc.wire' : 'game.wire'), gameOut[0], false)) gameOut.shift();
       else await new Promise((r) => setTimeout(r, 1000));
     }
   } finally { pumping = false; }
@@ -590,13 +598,30 @@ async function startGame() {
   for (const n of players) if (n !== you) cards[n] = await group.sealFor(n, d.cards.get(n), `card|${d.deal.gid}`);
   dealer = { gid: d.deal.gid, secret: d.secret, ballots: new Map(), done: new Set() };
   myWord = d.cards.get(you);
+  myClues = null;
   queueGame({ k: 'new', ...d.deal, cards });
+}
+async function startEscape() {
+  if (!canStartGame('esc')) return;
+  const players = gameRoom().slice();
+  const d = Escape.deal(players);
+  const cards = {};
+  for (const n of players) if (n !== you) cards[n] = await group.sealFor(n, JSON.stringify(d.hands.get(n)), `esc|${d.deal.gid}`);
+  dealer = { gid: d.deal.gid, codes: d.codes, hands: d.hands, done: new Set() };
+  myClues = d.hands.get(you);
+  myWord = '';
+  queueGame({ k: 'esc-new', ...d.deal, cards });
 }
 // Takes in one game event from a message. Returns true for a description
 // (shown as a message too).
 async function gameEvent(g, from) {
   if (g.k === 'new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
     try { myWord = await group.openFrom(from, g.cards?.[you], `card|${g.gid}`); } catch { myWord = ''; }
+    myClues = null;
+  }
+  if (g.k === 'esc-new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
+    try { myClues = Escape.readHand(await group.openFrom(from, g.cards?.[you], `esc|${g.gid}`)); } catch { myClues = null; }
+    myWord = '';
   }
   if (g.k === 'ballot' && dealer && game && g.gid === dealer.gid && from !== you && game.phase === 'vote' && !game.voted.includes(from)) {
     try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
@@ -620,6 +645,23 @@ function gameNote(note) {
     if (note.end) system(endText(note.end));
   }
   if (note.k === 'abort') system(t('game.aborted'));
+  if (note.k === 'esc-new') system(t('esc.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('esc.hold')}` : ''));
+  if (note.k === 'esc-new' || note.k === 'esc-open') {
+    if (note.k === 'esc-open') system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
+    system(t('esc.lock', { i: game.lock + 1, len: Escape.LOCKS[game.lock], m: Escape.LOCK_MS[game.lock] / 60000 }));
+  }
+  if (note.k === 'esc-try') system(t('esc.trying', { b: badge(note.n), code: note.code }));
+  if (note.k === 'esc-wrong') system(t('esc.wrong', { code: note.code, a: note.alarms, max: Escape.ALARMS }));
+  if (note.k === 'esc-drop') system(t('esc.dropped', { b: badge(note.n) }));
+  if (note.k === 'esc-end') {
+    if (note.why === 'alarm') system(t('esc.wrong', { code: note.code, a: Escape.ALARMS, max: Escape.ALARMS }));
+    if (note.win) system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
+    system(escEndText(game.end));
+  }
+}
+function escEndText(end) {
+  const codes = end.codes ? ` ${t('esc.codes', { codes: end.codes.join(' · ') })}` : '';
+  return t(end.win ? 'esc.win' : end.why === 'time' ? 'esc.timeUp' : 'esc.alarm') + codes;
 }
 function endText(end) {
   const why = end.why === 'left' ? `${t('game.spyLeft')} ` : '';
@@ -628,6 +670,7 @@ function endText(end) {
 function endGame() {
   game = null;
   myWord = '';
+  myClues = null;
   dealer = null;
   gameOut = [];
   clearInterval(gameTick);
@@ -650,6 +693,13 @@ function dealerStep() {
   const here = gameRoom();
   const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
   const gid = game.gid;
+  if (game.type === 'esc') {
+    // Make a leaver's clues public; judge a try; call the time.
+    for (const n of game.players) if (!here.includes(n) && !game.dropped[n]) once(`drop|${n}`, { k: 'esc-drop', gid, n, clues: dealer.hands.get(n) });
+    if (game.trying) once(`try|${game.tries}`, Escape.judge(game, dealer.codes));
+    else if (Date.now() >= game.deadline) once(`time|${game.lock}`, Escape.judge(game, dealer.codes, true));
+    return;
+  }
   if (!here.includes(dealer.secret.spy)) {
     return once(`left|${game.round}`, { k: 'result', gid, out: 0, votes: {}, end: ending(game.alive, dealer.secret, 0, 'left') });
   }
@@ -677,7 +727,12 @@ function renderGame() {
   $('gameStart').disabled = !canStartGame();
   $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
   panel.hidden = !game;
+  $('escStart').disabled = !canStartGame('esc');
+  $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
+  if (game.type === 'esc') return renderEscape();
+  $('escForm').hidden = true;
+  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('game.holdButton');
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
   const playing = game.players.includes(you);
   $('gameTitle').textContent = t('game.title', { r: game.round });
@@ -708,11 +763,58 @@ function renderGame() {
   clearInterval(gameTick);
   gameTick = game.phase === 'over' ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
+function renderEscape() {
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const playing = game.players.includes(you);
+  const over = game.phase === 'over';
+  $('gameTitle').textContent = t('esc.title', { i: Math.min(game.lock + 1, Escape.LOCKS.length), n: Escape.LOCKS.length });
+  let line = over ? (game.end ? escEndText(game.end) : t('game.aborted')) : t('esc.line', { len: Escape.LOCKS[game.lock], m: Math.floor(left / 60), s: String(left % 60).padStart(2, '0'), a: game.alarms, max: Escape.ALARMS });
+  if (!over && game.trying) line += ` ${t('esc.trying', { b: badge(game.trying.n), code: game.trying.code })}`;
+  $('gameLine').textContent = line;
+  $('gamePlayers').textContent = game.players.map((n) => (gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
+  $('gameWord').hidden = over || (!myClues && !Object.keys(game.dropped).length);
+  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('esc.holdButton');
+  $('gameVotes').replaceChildren();
+  $('escForm').hidden = over || !playing;
+  $('escCode').maxLength = Escape.LOCKS[game.lock] ?? 5;
+  $('escCode').placeholder = '•'.repeat(Escape.LOCKS[game.lock] ?? 5);
+  $('escCode').title = t('esc.codeHint', { len: Escape.LOCKS[game.lock] ?? 5 });
+  $('escTry').disabled = !!game.trying;
+  $('gameEnd').hidden = !(dealer && !over);
+  $('gameClose').hidden = !over;
+  $('messageInput').placeholder = t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+// This page's clues for the lock in play, and those made public.
+function clueLines() {
+  const say = (c) => { const [k, v] = Escape.clueWords(c); return `• ${t(k, v)}`; };
+  const lines = myClues ? myClues[game.lock].map(say) : [];
+  if (myClues && !lines.length) lines.push(t('esc.noClue'));
+  for (const [n, hand] of Object.entries(game.dropped)) if (Number(n) !== you) lines.push(`${badge(Number(n))}：`, ...hand[game.lock].map(say));
+  return lines.join('\n');
+}
+function tryCode() {
+  const code = $('escCode').value.trim();
+  if (!game || game.type !== 'esc' || game.phase !== 'lock' || game.trying) return;
+  if (!new RegExp(`^\\d{${Escape.LOCKS[game.lock]}}$`).test(code)) return system(t('esc.codeHint', { len: Escape.LOCKS[game.lock] }));
+  $('escCode').value = '';
+  queueGame({ k: 'esc-try', gid: game.gid, lock: game.lock, code });
+}
+$('escForm').addEventListener('submit', (e) => { e.preventDefault(); tryCode(); });
+// Keep the focus (and on phones the keyboard) in the code box: taking it
+// away would move the panel under the finger before the tap ends.
+$('escTry').addEventListener('pointerdown', (e) => e.preventDefault());
+$('escStart').addEventListener('click', () => { startEscape(); });
 $('gameStart').addEventListener('click', () => { startGame(); });
 $('gameEnd').addEventListener('click', () => { if (dealer && game) queueGame({ k: 'abort', gid: game.gid }); });
 $('gameClose').addEventListener('click', () => { endGame(); });
 // The card shows only while it is held down.
-const showWord = (on) => { $('gameWord').textContent = on ? myWord : t('game.holdButton'); $('gameWord').classList.toggle('open', on); };
+const showWord = (on) => {
+  const esc = game?.type === 'esc';
+  $('gameWord').textContent = on ? (esc ? clueLines() : myWord) : t(esc ? 'esc.holdButton' : 'game.holdButton');
+  $('gameWord').classList.toggle('open', on);
+};
 $('gameWord').addEventListener('pointerdown', (e) => { e.preventDefault(); showWord(true); });
 for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) $('gameWord').addEventListener(ev, () => showWord(false));
 $('gameWord').addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); showWord(true); } });

@@ -181,6 +181,11 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 .game-word{user-select:none;-webkit-user-select:none;touch-action:none;min-width:130px}
 .game-word.open{background:#1d5b3d;border-color:#43c787;color:#f0fff6;font-size:15px;font-weight:600}
 .game-votes{display:flex;flex-wrap:wrap;gap:6px}
+.game-start+.game-start{margin-top:8px}
+.game-word.open{white-space:pre-line;text-align:left}
+.esc-form{display:flex;gap:6px;align-items:center}
+.esc-form[hidden]{display:none}
+.esc-form input{width:96px;min-height:36px;padding:6px 10px;border:1px solid #2e6a8c;border-radius:8px;background:#0a1826;color:#f0f8ff;font:600 16px/1 ui-monospace,monospace;letter-spacing:3px}
 .game-votes .secondary-button{min-width:48px}
 .ghost-button{background:transparent;border:1px solid #31506b;border-radius:6px;color:#9fb8cc;min-height:36px;padding:6px 12px;font-size:11px}
 .message.said .bubble{border-color:#d9a441;box-shadow:0 0 0 1px #d9a44155}
