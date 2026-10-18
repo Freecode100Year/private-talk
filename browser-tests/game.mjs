@@ -46,7 +46,10 @@ for (let i = 0; i < 4; i++) {
   if (!speakerPage) break;
   await speakerPage.fill('#messageInput', `clue ${i + 1}`);
   await speakerPage.click('#sendButton');
-  await A.waitForFunction((t) => document.getElementById('messages').innerText.includes(t), `clue ${i + 1}`, { timeout: 10000 });
+  // Every page, the speaker too, has to have it before the next turn is
+  // looked for: a page that has not yet seen its own clue still says it is
+  // its turn.
+  for (const p of pages) await p.waitForFunction((t) => document.getElementById('messages').innerText.includes(t), `clue ${i + 1}`, { timeout: 10000 });
 }
 ok((await text(A)).includes('描述完毕'), 'after four clues: talk time');
 ok(await A.locator('.message.said').count() === 4, 'the clues are marked as clues');
