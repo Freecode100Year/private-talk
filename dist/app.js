@@ -3,7 +3,7 @@ import {
   passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
-import { Group, KEY_CHUNK } from './group.js';
+import { Group } from './group.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -568,11 +568,10 @@ function sendKeys(hello) {
     if (!to.length && !keysHello) return;
     const hi = keysHello;
     keysHello = false;
-    // More than KEY_CHUNK members (a rekey in a big room) take two frames.
+    // As many frames as it takes: a rekey in a big room, or ML-KEM secrets
+    // (large) for several new members, take more than one.
     const frames = [];
-    for (let i = 0; i === 0 || i < to.length; i += KEY_CHUNK) {
-      frames.push(JSON.stringify({ type: 'key', ...(await seal(key, await g.announce(to.slice(i, i + KEY_CHUNK), hi && i === 0))) }));
-    }
+    for (const plain of await g.announceAll(to, hi)) frames.push(JSON.stringify({ type: 'key', ...(await seal(key, plain)) }));
     if (ticket !== session || ws !== sock || group !== g || sock.readyState !== WebSocket.OPEN) return;
     for (const frame of frames) sock.send(frame);
     showForwardSecrecy();
@@ -616,6 +615,13 @@ async function showForwardSecrecy() {
   const code = raw && `\u2066${raw.replace(/ /g, '\u00a0')}\u2069`;
   const note = $('safetyNote');
   if (state === 'on') note.textContent = t(verifiedCode ? 'fs.verified' : 'fs.on', { code });
+  // ML-KEM (v3.2) on every key between this page and the others, or not
+  // because someone runs 3.1; nothing while the secrets are on the way.
+  if (state === 'on') {
+    const v31 = present.some((n) => group.peers.get(n)?.v === 31);
+    const pq = !v31 && group.quantumSafe(present) ? 'fs.pq' : v31 ? 'fs.noPq' : '';
+    if (pq) note.textContent += ` · ${t(pq)}`;
+  }
   else if (state === 'old') note.textContent = t(allowOld ? 'fs.old' : 'fs.blocked', { who: olderNames() });
   else if (state === 'relay') note.textContent = t(allowOld ? 'fs.off' : 'fs.blockedRelay');
   note.title = state === 'on' ? t('fs.hint') : '';

@@ -70,6 +70,8 @@ export default {
   'sys.fsOff': '⚠️ Yon moun isit la, oswa sèvè a, gen yon ansyen vèsyon, kidonk pou kounye a mesaj yo sèvi ak ansyen chifreman an, san sekrè pou pi devan.',
   'sys.missed': '{n} mesaj {b} pa rive isit la (koupi rezo, oswa sèvè a jete yo).',
   'fs.verified': '✅ Verifye · kòd sekirite {code}',
+  'fs.pq': '⚛️ reziste kantik',
+  'fs.noPq': 'yon moun gen yon vèsyon ki pi ansyen: pa reziste kantik',
   'fs.old': '⚠️ Mòd konpatib: yon moun gen yon ansyen vèsyon ({who}); mesaj yo pa siyen e yo ka pa gen sekrè pou pi devan.',
   'fs.blocked': '⛔ Yon moun gen yon ansyen vèsyon ({who}), mòd strik la kanpe mesaj yo. Mande l mete l ajou, oswa tcheke «Pèmèt ansyen vèsyon» anba a.',
   'fs.blockedRelay': '⛔ Sèvè a gen yon ansyen vèsyon san sekrè pou pi devan, mòd strik la kanpe voye. Ou ka tcheke «Pèmèt ansyen vèsyon» anba a.',

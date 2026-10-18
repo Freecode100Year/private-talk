@@ -35,19 +35,32 @@
 // people. It is 20 digits, about 66 bits: short codes can be matched by an
 // attacker trying key after key (a 6-digit one in about a million tries).
 //
+// Version 3.2 adds ML-KEM-768 (FIPS 203) to the pairwise keys, against
+// "record now, decrypt later": someone who records the relay's traffic today
+// and learns the passphrase later (a seized phone) could, with a quantum
+// computer, recover the ECDH keys from the announcements and so every chain.
+// Each page makes an ML-KEM key pair for the visit and announces its public
+// half (signed, like the rest). For each pair of 3.2 members, the one with the
+// lower number encapsulates a secret to the other and sends the ciphertext
+// with its first wrap for them; both then mix that secret into the pairwise
+// key along with the ECDH result. It is a hybrid: the ML-KEM code is not
+// independently audited, so it is only ever added to ECDH, never used alone.
+// Breaking the pairwise key takes breaking both. 3.1 pages are given, and
+// read, wraps without it.
+//
 // Version 3.0 (2.4–2.6) had no signing key and kept one ECDH key per visit.
 // Its pages still read 3.1 messages (the signature sits at the end of the
 // sealed text, where they ignore it); a 3.1 page tells them apart by the
 // missing signing key and, unless the room allows older versions, does not
 // accept their unsigned messages.
 import { pad, unpad } from './crypto.js';
+import { ml_kem768 } from './vendor/mlkem.js';
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
 const ECDSA = { name: 'ECDSA', namedCurve: 'P-256' };
 const SIGN = { name: 'ECDSA', hash: 'SHA-256' };
-export const KEY_CHUNK = 14;         // members per key announcement, so one fits a relay frame (see the test)
 export const MAX_SKIP = 2000;        // the most messages one member's chain may jump ahead
 export const REKEY_MESSAGES = 100;   // a member starts a new chain after this many messages
 export const REKEY_MS = 10 * 60 * 1000; // or after this long
@@ -60,6 +73,10 @@ export const RESEND_MS = 60 * 1000;
 // last few are kept this long for wraps still on their way.
 export const ROTATE_MS = 20 * 1000;
 const OLD_ECDH = 4;
+// An announcement (padded, sealed) must fit one relay frame: the relay takes
+// up to 4112 bytes of ciphertext, the largest padding size is 4096.
+export const ANNOUNCE_BYTES = 4000;
+const KPK = 1580, KCT = 1452; // base64 lengths of an ML-KEM-768 public key and ciphertext
 export const HEADER = /^(\d{1,9})\.(\d{1,9})$/;
 const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
 // The signature at the end of a signed message: ,"s":"<base64>"}
@@ -94,6 +111,8 @@ async function openWith(key, { iv, ct }, aad) {
   return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv), additionalData: enc.encode(aad) }, key, fromB64(ct)));
 }
 
+const concat = (a, b) => { const out = new Uint8Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; };
+
 async function newEcdh() {
   const pair = await crypto.subtle.generateKey(ECDH, false, ['deriveBits']);
   return { pair, epk: toB64(await crypto.subtle.exportKey('raw', pair.publicKey)) };
@@ -113,11 +132,16 @@ export class Group {
     g.me = me;
     g.signing = await crypto.subtle.generateKey(ECDSA, false, ['sign', 'verify']);
     g.spk = toB64(await crypto.subtle.exportKey('raw', g.signing.publicKey));
+    g.kem = ml_kem768.keygen();
+    g.kpk = toB64(g.kem.publicKey);
     g.ecdh = await newEcdh();
     g.ecdhSince = Date.now();
     g.oldEcdh = []; // the ones before, newest first: [{ ecdh, until }], for wraps already on their way
     // n → { epk, spk, verify, wraps: Map(own epk → pairwise key), recv: { epoch, ck, c } | null,
-    //       prev: the chain before, sent: epoch handed to them, v: 30 or 31 }
+    //       prev: the chain before, sent: epoch handed to them, v: 30, 31 or 32,
+    //       kpk: their ML-KEM key, ss: the pair's ML-KEM secret, kc: its ciphertext
+    //       while it is this page's to send, kcIn: the one taken in, pqIn: their
+    //       chain came under a key with ML-KEM }
     g.peers = new Map();
     g.changed = [];   // numbers whose signing key changed while they stayed (see takeChanged)
     await g.rekey(0);
@@ -147,16 +171,33 @@ export class Group {
     this.peers.delete(n);
   }
 
-  // The pairwise key between one of this page's ECDH keys and a member's.
-  async pairKey(own, p) {
-    if (p.wraps.has(own.epk)) return p.wraps.get(own.epk);
+  // The pairwise key between one of this page's ECDH keys and a member's;
+  // pq: with the pair's ML-KEM secret mixed in (3.2).
+  async pairKey(own, p, pq = false) {
+    const id = pq ? `${own.epk}|${p.kcIn ?? p.kc}` : own.epk;
+    if (p.wraps.has(id)) return p.wraps.get(id);
     const pub = await crypto.subtle.importKey('raw', fromB64(p.epk), ECDH, false, []);
-    const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, own.pair.privateKey, 256);
-    const hkdf = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
-    const info = enc.encode(`private-talk/v3/pair|${[own.epk, p.epk].sort().join('|')}`);
+    const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, own.pair.privateKey, 256));
+    const hkdf = await crypto.subtle.importKey('raw', pq ? concat(shared, p.ss) : shared, 'HKDF', false, ['deriveKey']);
+    const info = enc.encode(`private-talk/${pq ? 'v3.2' : 'v3'}/pair|${[own.epk, p.epk].sort().join('|')}`);
     const k = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: this.bind, info }, hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-    p.wraps.set(own.epk, k);
+    p.wraps.set(id, k);
     return k;
+  }
+
+  // Whether this page's wraps for member n use ML-KEM, and whether it can
+  // wrap for them yet: with a 3.2 member of a higher number, this page makes
+  // the secret; with a lower one it waits for theirs.
+  pqFor(n, p) {
+    // A 3.1 page; or a lower number whose ML-KEM key never arrived, which
+    // should not happen (it goes with hello), but must not stall the room.
+    if (p.v !== 32 || (this.me < n && !p.kpk)) return { pq: false, can: true };
+    if (!p.ss && this.me < n) {
+      const { cipherText, sharedSecret } = ml_kem768.encapsulate(fromB64(p.kpk));
+      p.ss = sharedSecret;
+      p.kc = toB64(cipherText);
+    }
+    return { pq: true, can: !!p.ss };
   }
 
   // Members (other than this page) known to run v3 whose copy of this page's
@@ -168,25 +209,53 @@ export class Group {
   // The plain text of a key announcement: this page's public keys, and its
   // current chain wrapped for each member in `to`, signed. hello asks
   // everyone to answer with theirs. The caller seals it with the passphrase key.
+  // Members this page cannot wrap for yet (see pqFor) are left out and stay owed.
   async announce(to, hello, now = Date.now()) {
-    const w = {};
+    return (await this.announceAll(to, hello, now, Infinity))[0];
+  }
+
+  // The same, split into as many announcements as it takes for each to fit a
+  // relay frame (ANNOUNCE_BYTES). The first one carries hello.
+  async announceAll(to, hello, now = Date.now(), budget = ANNOUNCE_BYTES) {
     const m = this.mine;
     for (const [c, h] of m.handed) if (now - h.at > RESEND_MS) m.handed.delete(c);
+    // The ML-KEM public key goes along when someone may still need it: on
+    // hello, and while a lower-numbered 3.2 member has not sent its secret.
+    const lower = [...this.peers].some(([n, p]) => n < this.me && p.kpk && !p.ss);
+    const withKpk = hello || lower;
+    const out = [];
+    let w = {}, size = 0, first = true;
+    const flush = async () => {
+      // q marks a 3.2 page (signed with the rest, unlike v); k its ML-KEM key.
+      const ws = withKpk && first ? { q: 1, k: this.kpk, ...w } : { q: 1, ...w };
+      const a = { kind: 'keys', v: 32, from: this.me, id: hex(crypto.getRandomValues(new Uint8Array(8))), t: now, epk: this.epk, spk: this.spk, hello: !!hello && first, w: ws };
+      a.sig = toB64(await crypto.subtle.sign(SIGN, this.signing.privateKey, enc.encode(announced(a))));
+      out.push(JSON.stringify(a));
+      w = {}; size = 0; first = false;
+    };
+    const base = () => 430 + (withKpk && first ? KPK + 8 : 0);
     for (const n of to) {
       const p = this.peers.get(n);
       if (!p) continue;
+      const { pq, can } = this.pqFor(n, p);
+      if (!can) continue;
       // Handed again (they asked): from where they got it first, if kept.
       const again = p.gotAt != null && m.handed.has(p.gotAt);
       const c = again ? p.gotAt : m.c;
       const ck = again ? m.handed.get(c).ck : m.ck;
       if (!again) { p.gotAt = c; if (!m.handed.has(c)) m.handed.set(c, { ck, at: now }); }
       const body = enc.encode(JSON.stringify({ e: m.epoch, ck: toB64(ck), c }));
-      w[n] = await sealWith(await this.pairKey(this.ecdh, p), body, `pt3w|${this.me}|${n}|${p.epk}`);
+      const entry = pq
+        ? { ...(await sealWith(await this.pairKey(this.ecdh, p, true), body, `pt32w|${this.me}|${n}|${p.epk}`)), q: 1, ...(p.kc && { kc: p.kc }) }
+        : await sealWith(await this.pairKey(this.ecdh, p), body, `pt3w|${this.me}|${n}|${p.epk}`);
+      const cost = JSON.stringify(entry).length + 8;
+      if (Object.keys(w).length && base() + size + cost > budget) await flush();
+      w[n] = entry;
+      size += cost;
       p.sent = this.mine.epoch;
     }
-    const a = { kind: 'keys', v: 31, from: this.me, id: hex(crypto.getRandomValues(new Uint8Array(8))), t: now, epk: this.epk, spk: this.spk, hello: !!hello, w };
-    a.sig = toB64(await crypto.subtle.sign(SIGN, this.signing.privateKey, enc.encode(announced(a))));
-    return JSON.stringify(a);
+    if (first || Object.keys(w).length) await flush();
+    return out;
   }
 
   // Takes in another member's announcement (already opened with the
@@ -211,22 +280,45 @@ export class Group {
       p = null;
     }
     if (!p) {
-      p = { epk: a.epk, spk: v31 ? a.spk : null, verify, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: v31 ? 31 : 30 };
+      p = { epk: a.epk, spk: v31 ? a.spk : null, verify, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: v31 ? 31 : 30, kpk: null, ss: null, kc: null, kcIn: null, pqIn: false };
       this.peers.set(from, p);
     } else if (p.epk !== a.epk) {
       // A rekey on their side: wraps from now on use the new key.
       if (v31) { p.epk = a.epk; p.wraps = new Map(); }
       else { p = { epk: a.epk, spk: null, verify: null, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: 30 }; this.peers.set(from, p); }
     }
+    // A 3.2 member's ML-KEM key, signed with the rest (it sits in w, which
+    // 3.1 pages pass over). A new one for the same signing key starts over.
+    // Found out late (a 3.2 page wraps without ML-KEM until it knows): hand
+    // the chain again, with it.
+    if (v31 && a.w.q === 1 && p.v !== 32) { p.v = 32; p.sent = -1; }
+    if (v31 && typeof a.w.k === 'string' && a.w.k.length === KPK && B64.test(a.w.k) && a.w.k !== p.kpk) {
+      Object.assign(p, { kpk: a.w.k, ss: null, kc: null, kcIn: null, v: 32 });
+      p.wraps = new Map();
+    }
     const wrapped = a.w[this.me];
     if (wrapped && typeof wrapped.iv === 'string' && typeof wrapped.ct === 'string') {
+      const pq = wrapped.q === 1;
+      // Only 3.2 pages make such wraps (a lower number may never need to
+      // announce its ML-KEM key to this page).
+      if (pq && v31) p.v = 32;
+      // Their secret for this pair (they have the lower number), once.
+      if (pq && from < this.me && typeof wrapped.kc === 'string' && wrapped.kc !== p.kcIn && wrapped.kc.length === KCT && B64.test(wrapped.kc)) {
+        p.ss = ml_kem768.decapsulate(fromB64(wrapped.kc), this.kem.secretKey);
+        p.kcIn = wrapped.kc;
+      }
       // Made for this page's current ECDH key, or the one before when it was
       // sent before our last rekey reached them.
       const target = [this.ecdh, ...this.oldEcdh.map((o) => o.ecdh)];
       let body = null;
-      for (const own of target) {
-        try { body = JSON.parse(dec.decode(await openWith(await this.pairKey(own, p), wrapped, `pt3w|${from}|${this.me}|${own.epk}`))); break; } catch {}
+      if (!pq || p.ss) {
+        for (const own of target) {
+          try { body = JSON.parse(dec.decode(await openWith(await this.pairKey(own, p, pq), wrapped, `${pq ? 'pt32w' : 'pt3w'}|${from}|${this.me}|${own.epk}`))); break; } catch {}
+        }
       }
+      // They have this page's secret (their wrap opened with it): no need to
+      // send it again.
+      if (body && pq && this.me < from) p.kc = null;
       // Made for a key this page no longer has: the caller asks for it again.
       p.lost = !body;
       const ck = body ? fromB64(body.ck) : new Uint8Array(0);
@@ -235,6 +327,10 @@ export class Group {
         // still be on its way (sent before this announcement, read after).
         p.prev = p.recv;
         p.recv = { epoch: body.e, ck, c: body.c };
+        p.pqIn = pq;
+      } else if (body && pq && p.recv && body.e === p.recv.epoch) {
+        // The same chain handed again, now under ML-KEM.
+        p.pqIn = true;
       }
     }
     // A page that asks again (it came back after a drop) gets this page's
@@ -253,7 +349,13 @@ export class Group {
   // Whether every other member present can read a v3 message from this page;
   // strict: and all of them run 3.1 (so they sign what they send).
   ready(present, strict = false) {
-    return present.every((n) => n === this.me || (this.peers.get(n)?.sent === this.mine.epoch && (!strict || this.peers.get(n).v === 31)));
+    return present.every((n) => n === this.me || (this.peers.get(n)?.sent === this.mine.epoch && (!strict || this.peers.get(n).v >= 31)));
+  }
+
+  // Whether every key between this page and the others present has ML-KEM
+  // in it (all run 3.2, and the secrets have arrived).
+  quantumSafe(present) {
+    return present.every((n) => n === this.me || (this.peers.get(n)?.v === 32 && this.peers.get(n).ss && this.peers.get(n).pqIn));
   }
 
   // Members present that run 3.0 (no signatures).
@@ -292,7 +394,7 @@ export class Group {
     let text = dec.decode(unpad(await openWith(await aes(mk, ['decrypt']), msg, `pt3|${from}|${msg.h}`)));
     let signed = false;
     const s = SIGNED.exec(text);
-    if (p.v === 31) {
+    if (p.v >= 31) {
       // A 3.1 sender signs every message; one without is not theirs.
       if (!s) throw new Error('unsigned');
       text = `${text.slice(0, s.index)}}`;

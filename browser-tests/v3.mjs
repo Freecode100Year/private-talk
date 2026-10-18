@@ -20,7 +20,9 @@ const page = async (name) => {
 };
 const waitText = (p, t, ms = 15000) => p.waitForFunction((t) => document.getElementById('messages').innerText.includes(t), t, { timeout: ms }).then(() => true, () => false);
 const send = async (p, t) => { await p.fill('#messageInput', t); await p.click('#sendButton'); };
-const note = (p) => p.locator('#safetyNote').innerText().catch(() => '');
+const fullNote = (p) => p.locator('#safetyNote').innerText().catch(() => '');
+// The note up to the code: what follows (quantum resistance) may differ for a moment.
+const note = async (p) => (await fullNote(p)).replace(/(\d{5}\u2069).*$/, '$1');
 
 const A = await page('A');
 ok(await waitText(A, '已启用前向保密'), 'alone: forward secrecy note');
@@ -33,6 +35,8 @@ let codes = [];
 for (let i = 0; i < 30; i++) { codes = await Promise.all([A, B, C].map(note)); if (new Set(codes).size === 1) break; await A.waitForTimeout(200); }
 console.log(codes);
 ok(codes.every((c) => /安全码 \u2066?(\d{5}[ \u00a0]){3}\d{5}/.test(c)) && new Set(codes).size === 1, 'all three show the same safety code');
+for (const p of [A, B, C]) await p.waitForFunction(() => /⚛️/.test(document.getElementById('safetyNote').innerText), null, { timeout: 15000 }).catch(() => {});
+ok((await Promise.all([A, B, C].map(fullNote))).every((t) => t.includes('⚛️')), 'all three show ML-KEM (quantum-resistant) keys');
 await send(A, 'hello from A v3');
 ok(await waitText(B, 'hello from A v3') && await waitText(C, 'hello from A v3'), 'B and C read A');
 ok(await waitText(A, 'hello from A v3'), 'A sees its own message');

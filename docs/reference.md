@@ -46,7 +46,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 
 | 路径 | 内容 |
 | :--- | :--- |
-| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js` 与 `lang/`（界面文字，12 种语言）、`crypto.js`（密钥派生与加解密）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
+| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js` 与 `lang/`（界面文字，12 种语言）、`crypto.js`（密钥派生与加解密）、`group.js`（协议 v3：前向保密、签名、ML-KEM）、`vendor/mlkem.js`（ML-KEM-768，由 `scripts/build-mlkem.sh` 从 noble-post-quantum 打包）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
 | `src/worker.js` | Cloudflare Worker：静态资源 + `/ws/<房间>` WebSocket 转发（每个房间一个 Durable Object，不存储任何内容） |
 | `src/rules.js` | 两种服务器共用的规则：人数、编号、发送间隔、限速 |
 | `server/server.mjs` | Node.js 版服务器（Docker、VPS、局域网都用它），与 Worker 行为一致 |
@@ -61,7 +61,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 | `render.yaml`、`railway.json`、`fly.toml` | 云平台配置 |
 | `docs/` | 说明书（`docs/manual/`）、隐私设计、各部署方式的技术细节 |
 | `test/` | 规则、加密、防篡改、证书的单元测试 |
-| `browser-tests/` | 真浏览器测试：协议 v3.1、严格模式、核对安全码、25 人满员，以及服务器丢密钥帧、断线、人员快速进出等故障（CI 每次运行） |
+| `browser-tests/` | 真浏览器测试：协议 v3.2（含 ML-KEM）、严格模式、核对安全码、25 人满员，服务器丢密钥帧、断线、人员快速进出等故障，以及与上一版（3.1）网页同房间互通（CI 每次运行） |
 | `.github/workflows/` | 自动测试（三系统、Cloudflare 运行时、Docker + Caddy）；构建 Docker 镜像和离线安装包并签名；`site-watch.yml` 定时核对线上网页；`upgrade.yml` 给一键部署的副本升级用 |
 
 ## 开发

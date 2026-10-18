@@ -6,7 +6,7 @@
 #
 # Automatic upgrades (off unless you turn them on): Settings → Secrets and
 # variables → Actions → Variables → New variable AUTO_UPGRADE with
-#   patch   every day, take new patch releases (2.7.2 → 2.5.1): fixes only
+#   patch   every day, take new patch releases (2.8.0 → 2.5.1): fixes only
 #   all     every day, take every new release (2.5 → 2.6 too)
 name: upgrade
 on:
@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 版本号，例如 2.7.2（留空 = 最新发布）
+        description: 版本号，例如 2.8.0（留空 = 最新发布）
         required: false
 permissions:
   contents: write

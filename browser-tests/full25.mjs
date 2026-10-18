@@ -19,12 +19,15 @@ for (let i = 0; i < N; i++) { pages.push(await mk(i === 1 ? { width: 390, height
 const t0 = Date.now();
 let codes;
 for (;;) {
-  codes = await Promise.all(pages.map((p) => p.locator('#safetyNote').innerText().catch(() => '')));
-  if (codes.every((c) => /安全码/.test(c)) && new Set(codes).size === 1) break;
+  const notes = await Promise.all(pages.map((p) => p.locator('#safetyNote').innerText().catch(() => '')));
+  codes = notes.map((c) => c.replace(/(\d{5}\u2069).*$/, '$1'));
+  if (codes.every((c) => /安全码/.test(c)) && new Set(codes).size === 1 && notes.every((c) => c.includes('⚛️'))) break;
   if (Date.now() - t0 > 40000) break;
   await pages[0].waitForTimeout(500);
 }
 ok(new Set(codes).size === 1 && /安全码/.test(codes[0]), `all ${N} share one safety code after ${Date.now() - t0} ms: ${codes[0]}`);
+const pqNotes = await Promise.all(pages.map((p) => p.locator('#safetyNote').innerText().catch(() => '')));
+ok(pqNotes.every((c) => c.includes('⚛️')), `all ${N} use ML-KEM: ${pqNotes.filter((c) => !c.includes('⚛️')).length} do not`);
 ok((await pages[0].locator('#memberCount').innerText()) === `${N} / 25`, 'count shows ' + await pages[0].locator('#memberCount').innerText());
 const last = await pages[N - 1].locator('.member .avatar.me').innerText();
 ok(last === '25' || N < 25, 'the 25th seat shows 25: ' + last);

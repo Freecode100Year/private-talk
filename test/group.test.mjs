@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRoom, seal, open } from '../dist/crypto.js';
-import { Group, MAX_SKIP, KEY_CHUNK, REKEY_MESSAGES, ROTATE_MS } from '../dist/group.js';
+import { Group, MAX_SKIP, REKEY_MESSAGES, ROTATE_MS } from '../dist/group.js';
+import { Group as Group31 } from './fixtures/group-3.1.js';
 import { Group as Group30 } from './fixtures/group-3.0.js';
 
 // Messages are sealed envelopes: JSON objects.
@@ -100,13 +101,13 @@ test('v3: a wrap made for one page does not open on another page of the same num
 });
 
 test('v3: a different passphrase gives different pairwise keys', async () => {
-  const x = await room('correct horse battery', [1]);
+  const x = await room('correct horse battery', [2]);
   const other = await deriveRoom('another passphrase here');
-  const b = await Group.create(other.key, other.bind, 2);
-  const a = x.pages.get(1);
-  await b.receive(JSON.parse(await a.announce([], true)), 1);
+  const b = await Group.create(other.key, other.bind, 1);
+  const a = x.pages.get(2);
+  await b.receive(JSON.parse(await a.announce([], true)), 2);
   // b wraps its chain for a, but under a key salted with the other passphrase.
-  const p = await a.receive(JSON.parse(await b.announce([1], false)), 2);
+  const p = await a.receive(JSON.parse(await b.announce([2], false)), 1);
   assert.ok(p.lost && !p.recv);
 });
 
@@ -122,23 +123,46 @@ test('v3: everyone sees the same safety code; a swapped key changes it', async (
   assert.notEqual(await x.pages.get(1).safetyCode([1, 2, 3]), codes[2]);
 });
 
-test('v3: a key announcement for KEY_CHUNK members fits one relay frame, so a full room takes two', async () => {
-  const { MAX_FRAME, MAX_MEMBERS } = await import('../src/rules.js');
-  const { checkFrame } = await import('../src/rules.js');
+test('v3.2: key announcements are split to fit relay frames, even with ML-KEM secrets for a full room', async () => {
+  const { MAX_FRAME, MAX_MEMBERS, checkFrame, KEYS_PER_10S } = await import('../src/rules.js');
   const r = await deriveRoom('correct horse battery');
   const pages = [];
   for (let n = 1; n <= MAX_MEMBERS; n++) pages.push(await Group.create(r.key, r.bind, n));
-  const me = pages[MAX_MEMBERS - 1];
-  for (const g of pages.slice(0, -1)) await me.receive(JSON.parse(await g.announce([], true)), g.me);
-  // The worst case: chain positions and epochs as long as they get.
-  me.mine.epoch = 999999999;
-  me.mine.c = 999999999;
-  assert.ok(MAX_MEMBERS - 1 <= 2 * KEY_CHUNK);
-  const plain = await me.announce(pages.slice(-1 - KEY_CHUNK, -1).map((g) => g.me), true);
-  assert.ok(new TextEncoder().encode(plain).length < 4096, 'stays in the largest padding bucket');
-  const frame = JSON.stringify({ type: 'key', ...(await seal(r.key, plain)) });
-  assert.ok(frame.length <= MAX_FRAME);
-  assert.ok(checkFrame(frame, { window: 0, count: 0 }, 1e12).key);
+  const fits = async (plains) => {
+    for (const plain of plains) {
+      assert.ok(new TextEncoder().encode(plain).length < 4096, 'stays in the largest padding bucket');
+      const frame = JSON.stringify({ type: 'key', ...(await seal(r.key, plain)) });
+      assert.ok(frame.length <= MAX_FRAME);
+      assert.ok(checkFrame(frame, { window: 0, count: 0 }, 1e12).key);
+    }
+  };
+  // The worst case for size: number 1 owes an ML-KEM secret to all 24 others.
+  const first = pages[0];
+  for (const g of pages.slice(1)) await first.receive(JSON.parse(await g.announce([], true)), g.me);
+  first.mine.epoch = 999999999;
+  first.mine.c = 999999999;
+  const plains = await first.announceAll(pages.slice(1).map((g) => g.me), true);
+  await fits(plains);
+  assert.ok(plains.length < KEYS_PER_10S / 2, `${plains.length} frames`);
+  // Every one of them gets its wrap, and the first frame says hello.
+  assert.equal(JSON.parse(plains[0]).hello, true);
+  assert.ok(plains.slice(1).every((p) => JSON.parse(p).hello === false));
+  for (const g of pages.slice(1)) {
+    await g.receive(JSON.parse(await first.announce([], true)), 1); // learns 1's keys
+    for (const p of plains) await g.receive(JSON.parse(p), 1);
+    assert.ok(g.peers.get(1).recv && g.peers.get(1).pqIn, `member ${g.me} has 1's chain under ML-KEM`);
+  }
+  // The highest number rekeying in a full room (no secrets to send) takes two.
+  const last = pages[MAX_MEMBERS - 1];
+  for (const g of pages.slice(0, -1)) {
+    await last.receive(JSON.parse(await g.announce([], true)), g.me);
+    await last.receive(JSON.parse(await g.announce([last.me], false)), g.me); // their secrets
+  }
+  last.mine.epoch = 999999999;
+  last.mine.c = 999999999;
+  const rekey = await last.announceAll(pages.slice(0, -1).map((g) => g.me), false);
+  await fits(rekey);
+  assert.ok(rekey.length <= 2);
 });
 
 test('v3.1: a member holding someone else\'s chain cannot write in their name', async () => {
@@ -259,4 +283,103 @@ test('v3.1: quick rekeys share an ECDH key; wraps for the last few keys still op
   assert.notEqual(a.epk, e0);
   const p = await a.receive(JSON.parse(late), 2);
   assert.ok(!p.lost && p.recv, 'a wrap for a key two rotations back still opens');
+});
+
+test('v3.2: pairwise keys have ML-KEM in them, made by the lower number of each pair', async () => {
+  const x = await room('correct horse battery', [1, 2, 3]);
+  await exchange(x);
+  for (const g of x.pages.values()) assert.ok(g.quantumSafe([1, 2, 3]), `page ${g.me}`);
+  const [a, b, c] = [1, 2, 3].map((n) => x.pages.get(n));
+  // The same secret on both sides of each pair.
+  assert.deepEqual([...a.peers.get(2).ss], [...b.peers.get(1).ss]);
+  assert.deepEqual([...b.peers.get(3).ss], [...c.peers.get(2).ss]);
+  assert.notDeepEqual([...a.peers.get(2).ss], [...a.peers.get(3).ss]);
+  // Once the other side has it, it is not sent again.
+  assert.equal(a.peers.get(2).kc, null);
+  const msg = await c.seal(J('after the handshake'));
+  assert.equal((await a.open(msg, 3)).text, J('after the handshake'));
+});
+
+test('v3.2: a wrap needs the ML-KEM secret; ECDH alone does not open it', async () => {
+  const x = await room('correct horse battery', [1, 2]);
+  await exchange(x);
+  const [a, b] = [1, 2].map((n) => x.pages.get(n));
+  await a.rekey(a.mine.epoch + 1, Date.now() + 60000);
+  const ann = JSON.parse(await a.announce([2], false));
+  assert.equal(ann.w[2].q, 1);
+  // b without the secret (as if it never got it) cannot open the wrap.
+  const ss = b.peers.get(1).ss;
+  b.peers.get(1).ss = null;
+  await b.receive(ann, 1);
+  assert.equal(b.peers.get(1).lost, true);
+  b.peers.get(1).ss = ss;
+  await b.receive(JSON.parse(await a.announce([2], false)), 1);
+  assert.equal(b.peers.get(1).lost, false);
+});
+
+test('v3.2: a lost first wrap (with the secret) is recovered when the higher number asks again', async () => {
+  const x = await room('correct horse battery', [1, 2]);
+  const [a, b] = [1, 2].map((n) => x.pages.get(n));
+  const pass = async (from, to, plain) => to.receive(JSON.parse(await open(x.r.key, await seal(x.r.key, plain))), from.me);
+  await pass(a, b, await a.announce([], true));
+  await pass(b, a, await b.announce([], true));
+  await a.announce([2], false);                       // lost on the way: the only copy of a's secret
+  assert.equal(b.peers.get(1).ss, null);
+  assert.ok(!b.ready([1, 2]) && b.owed([1, 2]).includes(1), 'b cannot wrap for a yet');
+  await pass(b, a, await b.announce([], true));       // b asks again (it did not get a's chain)
+  await pass(a, b, await a.announce(a.owed([1, 2]), false));
+  assert.ok(b.peers.get(1).ss && b.peers.get(1).recv);
+  await pass(b, a, await b.announce(b.owed([1, 2]), false));
+  assert.ok(a.quantumSafe([1, 2]) && b.quantumSafe([1, 2]));
+});
+
+test('v3.2 and 3.1 pages read each other without ML-KEM; the 3.2 pages among them use it', async () => {
+  const r = await deriveRoom('correct horse battery');
+  const pages = new Map([[1, await Group.create(r.key, r.bind, 1)], [2, await Group31.create(r.key, r.bind, 2)], [3, await Group.create(r.key, r.bind, 3)]]);
+  await exchange({ r, pages });
+  const [a, old, c] = [1, 2, 3].map((n) => pages.get(n));
+  for (const g of pages.values()) assert.ok(g.ready([1, 2, 3], true), `page ${g.me} is ready in strict mode`);
+  assert.equal(a.peers.get(2).v, 31);
+  assert.ok(!a.quantumSafe([1, 2, 3]) && a.quantumSafe([1, 3]));
+  assert.ok(a.peers.get(3).pqIn && c.peers.get(1).pqIn && !a.peers.get(2).pqIn);
+  const m1 = await a.seal(J('from 3.2'));
+  assert.equal((await old.open(m1, 1)).text, J('from 3.2'));
+  const m2 = await old.seal(J('from 3.1'));
+  assert.equal((await c.open(m2, 2)).text, J('from 3.1'));
+});
+
+test('ML-KEM-768 agrees with the platform implementation (where Node has one)', async (t) => {
+  const nc = await import('node:crypto');
+  if (typeof nc.encapsulate !== 'function') return t.skip('this Node has no ML-KEM');
+  const { ml_kem768 } = await import('../dist/vendor/mlkem.js');
+  const { publicKey, privateKey } = nc.generateKeyPairSync('ml-kem-768');
+  const pk = Buffer.from(publicKey.export({ format: 'jwk' }).pub, 'base64url');
+  const { cipherText, sharedSecret } = ml_kem768.encapsulate(new Uint8Array(pk));
+  assert.deepEqual(nc.decapsulate(privateKey, Buffer.from(cipherText)), Buffer.from(sharedSecret));
+  const kp = ml_kem768.keygen();
+  const pub = nc.createPublicKey({ key: { kty: 'AKP', alg: 'ML-KEM-768', pub: Buffer.from(kp.publicKey).toString('base64url') }, format: 'jwk' });
+  const r = nc.encapsulate(pub);
+  assert.deepEqual(Buffer.from(ml_kem768.decapsulate(new Uint8Array(r.ciphertext), kp.secretKey)), r.sharedKey);
+});
+
+test('v3.2: a member who joins later gets ML-KEM both ways (the first one never announces its ML-KEM key again)', async () => {
+  const r = await deriveRoom('correct horse battery');
+  const a = await Group.create(r.key, r.bind, 1), b = await Group.create(r.key, r.bind, 2);
+  await a.announce([], true);                                    // a alone; nobody hears it
+  await a.receive(JSON.parse(await b.announce([], true)), 2);   // b arrives
+  await b.receive(JSON.parse(await a.announce(a.owed([1, 2]), false)), 1);
+  await a.receive(JSON.parse(await b.announce(b.owed([1, 2]), false)), 2);
+  assert.ok(a.quantumSafe([1, 2]) && b.quantumSafe([1, 2]));
+});
+
+test('v3.2: an announcement for others still tells a page that the sender runs 3.2', async () => {
+  const r = await deriveRoom('correct horse battery');
+  const [a, b, c] = await Promise.all([1, 2, 3].map((n) => Group.create(r.key, r.bind, n)));
+  await b.receive(JSON.parse(await a.announce([], true)), 1);
+  await c.receive(JSON.parse(await b.announce([1], false)), 2); // b's wrap for a, overheard by c
+  assert.equal(c.peers.get(2).v, 32);
+  await b.receive(JSON.parse(await c.announce([], true)), 3);
+  await c.receive(JSON.parse(await b.announce([3], false)), 2);
+  await b.receive(JSON.parse(await c.announce(c.owed([2, 3]), false)), 3);
+  assert.ok(b.quantumSafe([2, 3]) && c.quantumSafe([2, 3]));
 });

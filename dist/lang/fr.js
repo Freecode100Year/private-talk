@@ -70,6 +70,8 @@ export default {
   'sys.fsOff': '⚠️ Quelqu’un ici, ou le serveur, utilise une ancienne version : les messages utilisent pour l’instant l’ancien chiffrement, sans confidentialité persistante.',
   'sys.missed': '{n} message(s) de {b} ne sont pas arrivés ici (coupure réseau, ou supprimés par le serveur).',
   'fs.verified': '✅ Vérifié · code de sécurité {code}',
+  'fs.pq': '⚛️ résistant au quantique',
+  'fs.noPq': 'quelqu’un utilise une version plus ancienne : pas de résistance quantique',
   'fs.old': '⚠️ Mode compatible : quelqu’un utilise une ancienne version ({who}) ; ses messages ne sont pas signés et peuvent manquer de confidentialité persistante.',
   'fs.blocked': '⛔ Quelqu’un utilise une ancienne version ({who}) : le mode strict a suspendu les messages. Demandez-lui de mettre à jour, ou cochez « Autoriser les anciennes versions » ci-dessous.',
   'fs.blockedRelay': '⛔ Le serveur utilise une ancienne version sans confidentialité persistante : le mode strict a suspendu l’envoi. Vous pouvez cocher « Autoriser les anciennes versions » ci-dessous.',

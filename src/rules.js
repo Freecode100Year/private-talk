@@ -2,12 +2,12 @@
 // Docker server (server/server.mjs). Each relay keeps its own room state and
 // calls these functions, so the two behave the same.
 export const MAX_MEMBERS = 25;          // visitors are numbered 1️⃣ to 🔟, then #11 to #25
-export const RATE_PER_10S = 30;         // frames of any kind per connection per 10 seconds
+export const RATE_PER_10S = 60;         // frames of any kind per connection per 10 seconds
 export const SEND_GAP = 6000;           // one message per this long per person, on average
 export const SEND_BURST = 3;            // up to this many in a row first (a quick reply, a correction)
 export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
-export const KEYS_PER_10S = 20;         // v3 key announcements per connection per 10 seconds (also count above; the page sends one or two a second at most)
+export const KEYS_PER_10S = 40;         // v3 key announcements per connection per 10 seconds (also count above). A page sends one or two a second, but one joining a full room as a low number sends up to 13 at once (ML-KEM secrets are large)
 export const BAD_FRAMES = 5;            // malformed frames tolerated before the connection is closed
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
 export const JOINS_PER_MINUTE = 60;     // per address (a 25-person room behind one NAT or VPN exit must fit)
