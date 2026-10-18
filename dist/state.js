@@ -102,9 +102,9 @@ export const MAX_SKEW = 10 * 60 * 1000;
 const ID = /^[0-9a-f]{16}$/;
 
 // g: a game event (game.js) riding along; text is then what older pages show.
-export function envelope(from, text, now = Date.now(), g) {
+export function envelope(from, text, now = Date.now(), g, f) {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
-  return JSON.stringify({ from, id, t: now, text, ...(g && { g }) });
+  return JSON.stringify({ from, id, t: now, text, ...(g && { g }), ...(f && { f }) });
 }
 
 // seen remembers message ids (not their text) for as long as a message could
@@ -113,7 +113,8 @@ export function newSeen() {
   return new Map();
 }
 
-// checkEnvelope returns { text, id, g } or null (g: a game event, if any). now is the receiving device's
+// checkEnvelope returns { text, id, g, f } or null (g: a game event, f: a
+// picture's key (picture.js), if any). now is the receiving device's
 // clock, or the server's when this device's is known to be wrong.
 export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   let e;
@@ -127,7 +128,8 @@ export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   if (seen.has(e.id)) return null;
   seen.set(e.id, e.t);
   const g = e.g && typeof e.g === 'object' && !Array.isArray(e.g) ? e.g : undefined;
-  return { text: e.text, id: e.id, g };
+  const f = e.f && typeof e.f === 'object' && !Array.isArray(e.f) ? e.f : undefined;
+  return { text: e.text, id: e.id, g, f };
 }
 
 // checkKeys is checkEnvelope for v3 key announcements (group.js), and with

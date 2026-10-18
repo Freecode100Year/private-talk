@@ -99,7 +99,7 @@ export class Room extends DurableObject {
     const mine = token();
     server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent });
     this.saveBook(r.book, this.peers());
-    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION, seen: true }));
+    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION, seen: true, files: true }));
     this.members();
     return new Response(null, { status: 101, webSocket: client, headers: WS_HEADERS });
   }
@@ -123,6 +123,7 @@ export class Room extends DurableObject {
     }
     if (r.key) return this.broadcast({ type: 'key', from: a.n, ...r.key });
     if (r.seen) return this.broadcast({ type: 'seen', from: a.n, ...r.seen });
+    if (r.file) return this.broadcast({ type: 'file', from: a.n, ...r.file });
     this.broadcast({ type: 'msg', from: a.n, at: r.at, ...r.msg });
   }
 

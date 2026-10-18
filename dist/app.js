@@ -8,6 +8,7 @@ import { deal, apply as applyUndercover, count as countVotes, ending, speaker, M
 import * as Escape from './escape.js';
 import * as Pact from './trade.js';
 import * as Mission from './mission.js';
+import * as Picture from './picture.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -42,6 +43,7 @@ let bind = null;         // salt for the v3 keys (see crypto.js)
 let group = null;        // this visit's v3 keys (group.js); null with a relay older than v3
 let relayV3 = false;     // the relay passes v3 frames on
 let relaySeen = false;   // and delivery receipts (2.8)
+let relayFiles = false;  // and pictures (2.14)
 const firstSeen = new Map(); // member → when this page first saw them in the room
 let fsShown = '';        // the forward secrecy notice last shown: '', 'on' or 'off'
 let keysTimer = 0;
@@ -115,6 +117,8 @@ function sendButton() {
   button.classList.toggle('counting', left > 0);
   button.setAttribute('aria-label', left > 0 ? t('send.wait', { s: left }) : t('send.aria'));
   button.title = button.getAttribute('aria-label');
+  $('picButton').disabled = !online || !relayFiles || sendingPicture;
+  $('picButton').title = t(relayFiles ? 'pic.button' : 'pic.noRelay');
   composerStatus();
   if (left > 0) cooldownTimer = setTimeout(sendButton, (cooldownUntil - Date.now()) % 1000 || 1000);
 }
@@ -168,8 +172,9 @@ function system(text) {
   append(div, atBottom());
 }
 
-// tag: a game label for the message, { cls, label }, or null.
-function bubble(from, at, text, h, tag = null) {
+// tag: a game label for the message, { cls, label }, or null. pic: a
+// picture to show instead of the text, { url, w, h }.
+function bubble(from, at, text, h, tag = null, pic = null) {
   const mine = from === you;
   const row = document.createElement('article');
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
@@ -193,6 +198,17 @@ function bubble(from, at, text, h, tag = null) {
   const p = document.createElement('p');
   p.className = 'bubble';
   p.textContent = text;
+  if (pic) {
+    const img = document.createElement('img');
+    img.src = pic.url;
+    img.width = pic.w;
+    img.height = pic.h;
+    img.alt = t('pic.alt');
+    img.addEventListener('click', () => img.classList.toggle('full'));
+    pictures.set(pic.url, img);
+    p.classList.add('picture');
+    p.replaceChildren(img);
+  }
   if (tag) {
     row.classList.add(tag.cls);
     who.prepend(`${tag.label} · `);
@@ -431,6 +447,8 @@ async function handle(data, sock, started, retry = false) {
     // have arrived). Then ask the room for everyone's keys.
     relayV3 = msg.v === 3;
     relaySeen = msg.seen === true;
+    relayFiles = msg.files === true;
+    sendButton();
     if (relayV3) {
       if (!group || group.me !== you) { group = await Group.create(key, bind, you); ownSeen.clear(); earlySeen.clear(); seenQueue = []; endGame(); }
       else await group.rekey();
@@ -544,9 +562,20 @@ async function handle(data, sock, started, retry = false) {
       if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
       return;
     }
-    bubble(msg.from, msg.at, got.text, msg.h);
-    missionChat(msg.from, got.id, got.text);
+    if (got.f) {
+      await showPicture(msg, got.f);
+      if (!current()) return;
+    } else {
+      bubble(msg.from, msg.at, got.text, msg.h);
+      missionChat(msg.from, got.id, got.text);
+    }
     if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
+  } else if (msg.type === 'file') {
+    // A picture's ciphertext: kept until the message with its key comes.
+    if (typeof msg.id !== 'string' || typeof msg.ct !== 'string' || typeof msg.iv !== 'string') return;
+    for (const [id, x] of files) if (Date.now() - x.at > 120000) files.delete(id);
+    files.set(msg.id, { from: msg.from, iv: msg.iv, ct: msg.ct, at: Date.now() });
+    while (files.size > 12) files.delete(files.keys().next().value);
   } else if (msg.type === 'seen') {
     if (msg.from === you) return;
     try {
@@ -555,6 +584,54 @@ async function handle(data, sock, started, retry = false) {
     } catch {}
   }
 }
+
+// Pictures (picture.js): the ciphertext comes in a frame of its own just
+// before the message that holds its key.
+const files = new Map();     // picture frames waiting for their message, by id
+const pictures = new Map();  // pictures on screen: object URL → img
+let sendingPicture = false;
+const picturesSent = [];     // when this page sent its last pictures
+async function showPicture(msg, f) {
+  const frame = Picture.isPicture(f) ? files.get(f.id) : null;
+  if (frame?.from !== msg.from) return bubble(msg.from, msg.at, t('pic.missing'), msg.h);
+  files.delete(f.id);
+  const blob = await Picture.open(frame, f);
+  if (!blob) return bubble(msg.from, msg.at, t('pic.broken'), msg.h);
+  bubble(msg.from, msg.at, '', msg.h, null, { url: URL.createObjectURL(blob), w: f.w, h: f.h });
+}
+// Object URLs of pictures no longer on screen (cleared, timed out) are let go.
+setInterval(() => {
+  for (const [url, img] of pictures) if (!img.isConnected) { URL.revokeObjectURL(url); pictures.delete(url); }
+}, 2000);
+async function sendPicture(file) {
+  if (!file || sendingPicture) return;
+  if (!relayFiles) return system(t('pic.noRelay'));
+  while (picturesSent.length && Date.now() - picturesSent[0] > 60000) picturesSent.shift();
+  if (picturesSent.length >= 6) return system(t('pic.tooMany'));
+  sendingPicture = true;
+  sendButton();
+  try {
+    const pic = await Picture.shrink(file);
+    if (!pic) return system(t('pic.unreadable'));
+    const { frame, f } = await Picture.seal(pic);
+    // Wait for the send allowance, so the picture and its key go together.
+    const until = Date.now() + 30000;
+    while ((pending || Date.now() < cooldownUntil) && Date.now() < until) await new Promise((r) => setTimeout(r, 250));
+    const sock = ws;
+    if (!online || !sock || sock.readyState !== WebSocket.OPEN || pending || Date.now() < cooldownUntil) return system(t('sys.notSent'));
+    sock.send(JSON.stringify({ type: 'file', ...frame }));
+    if (await sendMessage(t('pic.wire'), undefined, false, f)) picturesSent.push(Date.now());
+  } finally {
+    sendingPicture = false;
+    sendButton();
+  }
+}
+$('picButton').addEventListener('click', () => $('picInput').click());
+$('picInput').addEventListener('change', () => {
+  const file = $('picInput').files[0];
+  $('picInput').value = '';
+  sendPicture(file);
+});
 
 // The games: 暗号潜伏 (game.js) and 密电逃脱 (escape.js). Their events ride
 // in ordinary messages (the g field), so they are encrypted, signed and rate
@@ -1632,13 +1709,14 @@ $('messageInput').addEventListener('keydown', (event) => {
 $('messageInput').addEventListener('compositionstart', () => { composing = true; });
 $('messageInput').addEventListener('compositionend', () => { composing = false; compositionEnded = Date.now(); });
 // Seals and sends one message: text from the input box (fromInput), or a
-// game event (g) with a short text for older pages. Returns whether it went.
-async function sendMessage(text, g, fromInput) {
+// game event (g) or a picture's key (f) with a short text for older pages.
+// Returns whether it went.
+async function sendMessage(text, g, fromInput, f) {
   const sock = ws;
   if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return false;
   const started = { session, version: inputVersion };
   const refund = spend();
-  const sealed = envelope(you, text, Date.now(), g);
+  const sealed = envelope(you, text, Date.now(), g, f);
   let frame;
   try {
     frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });

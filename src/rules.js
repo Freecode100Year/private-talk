@@ -12,6 +12,10 @@ export const BAD_FRAMES = 5;            // malformed frames tolerated before the
 // Delivery receipts (sealed lists of messages a page has read; see app.js):
 // a page sends at most one every 1.5 seconds; more are dropped, not punished.
 export const SEEN_PER_10S = 10;
+// Pictures (since 2.14): the encrypted picture travels in a frame of its own
+// ("file"), its key inside an ordinary message (app.js). At most this many
+// per person per minute; more are dropped, not punished.
+export const FILES_PER_MINUTE = 6;
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
 export const JOINS_PER_MINUTE = 60;     // per address (a 25-person room behind one NAT or VPN exit must fit)
 export const GRACE = 2 * 60 * 1000;     // how long a dropped member may come back, even to a locked room
@@ -61,6 +65,12 @@ export async function accessMatches(roomId, access) {
 const IV = /^[A-Za-z0-9+/]{16}$/;
 const CT = /^[A-Za-z0-9+/]{24,5484}={0,2}$/;
 export const MAX_FRAME = 5600;
+// A picture frame: up to 72 000 bytes of ciphertext, 96 000 characters of
+// base64. Only frames that start as a picture frame may be this long.
+const FILE_CT = /^[A-Za-z0-9+/]{24,96000}={0,2}$/;
+const FILE_ID = /^[0-9a-f]{16}$/;
+export const FILE_FRAME = 96200;
+const FILE_START = '{"type":"file",';
 const CHAIN = /^\d{1,9}\.\d{1,9}$/;
 const ASCII = /^[\x20-\x7e]*$/;
 
@@ -182,6 +192,7 @@ export function awayNumbers(book, now = Date.now()) {
 //   { msg: { iv, ct, h? }, at } a message to pass on
 //   { key: { iv, ct } }         a v3 key announcement to pass on (no spacing)
 //   { seen: { iv, ct } }        delivery receipts to pass on
+//   { file: { id, iv, ct } }    an encrypted picture to pass on
 //   null                        ignore
 export function checkFrame(raw, state, now = Date.now()) {
   const window = Math.floor(now / 10000);
@@ -192,16 +203,26 @@ export function checkFrame(raw, state, now = Date.now()) {
   if (++state.count > RATE_PER_10S) return { close: [1008, 'too fast'] };
   const bad = () => (++state.bad >= BAD_FRAMES ? { close: [1008, 'bad frames'] } : null);
   state.bad ??= 0;
-  if (typeof raw !== 'string' || raw.length > MAX_FRAME || !ASCII.test(raw)) return { close: [1009, 'bad frame'] };
+  if (typeof raw !== 'string' || raw.length > (raw.startsWith(FILE_START) ? FILE_FRAME : MAX_FRAME) || !ASCII.test(raw)) return { close: [1009, 'bad frame'] };
   let msg;
   try { msg = JSON.parse(raw); } catch { return bad(); }
   if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return bad();
+  // Only a picture frame may be long (a frame that starts as one but names
+  // another type twice, say, may not).
+  if (msg.type !== 'file' && raw.length > MAX_FRAME) return { close: [1009, 'bad frame'] };
   if (msg.type === 'lock' || msg.type === 'remove') {
     if (msg.type === 'lock' && typeof msg.locked !== 'boolean') return bad();
     if (msg.type === 'remove' && !(Number.isInteger(msg.n) && msg.n >= 1 && msg.n <= MAX_MEMBERS)) return bad();
     if (now - (state.lockAt ?? 0) < LOCK_GAP) return null;
     state.lockAt = now;
     return msg.type === 'lock' ? { lock: msg.locked } : { remove: msg.n };
+  }
+  if (msg.type === 'file') {
+    if (!raw.startsWith(FILE_START) || typeof msg.id !== 'string' || !FILE_ID.test(msg.id) || typeof msg.iv !== 'string' || !IV.test(msg.iv) || typeof msg.ct !== 'string' || !FILE_CT.test(msg.ct)) return bad();
+    const minute = Math.floor(now / 60000);
+    state.files = state.filesMinute === minute ? (state.files ?? 0) + 1 : 1;
+    state.filesMinute = minute;
+    return state.files > FILES_PER_MINUTE ? null : { file: { id: msg.id, iv: msg.iv, ct: msg.ct } };
   }
   if (msg.type !== 'msg' && msg.type !== 'key' && msg.type !== 'seen') return bad();
   if (typeof msg.iv !== 'string' || typeof msg.ct !== 'string' || !IV.test(msg.iv) || !CT.test(msg.ct)) return bad();

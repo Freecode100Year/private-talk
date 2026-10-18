@@ -23,7 +23,7 @@ import { join, extname, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, MAX_FRAME,
+  MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, FILE_FRAME,
   PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
@@ -191,7 +191,7 @@ function members(room) {
 
 const wss = new WebSocketServer({
   noServer: true,
-  maxPayload: MAX_FRAME * 2,
+  maxPayload: FILE_FRAME + 1024,
   // The page asks for pt2 alongside its access value and resume token; only
   // pt2 is answered.
   handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
@@ -218,7 +218,7 @@ function enter(ws, roomId, ip, resume) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true });
   members(room);
 
   ws.on('pong', () => { ws.alive = true; });
@@ -247,6 +247,7 @@ function enter(ws, roomId, ip, resume) {
     }
     if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
     if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });
+    if (r.file) return broadcast(room, { type: 'file', from: n, ...r.file });
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });
   ws.on('close', (code) => {

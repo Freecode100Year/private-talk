@@ -201,3 +201,24 @@ test('delivery receipts pass on like key frames, and beyond their budget are dro
   assert.equal(st.bad ?? 0, 0);
   assert.ok(checkFrame(frame, st, t + 10000).seen, 'a new window, a new budget');
 });
+
+test('pictures: one long frame of their own, six a minute, then dropped; others stay short', async () => {
+  const { FILES_PER_MINUTE, FILE_FRAME, MAX_FRAME } = await import('../src/rules.js');
+  const file = (ct, id = '0123456789abcdef') => JSON.stringify({ type: 'file', id, iv: 'AAAAAAAAAAAAAAAA', ct });
+  const big = file('A'.repeat(96000));
+  assert.ok(big.length <= FILE_FRAME);
+  const st = { window: 0, count: 0 };
+  const t = 1.2e12;
+  for (let i = 0; i < FILES_PER_MINUTE; i++) assert.deepEqual(checkFrame(big, st, t + i).file?.id, '0123456789abcdef');
+  assert.equal(checkFrame(big, st, t + 10), null, 'over the budget: dropped');
+  assert.equal(st.bad ?? 0, 0);
+  assert.ok(checkFrame(big, st, t + 60000).file, 'a new minute, a new budget');
+  assert.deepEqual(checkFrame(file('A'.repeat(96200)), { window: 0, count: 0 }, t).close?.[0], 1009, 'too long');
+  assert.equal(checkFrame(file('A'.repeat(96004)), { window: 0, count: 0 }, t), null, 'past the ciphertext limit: a bad frame');
+  assert.equal(checkFrame(file('A'.repeat(40), 'xyz'), { window: 0, count: 0 }, t), null, 'a bad id is a bad frame');
+  // A message frame does not get the picture allowance by naming a type later.
+  const msg = JSON.stringify({ type: 'msg', iv: 'AAAAAAAAAAAAAAAA', ct: 'A'.repeat(MAX_FRAME) });
+  assert.deepEqual(checkFrame(msg, { window: 0, count: 0 }, t).close?.[0], 1009);
+  const sneaky = `{"type":"file","type":"msg","iv":"AAAAAAAAAAAAAAAA","ct":"${'A'.repeat(6000)}"}`;
+  assert.deepEqual(checkFrame(sneaky, { window: 0, count: 0 }, t).close?.[0], 1009, 'long frames must start as a picture frame');
+});
