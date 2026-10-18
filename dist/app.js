@@ -9,6 +9,7 @@ import * as Escape from './escape.js';
 import * as Pact from './trade.js';
 import * as Mission from './mission.js';
 import * as Picture from './picture.js';
+import * as Wolf from './werewolf.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -646,16 +647,21 @@ let gameTick = 0;
 const gameRoom = () => present ?? [];
 // Which game an event belongs to: 'spy' (暗号潜伏), 'esc', 'tr' or 'sm'.
 const kindOf = (g, s = game) => {
-  const prefix = /^(esc|tr|sm)-/.exec(g.k);
+  const prefix = /^(esc|tr|sm|ww)-/.exec(g.k);
   return prefix ? prefix[1] : g.k === 'new' ? 'spy' : s?.type ?? 'spy';
 };
 function applyGame(s, g, from, now) {
   if (typeof g?.k !== 'string') return { s, note: null };
   const kind = kindOf(g, s);
-  const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply }[kind] ?? applyUndercover;
+  const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply, ww: Wolf.apply }[kind] ?? applyUndercover;
   return rules(s, g, from, now);
 }
-const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire' };
+const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire', ww: 'ww.wire' };
+// 狼人杀: this page's card ({ role, wolves? }), what the judge told it this
+// step, and its action for the step ({ step, sent, due }).
+let myRole = null;
+let myTell = null;
+let myAct = null;
 // 秘密任务: this page's mission ({ gid, target, word, salt, h, claimed,
 // answered }), the chat during the game ({ id, from, text }) and where in it
 // each player's mission began.
@@ -666,8 +672,10 @@ const usedWords = [];
 let myPact = null;      // this page's choice this round (密约交易所): { r, c, salt, h, shown }
 const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
-  const n = gameRoom().length;
-  const rules = { esc: Escape, tr: Pact, sm: Mission }[kind];
+  // In 狼人杀 the one who starts it judges and, unless they choose to play
+  // too, takes no role.
+  const n = gameRoom().length - (kind === 'ww' && !$('wwPlay').checked ? 1 : 0);
+  const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf }[kind];
   const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && n >= min && n <= max && group.quantumSafe(gameRoom());
 }
@@ -710,6 +718,18 @@ async function startEscape() {
   myWord = '';
   queueGame({ k: 'esc-new', ...d.deal, cards });
 }
+async function startWerewolf() {
+  if (!canStartGame('ww')) return;
+  const players = gameRoom().filter((n) => n !== you || $('wwPlay').checked);
+  const d = Wolf.deal(players, you);
+  const cards = {};
+  for (const n of d.start.players) if (n !== you) cards[n] = await group.sealFor(n, JSON.stringify(d.cards.get(n)), `wwcard|${d.start.gid}`);
+  dealer = { gid: d.start.gid, secret: d.secret, acts: new Map(), done: new Set(), moves: 0 };
+  myRole = d.cards.get(you) ?? null;
+  myTell = null;
+  myAct = null;
+  queueGame({ ...d.start, cards });
+}
 function startMission() {
   if (!canStartGame('sm')) return;
   const g = Mission.newGame(gameRoom());
@@ -740,6 +760,25 @@ async function gameEvent(g, from) {
     try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
   }
   if (g.k === 'tr-new' && (!game || game.phase === 'over')) { myPact = null; myWord = ''; myClues = null; }
+  if (g.k === 'ww-new' && (!game || game.phase === 'over')) {
+    myTell = null;
+    myAct = null;
+    if (from !== you) {
+      myRole = null;
+      try { if (Array.isArray(g.players) && g.players.includes(you)) myRole = JSON.parse(await group.openFrom(from, g.cards?.[you], `wwcard|${g.gid}`)); } catch {}
+    }
+  }
+  // 狼人杀: the judge reads the actions and ballots sealed for it; a player
+  // reads what the judge told it.
+  if (game?.type === 'ww' && g.gid === game.gid) {
+    if ((g.k === 'ww-act' || g.k === 'ww-ballot') && dealer?.gid === g.gid && from !== you) {
+      const label = g.k === 'ww-act' ? `ww|${g.gid}|${g.step}` : `wwvote|${g.gid}|${g.day}`;
+      try { dealer.acts.set(from, JSON.parse(await group.openFrom(from, g.b, label))); } catch {}
+    }
+    if (g.k === 'ww-go' && from !== you && g.tell?.[you]) {
+      try { myTell = { step: g.step, ...JSON.parse(await group.openFrom(from, g.tell[you], `wwtell|${g.gid}|${g.step}`)) }; } catch { myTell = null; }
+    }
+  }
   if (g.k === 'sm-new' && (!game || game.phase === 'over')) { myMission = null; chatLog = []; pickedAt.clear(); usedWords.length = 0; myWord = ''; myClues = null; }
   // A shown mission counts only if it matches its commitment (and, when done,
   // if the target really said the word after the mission began); every page
@@ -776,8 +815,9 @@ async function gameEvent(g, from) {
   game = s;
   if (g.k === 'sm-pick' && game?.type === 'sm' && before?.missions && !before.missions[from] && game.missions[from]) pickedAt.set(from, chatLog.length);
   if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
-  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); }
-  if (note?.k === 'say') return { tag: { cls: 'said', label: `🗣 ${t('game.said')}` } };
+  if (g.k === 'ww-go' && from === you && dealer?.gid === g.gid) { dealer.moves++; dealer.acts = new Map(); }
+  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); }
+  if (note?.k === 'say' || note?.k === 'ww-say') return { tag: { cls: 'said', label: `🗣 ${t(game?.type === 'ww' ? (game.phase === 'last' ? 'ww.lastWords' : 'ww.speech') : 'game.said')}` } };
   return note ? shown : null;
 }
 function gameNote(note) {
@@ -794,6 +834,7 @@ function gameNote(note) {
   if (note.k === 'abort') system(t('game.aborted'));
   if (note.k.startsWith('tr-')) pactNote(note);
   if (note.k.startsWith('sm-')) missionNote(note);
+  if (note.k.startsWith('ww-')) wolfNote(note);
   if (note.k === 'esc-new') system(t('esc.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('esc.hold')}` : ''));
   if (note.k === 'esc-new' || note.k === 'esc-open') {
     if (note.k === 'esc-open') system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
@@ -823,6 +864,43 @@ function pactNote(note) {
   }
   if (note.k === 'tr-note') system(t('tr.noted', { b: badge(note.n), to: badge(note.to) }));
   if (note.k === 'tr-gone') system(t('tr.gone', { b: badge(note.n) }));
+}
+const roleName = (r) => t(`ww.role.${r}`);
+const ROLE_ICON = { wolf: '🐺', seer: '🔮', witch: '🧪', hunter: '🏹', villager: '👤' };
+function wolfNote(note) {
+  const list = (ns) => ns.map(badge).join(' ');
+  if (note.k === 'ww-new') {
+    system(t('ww.started', { b: badge(note.by), list: list(note.players), n: note.players.length }) + ` ${t(note.judging ? 'ww.judgeOnly' : 'ww.judgePlays')}`);
+    if (myRole) system(t('ww.hold'));
+  }
+  if (note.k === 'ww-skip') system(t('game.skipped', { b: badge(note.n) }));
+  if (note.k !== 'ww-go') return;
+  if (note.votes) {
+    const votes = Object.entries(note.votes).map(([v, c]) => `${badge(Number(v))}→${badge(Number(c))}`).join('，');
+    system((votes ? `${t('game.votes')}${votes}。` : '') + (note.out ? t('ww.out', { b: badge(note.out) }) : t('game.tie')));
+  }
+  if (note.shot) system(t('ww.shot', { b: list(note.dead) }));
+  if (note.prev === 'nightB') system(note.dead.length ? t('ww.dawnDead', { list: list(note.dead) }) : t('ww.dawnPeace'));
+  if (note.phase === 'nightA') system(t('ww.night', { d: note.day }));
+  if (note.phase === 'nightB') system(t('ww.witchTime'));
+  if (note.phase === 'hunt') system(t('ww.hunting'));
+  if (note.phase === 'last') system(t('ww.last', { list: list(game.speakers) }));
+  if (note.phase === 'say') system(t('ww.say', { b: badge(game.speakers[0]) }));
+  if (note.phase === 'vote') system(t('ww.voteNow'));
+  if (note.phase === 'over') system(wolfEndText(note.end));
+  // What the judge told this page alone.
+  if (myTell && myTell.step === game.step) tellNote(myTell);
+}
+function tellNote(x) {
+  if (x.k === 'seer') system(x.n ? t('ww.seen', { b: badge(x.n), r: t(x.wolf ? 'ww.isWolf' : 'ww.isGood') }) : t('ww.seenNone'));
+  if (x.k === 'witch') system(x.victim > 0 ? t('ww.witchVictim', { b: badge(x.victim) }) : x.victim === 0 ? t('ww.witchNone') : t('ww.witchNoSave'));
+  if (x.k === 'wolves') system(x.victim ? t('ww.wolvesVictim', { b: badge(x.victim) }) : t('ww.wolvesNone'));
+  if (x.k === 'hunt') system(t('ww.youHunt'));
+}
+function wolfEndText(end) {
+  if (!end) return t('game.aborted');
+  const roles = Object.entries(end.roles).map(([n, r]) => `${badge(Number(n))}${roleName(r)}`).join(' ');
+  return `${t(end.winner === 'wolves' ? 'ww.wolvesWin' : 'ww.goodWins')} ${t('ww.roles', { list: roles })}`;
 }
 function missionNote(note) {
   const b = (n) => badge(n);
@@ -862,6 +940,9 @@ function endGame() {
   myMission = null;
   chatLog = [];
   pickedAt.clear();
+  myRole = null;
+  myTell = null;
+  myAct = null;
   dealer = null;
   gameOut = [];
   clearInterval(gameTick);
@@ -876,6 +957,45 @@ function gameMembers() {
   }
   renderGame();
   dealerStep();
+}
+// 狼人杀: every living player's page sends exactly one action each night
+// step: the real one when there is a choice to make, an empty one otherwise,
+// at a random moment, so the traffic says nothing about who is who.
+function myChoice() {
+  if (!game || game.type !== 'ww' || !myRole) return '';
+  const r = myRole.role;
+  if (game.phase === 'nightA' && (r === 'wolf' || r === 'seer')) return r;
+  if (game.phase === 'nightB' && r === 'witch' && myTell?.k === 'witch' && myTell.step === game.step) return r;
+  if (game.phase === 'hunt' && myTell?.k === 'hunt') return 'hunter';
+  return '';
+}
+function wolfStep() {
+  if (game?.type !== 'ww' || !['nightA', 'nightB', 'hunt'].includes(game.phase) || !game.actors.includes(you)) return;
+  if (myAct?.step !== game.step) {
+    const span = Wolf.MS[game.phase];
+    myAct = { step: game.step, sent: false, due: Date.now() + (myChoice() ? span - 5000 : 2000 + Math.random() * (span - 10000)) };
+  }
+  if (!myAct.sent && Date.now() >= myAct.due) sendAct({});
+}
+async function sendAct(a) {
+  if (game?.type !== 'ww' || !myAct || myAct.sent || myAct.step !== game.step) return;
+  myAct.sent = true;
+  const { gid, step } = game;
+  let b = null;
+  if (dealer?.gid === gid) dealer.acts.set(you, a);
+  else b = await group.sealFor(game.dealer, JSON.stringify(a), `ww|${gid}|${step}`);
+  renderGame();
+  queueGame({ k: 'ww-act', gid, step, b });
+}
+async function wolfBallot(t) {
+  if (game?.type !== 'ww' || game.phase !== 'vote' || !game.alive.includes(you) || game.voted.includes(you) || myAct?.step === `v${game.day}`) return;
+  myAct = { step: `v${game.day}`, sent: true };
+  const { gid, day } = game;
+  let b = null;
+  if (dealer?.gid === gid) dealer.acts.set(you, { t });
+  else b = await group.sealFor(game.dealer, JSON.stringify({ t }), `wwvote|${gid}|${day}`);
+  renderGame();
+  queueGame({ k: 'ww-ballot', gid, day, b });
 }
 // 秘密任务: what this page does by itself: draw a mission when it has none,
 // answer a guess, show its mission at the end.
@@ -956,6 +1076,28 @@ function dealerStep() {
   const here = gameRoom();
   const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
   const gid = game.gid;
+  if (game.type === 'ww') {
+    // The judge: skip a speaker who ran out of time or left; move on once
+    // nobody here is left to wait for, or the time is up.
+    const late = Date.now() >= game.deadline;
+    const sp = Wolf.speaker(game);
+    if (sp && (late || !here.includes(sp))) return once(`skip|${dealer.moves}|${game.turn}`, { k: 'ww-skip', gid, n: sp });
+    if (!late && Wolf.waitingFor(game, here).length) return;
+    const key = `go|${dealer.moves}`;
+    if (dealer.done.has(key)) return;
+    dealer.done.add(key);
+    const r = Wolf.advance(game, dealer.secret, dealer.acts);
+    if (!r) return;
+    (async () => {
+      const tell = {};
+      for (const [n, x] of r.tell) {
+        if (n === you) myTell = { step: r.go.step, ...x };
+        else tell[n] = await group.sealFor(n, JSON.stringify(x), `wwtell|${gid}|${r.go.step}`);
+      }
+      queueGame({ ...r.go, ...(r.tell.size && { tell }) });
+    })();
+    return;
+  }
   if (game.type === 'sm') {
     const g = Mission.dealerMove(game, Date.now());
     if (g) once(g.k === 'sm-void' ? `void|${g.n}|${game.guesses[g.n].at}` : g.k, g);
@@ -1005,11 +1147,14 @@ function renderGame() {
   $('trStart').title = t('game.startHint', { min: Pact.MIN_PLAYERS, max: Pact.MAX_PLAYERS });
   $('smStart').disabled = !canStartGame('sm');
   $('smStart').title = t('game.startHint', { min: Mission.MIN_PLAYERS, max: Mission.MAX_PLAYERS });
+  $('wwStart').disabled = !canStartGame('ww');
+  $('wwStart').title = t('ww.startHint', { min: Wolf.MIN_PLAYERS, max: Wolf.MAX_PLAYERS });
   $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
   if (game.type === 'esc') return renderEscape();
   if (game.type === 'tr') return renderPact();
   if (game.type === 'sm') return renderMission();
+  if (game.type === 'ww') return renderWerewolf();
   $('escForm').hidden = true;
   $('trForm').hidden = true;
   $('smForm').hidden = true;
@@ -1068,6 +1213,66 @@ function renderEscape() {
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
   gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+function renderWerewolf() {
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const over = game.phase === 'over';
+  const alive = game.alive.includes(you);
+  const judging = dealer?.gid === game.gid;
+  $('gameTitle').textContent = t(game.phase.startsWith('night') ? 'ww.titleNight' : 'ww.titleDay', { d: Math.max(1, game.day) });
+  const sp = Wolf.speaker(game);
+  let line;
+  if (over) line = wolfEndText(game.end);
+  else if (game.phase === 'nightA' || game.phase === 'nightB' || game.phase === 'hunt') {
+    const choice = myChoice();
+    line = t(choice && !myAct?.sent ? `ww.act.${choice}` : 'ww.nightWait', { s: left });
+    if (choice === 'witch' && !myAct?.sent && myTell?.victim > 0) line += ` ${t('ww.witchVictim', { b: badge(myTell.victim) })}`;
+  } else if (sp) line = sp === you ? t(game.phase === 'last' ? 'ww.yourLast' : 'ww.yourSpeak', { s: left }) : t('game.turn', { b: badge(sp), s: left });
+  else if (game.phase === 'vote') line = t('game.voting', { s: left, n: game.voted.length, total: game.alive.length });
+  else line = t('ww.wait');
+  if (!over && !alive && game.players.includes(you)) line = `${t('ww.youDead')} ${line}`;
+  $('gameLine').textContent = line;
+  const roles = judging ? dealer.secret.roles : {};
+  $('gamePlayers').textContent = game.players.map((n) => `${game.alive.includes(n) ? badge(n) : `${badge(n)}✖`}${roles[n] ? ROLE_ICON[roles[n]] : ''}`).join(' ');
+  $('gameWord').hidden = over || !myRole;
+  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('ww.holdButton');
+  $('escForm').hidden = true;
+  $('trForm').hidden = true;
+  $('smForm').hidden = true;
+  // The buttons for this page's choice now, if it has one.
+  const votes = $('gameVotes');
+  const want = over ? '' : game.phase === 'vote' ? (alive && !game.voted.includes(you) && myAct?.step !== `v${game.day}` ? 'vote' : '') : myAct && !myAct.sent ? myChoice() : '';
+  const key = `${game.phase}|${game.step}|${game.day}|${want}`;
+  if (!want) votes.replaceChildren();
+  if (want && votes.dataset.key !== key) {
+    const button = (label, onClick, cls = '') => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `secondary-button ${cls}`;
+      b.textContent = label;
+      b.addEventListener('click', onClick);
+      b.addEventListener('pointerdown', (e) => e.preventDefault());
+      return b;
+    };
+    const others = game.alive.filter((n) => n !== you);
+    const act = (a) => () => { votes.replaceChildren(); sendAct(a); };
+    let list = [];
+    if (want === 'vote') list = [...others.map((n) => button(badge(n), () => { votes.replaceChildren(); wolfBallot(n); })), button(t('ww.abstain'), () => { votes.replaceChildren(); wolfBallot(0); }, 'ghost')];
+    else if (want === 'wolf') list = [...game.alive.map((n) => button(badge(n), act({ t: n }))), button(t('ww.noKill'), act({}), 'ghost')];
+    else if (want === 'seer') list = others.map((n) => button(badge(n), act({ t: n })));
+    else if (want === 'witch') {
+      if (myTell.save) list.push(button(t('ww.save', { b: badge(myTell.victim) }), act({ save: true }), 'pact-keep'));
+      if (myTell.poison) list.push(...others.map((n) => button(`☠️${badge(n)}`, act({ t: n }), 'pact-betray')));
+      list.push(button(t('ww.noPotion'), act({}), 'ghost'));
+    } else if (want === 'hunter') list = [...game.alive.map((n) => button(`🏹${badge(n)}`, act({ t: n }), 'pact-betray')), button(t('ww.noShot'), act({}), 'ghost')];
+    votes.replaceChildren(...list);
+  }
+  votes.dataset.key = want ? key : '';
+  $('gameEnd').hidden = !(judging && !over);
+  $('gameClose').hidden = !over;
+  $('messageInput').placeholder = sp === you ? t('ww.speakHint') : t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); wolfStep(); }, 1000);
 }
 function renderMission() {
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
@@ -1156,6 +1361,8 @@ $('escTry').addEventListener('pointerdown', (e) => e.preventDefault());
 $('escStart').addEventListener('click', () => { startEscape(); });
 $('trStart').addEventListener('click', () => { startPact(); });
 $('smStart').addEventListener('click', () => { startMission(); });
+$('wwStart').addEventListener('click', () => { startWerewolf(); });
+$('wwPlay').addEventListener('change', () => renderGame());
 $('smForm').addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
 $('smGuess').addEventListener('pointerdown', (e) => e.preventDefault());
 $('trForm').addEventListener('submit', (e) => { e.preventDefault(); passNote(); });
@@ -1166,6 +1373,12 @@ $('gameClose').addEventListener('click', () => { endGame(); });
 // The card shows only while it is held down.
 const showWord = (on) => {
   const esc = game?.type === 'esc';
+  if (game?.type === 'ww') {
+    const card = myRole ? (myRole.role === 'wolf' ? t('ww.card.wolf', { list: myRole.wolves.map(badge).join(' ') }) : t('ww.card', { r: roleName(myRole.role) })) : '';
+    $('gameWord').textContent = on ? card : t('ww.holdButton');
+    $('gameWord').classList.toggle('open', on);
+    return;
+  }
   const sm = game?.type === 'sm';
   const mission = sm && myMission?.word && game.missions[you]?.h === myMission.h ? t('sm.mission', { t: badge(myMission.target), w: myMission.word }) : t('sm.drawing');
   $('gameWord').textContent = on ? (esc ? clueLines() : sm ? mission : myWord) : t(esc ? 'esc.holdButton' : sm ? 'sm.holdButton' : 'game.holdButton');
@@ -1746,7 +1959,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = checkMessage($('messageInput').value);
   // On this page's turn in a game, the message is its description.
-  const say = game && speaker(game) === you ? { k: 'say', gid: game.gid } : undefined;
+  const say = game?.type === 'ww' ? (Wolf.speaker(game) === you ? { k: 'ww-say', gid: game.gid } : undefined) : game && speaker(game) === you ? { k: 'say', gid: game.gid } : undefined;
   await sendMessage(text, say, true);
 });
 // Phones drop connections in the background; reconnect as soon as the page
