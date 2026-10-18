@@ -113,6 +113,7 @@ button{min-height:44px;min-width:44px}
 .message.outgoing .message-meta{justify-content:flex-end}
 .message .bubble{margin:0}
 .message-meta .sent{color:#7fd6f5}
+.message-meta .sent.all{color:#6ee7a8}
 .system-message{max-width:860px;margin-left:auto;margin-right:auto;text-align:center}
 .send-button .count{display:none;font-size:17px;font-weight:700}
 .send-button.counting svg{display:none}

@@ -128,13 +128,13 @@ export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   return { text: e.text, id: e.id };
 }
 
-// checkKeys is checkEnvelope for v3 key announcements (group.js): the sealed
-// sender must be the relayed one, not too old, not seen before. Returns the
-// announcement or null.
-export function checkKeys(plain, relayed, seen, now = Date.now()) {
+// checkKeys is checkEnvelope for v3 key announcements (group.js), and with
+// kind 'seen' for delivery receipts: the sealed sender must be the relayed
+// one, not too old, not seen before. Returns the object or null.
+export function checkKeys(plain, relayed, seen, now = Date.now(), kind = 'keys') {
   let a;
   try { a = JSON.parse(plain); } catch { return null; }
-  if (!a || typeof a !== 'object' || a.kind !== 'keys' || typeof a.id !== 'string' || !ID.test(a.id)) return null;
+  if (!a || typeof a !== 'object' || a.kind !== kind || typeof a.id !== 'string' || !ID.test(a.id)) return null;
   if (!Number.isInteger(a.from) || a.from !== relayed.from || !Number.isFinite(a.t) || Math.abs(now - a.t) > MAX_SKEW) return null;
   if (seen.has(a.id)) return null;
   seen.set(a.id, a.t);

@@ -37,6 +37,7 @@ let access = null;       // shown to the relay to be let in (see crypto.js)
 let bind = null;         // salt for the v3 keys (see crypto.js)
 let group = null;        // this visit's v3 keys (group.js); null with a relay older than v3
 let relayV3 = false;     // the relay passes v3 frames on
+let relaySeen = false;   // and delivery receipts (2.8)
 const firstSeen = new Map(); // member → when this page first saw them in the room
 let fsShown = '';        // the forward secrecy notice last shown: '', 'on' or 'off'
 let keysTimer = 0;
@@ -163,7 +164,7 @@ function system(text) {
   append(div, atBottom());
 }
 
-function bubble(from, at, text) {
+function bubble(from, at, text, h) {
   const mine = from === you;
   const row = document.createElement('article');
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
@@ -182,6 +183,7 @@ function bubble(from, at, text) {
     sent.textContent = t('sent');
     sent.title = t('sent.title');
     who.append(sent);
+    if (h !== undefined) trackSeen(h, sent);
   }
   const p = document.createElement('p');
   p.className = 'bubble';
@@ -419,8 +421,9 @@ async function handle(data, sock, started, retry = false) {
     // sending chain, after a reconnect (what was handed out before may not
     // have arrived). Then ask the room for everyone's keys.
     relayV3 = msg.v === 3;
+    relaySeen = msg.seen === true;
     if (relayV3) {
-      if (!group || group.me !== you) group = await Group.create(key, bind, you);
+      if (!group || group.me !== you) { group = await Group.create(key, bind, you); ownSeen.clear(); earlySeen.clear(); seenQueue = []; }
       else await group.rekey();
       if (!current()) return;
       sendKeys(true);
@@ -522,8 +525,67 @@ async function handle(data, sock, started, retry = false) {
     }
     if (msg.from === you && pending?.id === got.id) { clearTimeout(pending.timer); pending = null; }
     if (missed) system(t('sys.missed', { b: badge(msg.from), n: missed }));
-    bubble(msg.from, msg.at, got.text);
+    bubble(msg.from, msg.at, got.text, msg.h);
+    if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
+  } else if (msg.type === 'seen') {
+    if (msg.from === you) return;
+    try {
+      const r = checkKeys(await open(key, msg), msg, seen, Date.now(), 'seen');
+      if (current() && r && Array.isArray(r.l)) gotSeen(msg.from, r.l);
+    } catch {}
   }
+}
+
+// Delivery receipts. Each page tells the room, sealed with the passphrase key
+// (so the relay can neither read nor forge them), which v3 messages it has
+// shown: a list of [sender, chain position], gathered for SEEN_EVERY. The
+// sender's own messages then say how many of those present when it went out
+// have it. Only with a relay that passes them on (2.8 and later).
+const SEEN_EVERY = 1500, SEEN_MAX = 60;
+let seenQueue = [], seenTimer = null;
+const ownSeen = new Map(); // chain position → { el, total, by: Set }, the last 50 own messages
+const earlySeen = new Map(); // receipts that came before the message itself came back
+function queueSeen(from, h) {
+  if (!relaySeen) return;
+  seenQueue.push([from, h]);
+  if (!seenTimer) seenTimer = setTimeout(flushSeen, SEEN_EVERY);
+}
+async function flushSeen() {
+  seenTimer = null;
+  const sock = ws;
+  const list = seenQueue.splice(0, SEEN_MAX);
+  if (seenQueue.length) seenTimer = setTimeout(flushSeen, SEEN_EVERY);
+  if (!list.length || !sock || sock.readyState !== WebSocket.OPEN || !relaySeen) return;
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const plain = JSON.stringify({ kind: 'seen', id, from: you, t: Date.now(), l: list });
+  const frame = JSON.stringify({ type: 'seen', ...(await seal(key, plain)) });
+  if (ws === sock && sock.readyState === WebSocket.OPEN) sock.send(frame);
+}
+function trackSeen(h, el) {
+  const others = (present ?? []).filter((n) => n !== you);
+  if (!others.length) return;
+  const entry = { el, total: others.length, by: new Set(earlySeen.get(h) ?? []) };
+  earlySeen.delete(h);
+  ownSeen.set(h, entry);
+  while (ownSeen.size > 50) ownSeen.delete(ownSeen.keys().next().value);
+  showSeen(entry);
+}
+function gotSeen(from, list) {
+  for (const item of list.slice(0, SEEN_MAX)) {
+    if (!Array.isArray(item) || item[0] !== you || typeof item[1] !== 'string') continue;
+    const entry = ownSeen.get(item[1]);
+    if (entry) { entry.by.add(from); showSeen(entry); continue; }
+    if (!earlySeen.has(item[1])) earlySeen.set(item[1], new Set());
+    earlySeen.get(item[1]).add(from);
+    while (earlySeen.size > 50) earlySeen.delete(earlySeen.keys().next().value);
+  }
+}
+function showSeen({ el, total, by }) {
+  if (!by.size) return;
+  const n = Math.min(by.size, total);
+  el.textContent = n >= total ? t('seen.all') : t('seen.some', { n, total });
+  el.title = t('seen.title');
+  el.classList.toggle('all', n >= total);
 }
 
 // Messages waiting for a chain this page lacks: at most HELD_MAX, for at most
@@ -724,6 +786,10 @@ function leave() {
   $('allowOld').checked = false;
   firstSeen.clear();
   ownSent.clear();
+  ownSeen.clear();
+  earlySeen.clear();
+  seenQueue = [];
+  relaySeen = false;
   clearTimeout(keysTimer);
   keysHello = false;
   fsShown = '';

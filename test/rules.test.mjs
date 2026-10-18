@@ -190,3 +190,14 @@ test('frames: the longest message the page allows gets through', async () => {
   assert.ok(frame.length <= MAX_FRAME);
   assert.ok(checkFrame(frame, { window: 0, count: 0 }, 1e12)?.msg);
 });
+
+test('delivery receipts pass on like key frames, and beyond their budget are dropped, not punished', async () => {
+  const { SEEN_PER_10S } = await import('../src/rules.js');
+  const frame = JSON.stringify({ type: 'seen', iv: 'AAAAAAAAAAAAAAAA', ct: 'A'.repeat(40) });
+  const st = { window: 0, count: 0 };
+  const t = 1e12;
+  for (let i = 0; i < SEEN_PER_10S; i++) assert.ok(checkFrame(frame, st, t).seen);
+  assert.equal(checkFrame(frame, st, t), null);
+  assert.equal(st.bad ?? 0, 0);
+  assert.ok(checkFrame(frame, st, t + 10000).seen, 'a new window, a new budget');
+});

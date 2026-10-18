@@ -9,6 +9,9 @@ export const GAP_SLACK = 250;           // allowance for network jitter
 export const LOCK_GAP = 2000;           // at least this long between one person's lock changes
 export const KEYS_PER_10S = 40;         // v3 key announcements per connection per 10 seconds (also count above). A page sends one or two a second, but one joining a full room as a low number sends up to 13 at once (ML-KEM secrets are large)
 export const BAD_FRAMES = 5;            // malformed frames tolerated before the connection is closed
+// Delivery receipts (sealed lists of messages a page has read; see app.js):
+// a page sends at most one every 1.5 seconds; more are dropped, not punished.
+export const SEEN_PER_10S = 10;
 export const PINGS_PER_10S = 4;         // heartbeats per connection per 10 seconds (the page sends one every 25)
 export const JOINS_PER_MINUTE = 60;     // per address (a 25-person room behind one NAT or VPN exit must fit)
 export const GRACE = 2 * 60 * 1000;     // how long a dropped member may come back, even to a locked room
@@ -178,6 +181,7 @@ export function awayNumbers(book, now = Date.now()) {
 //   { wait: ms }                a message too soon after the last one
 //   { msg: { iv, ct, h? }, at } a message to pass on
 //   { key: { iv, ct } }         a v3 key announcement to pass on (no spacing)
+//   { seen: { iv, ct } }        delivery receipts to pass on
 //   null                        ignore
 export function checkFrame(raw, state, now = Date.now()) {
   const window = Math.floor(now / 10000);
@@ -199,8 +203,13 @@ export function checkFrame(raw, state, now = Date.now()) {
     state.lockAt = now;
     return msg.type === 'lock' ? { lock: msg.locked } : { remove: msg.n };
   }
-  if (msg.type !== 'msg' && msg.type !== 'key') return bad();
+  if (msg.type !== 'msg' && msg.type !== 'key' && msg.type !== 'seen') return bad();
   if (typeof msg.iv !== 'string' || typeof msg.ct !== 'string' || !IV.test(msg.iv) || !CT.test(msg.ct)) return bad();
+  if (msg.type === 'seen') {
+    state.seen = state.seenWindow === window ? (state.seen ?? 0) + 1 : 1;
+    state.seenWindow = window;
+    return state.seen > SEEN_PER_10S ? null : { seen: { iv: msg.iv, ct: msg.ct } };
+  }
   if (msg.type === 'key') {
     state.keys = state.keysWindow === window ? (state.keys ?? 0) + 1 : 1;
     state.keysWindow = window;

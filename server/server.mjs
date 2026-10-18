@@ -218,7 +218,7 @@ function enter(ws, roomId, ip, resume) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true });
   members(room);
 
   ws.on('pong', () => { ws.alive = true; });
@@ -246,6 +246,7 @@ function enter(ws, roomId, ip, resume) {
       return members(room);
     }
     if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
+    if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });
     broadcast(room, { type: 'msg', from: n, at: r.at, ...r.msg });
   });
   ws.on('close', (code) => {
