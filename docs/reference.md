@@ -46,7 +46,7 @@ Cloudflare 版的设置在 `wrangler.jsonc`：进房限速是 `ratelimits` 里�
 
 | 路径 | 内容 |
 | :--- | :--- |
-| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js` 与 `lang/`（界面文字，12 种语言）、`crypto.js`（密钥派生与加解密）、`group.js`（协议 v3：前向保密、签名、ML-KEM）、`game.js`（游戏「暗号潜伏」的规则与词库）、`escape.js`（游戏「密电逃脱」的出题、判定与规则）、`trade.js`（游戏「密约交易所」：配对、承诺与亮牌、计分）、`vendor/mlkem.js`（ML-KEM-768，由 `scripts/build-mlkem.sh` 从 noble-post-quantum 打包）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
+| `dist/` | 网页：`index.html`、`app.js`（界面与连接）、`i18n.js` 与 `lang/`（界面文字，12 种语言）、`crypto.js`（密钥派生与加解密）、`group.js`（协议 v3：前向保密、签名、ML-KEM）、`game.js`（游戏「暗号潜伏」的规则与词库）、`escape.js`（游戏「密电逃脱」的出题、判定与规则）、`trade.js`（游戏「密约交易所」：配对、承诺与亮牌、计分）、`mission.js`（游戏「秘密任务」：词库、抽任务与承诺、核对、计分）、`vendor/mlkem.js`（ML-KEM-768，由 `scripts/build-mlkem.sh` 从 noble-post-quantum 打包）、`state.js`（暗号与消息规则）、`help.html`（使用说明，由 `scripts/build-help.mjs` 生成）、`_headers`（安全响应头） |
 | `src/worker.js` | Cloudflare Worker：静态资源 + `/ws/<房间>` WebSocket 转发（每个房间一个 Durable Object，不存储任何内容） |
 | `src/rules.js` | 两种服务器共用的规则：人数、编号、发送间隔、限速 |
 | `server/server.mjs` | Node.js 版服务器（Docker、VPS、局域网都用它），与 Worker 行为一致 |

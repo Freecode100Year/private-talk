@@ -7,6 +7,7 @@ import { Group } from './group.js';
 import { deal, apply as applyUndercover, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
 import * as Escape from './escape.js';
 import * as Pact from './trade.js';
+import * as Mission from './mission.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -544,6 +545,7 @@ async function handle(data, sock, started, retry = false) {
       return;
     }
     bubble(msg.from, msg.at, got.text, msg.h);
+    missionChat(msg.from, got.id, got.text);
     if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
   } else if (msg.type === 'seen') {
     if (msg.from === you) return;
@@ -565,19 +567,31 @@ let dealer = null;      // this page deals: { gid, secret, ballots: Map(voter �
 let gameOut = [];       // game events waiting for the send allowance: [text, g]
 let gameTick = 0;
 const gameRoom = () => present ?? [];
-// Which game an event belongs to: 'spy' (暗号潜伏), 'esc' or 'tr'.
-const kindOf = (g, s = game) => (g.k.startsWith('esc-') ? 'esc' : g.k.startsWith('tr-') ? 'tr' : g.k === 'new' ? 'spy' : s?.type ?? 'spy');
+// Which game an event belongs to: 'spy' (暗号潜伏), 'esc', 'tr' or 'sm'.
+const kindOf = (g, s = game) => {
+  const prefix = /^(esc|tr|sm)-/.exec(g.k);
+  return prefix ? prefix[1] : g.k === 'new' ? 'spy' : s?.type ?? 'spy';
+};
 function applyGame(s, g, from, now) {
   if (typeof g?.k !== 'string') return { s, note: null };
   const kind = kindOf(g, s);
-  return kind === 'esc' ? Escape.apply(s, g, from, now) : kind === 'tr' ? Pact.apply(s, g, from, now) : applyUndercover(s, g, from, now);
+  const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply }[kind] ?? applyUndercover;
+  return rules(s, g, from, now);
 }
-const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire' };
+const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire' };
+// 秘密任务: this page's mission ({ gid, target, word, salt, h, claimed,
+// answered }), the chat during the game ({ id, from, text }) and where in it
+// each player's mission began.
+let myMission = null;
+let chatLog = [];
+const pickedAt = new Map();
+const usedWords = [];
 let myPact = null;      // this page's choice this round (密约交易所): { r, c, salt, h, shown }
 const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
   const n = gameRoom().length;
-  const [min, max] = kind === 'esc' ? [Escape.MIN_PLAYERS, Escape.MAX_PLAYERS] : kind === 'tr' ? [Pact.MIN_PLAYERS, Pact.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
+  const rules = { esc: Escape, tr: Pact, sm: Mission }[kind];
+  const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && n >= min && n <= max && group.quantumSafe(gameRoom());
 }
 // Game events go out one by one, as the allowance permits.
@@ -619,6 +633,12 @@ async function startEscape() {
   myWord = '';
   queueGame({ k: 'esc-new', ...d.deal, cards });
 }
+function startMission() {
+  if (!canStartGame('sm')) return;
+  const g = Mission.newGame(gameRoom());
+  dealer = { gid: g.gid, done: new Set() };
+  queueGame(g);
+}
 function startPact() {
   if (!canStartGame('tr')) return;
   const g = Pact.newGame(gameRoom());
@@ -643,6 +663,19 @@ async function gameEvent(g, from) {
     try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
   }
   if (g.k === 'tr-new' && (!game || game.phase === 'over')) { myPact = null; myWord = ''; myClues = null; }
+  if (g.k === 'sm-new' && (!game || game.phase === 'over')) { myMission = null; chatLog = []; pickedAt.clear(); usedWords.length = 0; myWord = ''; myClues = null; }
+  // A shown mission counts only if it matches its commitment (and, when done,
+  // if the target really said the word after the mission began); every page
+  // checks for itself.
+  if (game?.type === 'sm' && g.gid === game.gid && ['sm-done', 'sm-ans', 'sm-show'].includes(g.k) && (g.k !== 'sm-ans' || g.yes === true)) {
+    const m = game.missions[from];
+    let ok = !!m && await Mission.check(game.gid, from, m.h, g.target, g.word, g.salt);
+    if (ok && g.k === 'sm-done') {
+      const at = chatLog.findIndex((x) => x.id === g.mid);
+      ok = at >= (pickedAt.get(from) ?? Infinity) && chatLog[at].from === g.target && Mission.says(chatLog[at].text, g.word);
+    }
+    g = { ...g, ok };
+  }
   // A shown choice counts only if it matches its commitment; every page
   // checks for itself (whatever ok the sender put in).
   if (g.k === 'tr-show') {
@@ -664,8 +697,9 @@ async function gameEvent(g, from) {
   const before = game;
   const { s, note } = applyGame(game, g, from, Date.now());
   game = s;
+  if (g.k === 'sm-pick' && game?.type === 'sm' && before?.missions && !before.missions[from] && game.missions[from]) pickedAt.set(from, chatLog.length);
   if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
-  if (before !== game) { renderGame(); dealerStep(); pactStep(); }
+  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); }
   if (note?.k === 'say') return { tag: { cls: 'said', label: `🗣 ${t('game.said')}` } };
   return note ? shown : null;
 }
@@ -682,6 +716,7 @@ function gameNote(note) {
   }
   if (note.k === 'abort') system(t('game.aborted'));
   if (note.k.startsWith('tr-')) pactNote(note);
+  if (note.k.startsWith('sm-')) missionNote(note);
   if (note.k === 'esc-new') system(t('esc.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('esc.hold')}` : ''));
   if (note.k === 'esc-new' || note.k === 'esc-open') {
     if (note.k === 'esc-open') system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
@@ -712,6 +747,22 @@ function pactNote(note) {
   if (note.k === 'tr-note') system(t('tr.noted', { b: badge(note.n), to: badge(note.to) }));
   if (note.k === 'tr-gone') system(t('tr.gone', { b: badge(note.n) }));
 }
+function missionNote(note) {
+  const b = (n) => badge(n);
+  if (note.k === 'sm-new') system(t('sm.started', { b: b(note.by), list: note.players.map(b).join(' ') }) + (note.players.includes(you) ? ` ${t('sm.hold')}` : ''));
+  if (note.k === 'sm-done') system(t('sm.done', { b: b(note.n), t: b(note.target), w: note.word, p: Mission.POINTS.done }));
+  if (note.k === 'sm-guess') system(t('sm.guess', { by: b(note.by), n: b(note.n), w: note.word }));
+  if (note.k === 'sm-caught') system(t('sm.caught', { n: b(note.n), t: b(note.target), w: note.word, by: b(note.by), p: Mission.POINTS.caught }));
+  if (note.k === 'sm-wrong') system(t('sm.wrong', { by: b(note.by), p: -Mission.POINTS.wrong }));
+  if (note.k === 'sm-void') system(t('sm.void', { n: b(note.n) }));
+  if (note.k === 'sm-cheat') system(t('sm.cheat', { n: b(note.n), w: note.word, p: -Mission.POINTS.cheat }));
+  if (note.k === 'sm-show') system(t('sm.show', { n: b(note.n), t: b(note.target), w: note.word }));
+  if (note.k === 'sm-end') system(missionEndText(game.end));
+}
+function missionEndText(end) {
+  const scores = game.players.slice().sort((a, b) => end.score[b] - end.score[a]).map((n) => `${badge(n)} ${end.score[n]}`).join('，');
+  return t('sm.end', { list: scores, w: end.winners.map(badge).join(' ') });
+}
 function pactEndText(end) {
   const scores = game.players.slice().sort((a, b) => end.score[b] - end.score[a]).map((n) => `${badge(n)} ${end.score[n]}`).join('，');
   const betrayals = game.players.map((n) => `${badge(n)} ${end.betrayals[n]}`).join('，');
@@ -731,6 +782,9 @@ function endGame() {
   myClues = null;
   myPact = null;
   myNotes.clear();
+  myMission = null;
+  chatLog = [];
+  pickedAt.clear();
   dealer = null;
   gameOut = [];
   clearInterval(gameTick);
@@ -745,6 +799,55 @@ function gameMembers() {
   }
   renderGame();
   dealerStep();
+}
+// 秘密任务: what this page does by itself: draw a mission when it has none,
+// answer a guess, show its mission at the end.
+async function missionStep() {
+  if (game?.type !== 'sm' || !game.players.includes(you)) return;
+  const { gid } = game;
+  const held = game.missions[you];
+  if (game.phase === 'play' && !held && (!myMission || myMission.gid !== gid || myMission.h === undefined || myMission.used)) {
+    if (myMission?.drawing) return;
+    myMission = { gid, drawing: true };
+    const m = await Mission.draw(gid, you, game.players, document.documentElement.lang, usedWords);
+    if (game?.gid !== gid || game.phase !== 'play') return;
+    usedWords.push(m.word);
+    myMission = { gid, ...m };
+    queueGame({ k: 'sm-pick', gid, h: m.h });
+    return;
+  }
+  if (!held || !myMission || myMission.h !== held.h) return;
+  // Once the mission is gone (done or caught), the next one is drawn.
+  const guess = game.guesses[you];
+  if (game.phase === 'play' && guess && myMission.answered !== `${guess.by}|${guess.at}`) {
+    myMission.answered = `${guess.by}|${guess.at}`;
+    const yes = Mission.norm(guess.word) === Mission.norm(myMission.word);
+    queueGame(yes ? { k: 'sm-ans', gid, yes, target: myMission.target, word: myMission.word, salt: myMission.salt } : { k: 'sm-ans', gid, yes });
+    if (yes) myMission.used = true;
+  }
+  if (game.phase === 'over' && game.end && !held.shown && !myMission.showing) {
+    myMission.showing = true;
+    queueGame({ k: 'sm-show', gid, target: myMission.target, word: myMission.word, salt: myMission.salt });
+  }
+}
+// A chat message during 秘密任务: kept to check missions against, and this
+// page's mission is done if it came from the target with the word.
+function missionChat(from, id, text) {
+  if (game?.type !== 'sm' || game.phase !== 'play') return;
+  chatLog.push({ id, from, text });
+  const held = game.missions[you];
+  if (held && myMission?.h === held.h && !myMission.used && from === myMission.target && Mission.says(text, myMission.word)) {
+    myMission.used = true;
+    queueGame({ k: 'sm-done', gid: game.gid, h: held.h, target: myMission.target, word: myMission.word, salt: myMission.salt, mid: id });
+  }
+}
+function guessWord() {
+  const n = Number($('smWho').value);
+  const word = $('smWord').value.trim().slice(0, 40);
+  if (game?.type !== 'sm' || game.phase !== 'play' || !n || !word) return;
+  if (!game.missions[n] || game.guesses[n]) return system(t('sm.busy', { n: badge(n) }));
+  $('smWord').value = '';
+  queueGame({ k: 'sm-guess', gid: game.gid, n, word });
 }
 // 密约交易所: show this page's choice once the choices are opened.
 function pactStep() {
@@ -776,6 +879,11 @@ function dealerStep() {
   const here = gameRoom();
   const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
   const gid = game.gid;
+  if (game.type === 'sm') {
+    const g = Mission.dealerMove(game, Date.now());
+    if (g) once(g.k === 'sm-void' ? `void|${g.n}|${game.guesses[g.n].at}` : g.k, g);
+    return;
+  }
   if (game.type === 'tr') {
     const g = Pact.dealerMove(game, here, Date.now());
     if (g) once(`${g.k}|${g.n ?? game.round}`, g);
@@ -818,12 +926,16 @@ function renderGame() {
   $('escStart').disabled = !canStartGame('esc');
   $('trStart').disabled = !canStartGame('tr');
   $('trStart').title = t('game.startHint', { min: Pact.MIN_PLAYERS, max: Pact.MAX_PLAYERS });
+  $('smStart').disabled = !canStartGame('sm');
+  $('smStart').title = t('game.startHint', { min: Mission.MIN_PLAYERS, max: Mission.MAX_PLAYERS });
   $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
   if (game.type === 'esc') return renderEscape();
   if (game.type === 'tr') return renderPact();
+  if (game.type === 'sm') return renderMission();
   $('escForm').hidden = true;
   $('trForm').hidden = true;
+  $('smForm').hidden = true;
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('game.holdButton');
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
   const playing = game.players.includes(you);
@@ -868,11 +980,37 @@ function renderEscape() {
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('esc.holdButton');
   $('gameVotes').replaceChildren();
   $('trForm').hidden = true;
+  $('smForm').hidden = true;
   $('escForm').hidden = over || !playing;
   $('escCode').maxLength = Escape.LOCKS[game.lock] ?? 5;
   $('escCode').placeholder = '•'.repeat(Escape.LOCKS[game.lock] ?? 5);
   $('escCode').title = t('esc.codeHint', { len: Escape.LOCKS[game.lock] ?? 5 });
   $('escTry').disabled = !!game.trying;
+  $('gameEnd').hidden = !(dealer && !over);
+  $('gameClose').hidden = !over;
+  $('messageInput').placeholder = t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+function renderMission() {
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const over = game.phase === 'over';
+  const playing = game.players.includes(you);
+  $('gameTitle').textContent = t('sm.title', { m: Math.floor(left / 60), s: String(left % 60).padStart(2, '0') });
+  $('gameLine').textContent = over ? (game.end ? missionEndText(game.end) : t('game.aborted')) : playing ? t('sm.line', { d: game.done[you] }) : t('sm.watching');
+  $('gamePlayers').textContent = game.players.map((n) => `${gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`}${game.score[n]}`).join(' ');
+  $('gameWord').hidden = over || !playing;
+  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('sm.holdButton');
+  $('gameVotes').replaceChildren();
+  $('escForm').hidden = true;
+  $('trForm').hidden = true;
+  $('smForm').hidden = over || !playing;
+  const others = game.players.filter((n) => n !== you);
+  const who = $('smWho');
+  if (who.dataset.list !== others.join()) {
+    who.replaceChildren(...others.map((n) => { const o = document.createElement('option'); o.value = n; o.textContent = badge(n); return o; }));
+    who.dataset.list = others.join();
+  }
   $('gameEnd').hidden = !(dealer && !over);
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
@@ -896,6 +1034,7 @@ function renderPact() {
   $('gamePlayers').textContent = game.players.map((n) => `${gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`}${game.score[n]}`).join(' ');
   $('gameWord').hidden = true;
   $('escForm').hidden = true;
+  $('smForm').hidden = true;
   const votes = $('gameVotes');
   const canChoose = !over && game.phase === 'talk' && partner && !locked;
   if (!canChoose) votes.replaceChildren();
@@ -939,6 +1078,9 @@ $('escForm').addEventListener('submit', (e) => { e.preventDefault(); tryCode(); 
 $('escTry').addEventListener('pointerdown', (e) => e.preventDefault());
 $('escStart').addEventListener('click', () => { startEscape(); });
 $('trStart').addEventListener('click', () => { startPact(); });
+$('smStart').addEventListener('click', () => { startMission(); });
+$('smForm').addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
+$('smGuess').addEventListener('pointerdown', (e) => e.preventDefault());
 $('trForm').addEventListener('submit', (e) => { e.preventDefault(); passNote(); });
 $('trSend').addEventListener('pointerdown', (e) => e.preventDefault());
 $('gameStart').addEventListener('click', () => { startGame(); });
@@ -947,7 +1089,9 @@ $('gameClose').addEventListener('click', () => { endGame(); });
 // The card shows only while it is held down.
 const showWord = (on) => {
   const esc = game?.type === 'esc';
-  $('gameWord').textContent = on ? (esc ? clueLines() : myWord) : t(esc ? 'esc.holdButton' : 'game.holdButton');
+  const sm = game?.type === 'sm';
+  const mission = sm && myMission?.word && game.missions[you]?.h === myMission.h ? t('sm.mission', { t: badge(myMission.target), w: myMission.word }) : t('sm.drawing');
+  $('gameWord').textContent = on ? (esc ? clueLines() : sm ? mission : myWord) : t(esc ? 'esc.holdButton' : sm ? 'sm.holdButton' : 'game.holdButton');
   $('gameWord').classList.toggle('open', on);
 };
 $('gameWord').addEventListener('pointerdown', (e) => { e.preventDefault(); showWord(true); });

@@ -193,4 +193,6 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 .tr-form input{width:min(260px,52vw);letter-spacing:0;font:inherit;font-size:14px}
 .pact-keep{border-color:#43c787!important}
 .pact-betray{border-color:#e0605a!important}
+.sm-form select{min-height:36px;padding:4px 6px;border:1px solid #2e6a8c;border-radius:8px;background:#0a1826;color:#f0f8ff}
+.sm-form input{width:min(140px,36vw);letter-spacing:0;font:inherit;font-size:14px}
 @media(max-width:600px){.game-panel{padding:10px 16px;font-size:14px}.game-actions .secondary-button,.ghost-button{min-height:44px;font-size:14px}}
