@@ -62,7 +62,7 @@ cd private-talk-docker
 
 ```sh
 docker run -d --name private-talk --restart unless-stopped --read-only --cap-drop ALL \
-  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2.12.0   # 写具体版本
+  -p 127.0.0.1:8080:8080 -e TRUST_PROXY=1 ghcr.io/freecode100year/private-talk:2.12.1   # 写具体版本
 ```
 
 ## 3. 确认部署成功

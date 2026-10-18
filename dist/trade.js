@@ -34,7 +34,7 @@ const rand = (n) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
 function seeded(text) {
   let x = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) x = Math.imul(x ^ text.charCodeAt(i), 0x01000193) >>> 0;
-  x ||= 1;
+  if (!x) x = 1;
   return (n) => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x % n; };
 }
 const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');

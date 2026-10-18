@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 版本号，例如 2.12.0（留空 = 最新发布）
+        description: 版本号，例如 2.12.1（留空 = 最新发布）
         required: false
 permissions:
   contents: write
