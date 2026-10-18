@@ -1,6 +1,6 @@
 // 狼人杀 with seven real pages: one judges, six play (two wolves, seer,
 // witch, two villagers). Each page plays its role through the panel; the
-// good side votes out the wolves and wins. Checks that roles stay private
+// good side votes for the wolves; the right side wins by 屠边 rules. Checks that roles stay private
 // until the end and that the seer and witch hear from the judge.
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
@@ -71,7 +71,12 @@ while (Date.now() - start < 9 * 60000 && !ended) {
 }
 ok(ended, `the game ends (${Math.round((Date.now() - start) / 1000)} s)`);
 const end = await text(players[0]);
-ok(end.includes('好人获胜'), 'the good side wins after voting out the wolves');
+// Who wins depends on whom the wolves kill (killing both the seer and the
+// witch wins it for them); check the winner against the roles left alive.
+const dead = new Set([...end.matchAll(/(?:昨晚死亡的是：|开枪带走了 )([^。]+)。|([^\s。，→：]+) 被放逐/g)].flatMap((m) => (m[1] ?? m[2]).split(' ')));
+const left = me.filter((x) => !dead.has(x)).map((x) => roleOf(me.indexOf(x)));
+const expect = !left.includes('wolf') ? '好人获胜' : !left.includes('villager') || !left.some((r) => ['seer', 'witch', 'hunter'].includes(r)) ? '狼人获胜' : '?';
+ok(end.includes(expect), `the right side wins (${expect}; left: ${left.join(' ')})`);
 ok(/身份：.*狼人/.test(end), 'all roles are revealed at the end');
 const seer = players[me.findIndex((_, i) => roleOf(i) === 'seer')];
 ok((await text(seer)).includes('🔮 你查验了') || (await text(seer)).includes('你今晚没有查验'), 'the seer heard from the judge');
@@ -81,6 +86,7 @@ const villager = players[me.findIndex((_, i) => roleOf(i) === 'villager')];
 ok(!/🔮 你查验了|🧪 今晚被杀/.test(await text(villager)), "a villager does not see the seer's or witch's answers");
 ok(/遗言 · /.test(await text(judge)), 'last words are marked as such');
 ok(!(await text(judge)).includes('无法解密'), 'no unreadable messages');
+if (fails) console.log((await text(judge)).split('\n').filter((l) => l.trim() && !/^\S+$/.test(l.trim())).slice(-45).join('\n'));
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
 process.exit(fails ? 1 : 0);
