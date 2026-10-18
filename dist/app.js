@@ -6,6 +6,7 @@ import { deriveRoom, seal, open } from './crypto.js';
 import { Group } from './group.js';
 import { deal, apply as applyUndercover, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
 import * as Escape from './escape.js';
+import * as Pact from './trade.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -166,7 +167,8 @@ function system(text) {
   append(div, atBottom());
 }
 
-function bubble(from, at, text, h, said = false) {
+// tag: a game label for the message, { cls, label }, or null.
+function bubble(from, at, text, h, tag = null) {
   const mine = from === you;
   const row = document.createElement('article');
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
@@ -190,9 +192,9 @@ function bubble(from, at, text, h, said = false) {
   const p = document.createElement('p');
   p.className = 'bubble';
   p.textContent = text;
-  if (said) {
-    row.classList.add('said');
-    who.prepend(`🗣 ${t('game.said')} · `);
+  if (tag) {
+    row.classList.add(tag.cls);
+    who.prepend(`${tag.label} · `);
   }
   body.append(who, p);
   if (mine) row.append(body, avatar);
@@ -535,9 +537,9 @@ async function handle(data, sock, started, retry = false) {
     // A game event: shown by the game panel, except descriptions, which are
     // messages too.
     if (got.g && group && relayV3) {
-      const said = await gameEvent(got.g, msg.from);
+      const shown = await gameEvent(got.g, msg.from);
       if (!current()) return;
-      if (said) bubble(msg.from, msg.at, got.text, msg.h, true);
+      if (shown) bubble(msg.from, msg.at, shown.text ?? got.text, msg.h, shown.tag);
       if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
       return;
     }
@@ -563,14 +565,19 @@ let dealer = null;      // this page deals: { gid, secret, ballots: Map(voter �
 let gameOut = [];       // game events waiting for the send allowance: [text, g]
 let gameTick = 0;
 const gameRoom = () => present ?? [];
-const isEscape = (g) => g.k.startsWith('esc-');
+// Which game an event belongs to: 'spy' (暗号潜伏), 'esc' or 'tr'.
+const kindOf = (g, s = game) => (g.k.startsWith('esc-') ? 'esc' : g.k.startsWith('tr-') ? 'tr' : g.k === 'new' ? 'spy' : s?.type ?? 'spy');
 function applyGame(s, g, from, now) {
   if (typeof g?.k !== 'string') return { s, note: null };
-  return isEscape(g) || (s?.type === 'esc' && g.k !== 'new') ? Escape.apply(s, g, from, now) : applyUndercover(s, g, from, now);
+  const kind = kindOf(g, s);
+  return kind === 'esc' ? Escape.apply(s, g, from, now) : kind === 'tr' ? Pact.apply(s, g, from, now) : applyUndercover(s, g, from, now);
 }
+const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire' };
+let myPact = null;      // this page's choice this round (密约交易所): { r, c, salt, h, shown }
+const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
   const n = gameRoom().length;
-  const [min, max] = kind === 'esc' ? [Escape.MIN_PLAYERS, Escape.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
+  const [min, max] = kind === 'esc' ? [Escape.MIN_PLAYERS, Escape.MAX_PLAYERS] : kind === 'tr' ? [Pact.MIN_PLAYERS, Pact.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && n >= min && n <= max && group.quantumSafe(gameRoom());
 }
 // Game events go out one by one, as the allowance permits.
@@ -585,7 +592,7 @@ async function pumpGame() {
   try {
     while (gameOut.length && online) {
       if (pending || Date.now() < cooldownUntil) { await new Promise((r) => setTimeout(r, 250)); continue; }
-      if (await sendMessage(t(isEscape(gameOut[0]) || game?.type === 'esc' ? 'esc.wire' : 'game.wire'), gameOut[0], false)) gameOut.shift();
+      if (await sendMessage(t(WIRE[kindOf(gameOut[0])]), gameOut[0], false)) gameOut.shift();
       else await new Promise((r) => setTimeout(r, 1000));
     }
   } finally { pumping = false; }
@@ -612,6 +619,15 @@ async function startEscape() {
   myWord = '';
   queueGame({ k: 'esc-new', ...d.deal, cards });
 }
+function startPact() {
+  if (!canStartGame('tr')) return;
+  const g = Pact.newGame(gameRoom());
+  dealer = { gid: g.gid, done: new Set() };
+  myWord = '';
+  myClues = null;
+  myPact = null;
+  queueGame(g);
+}
 // Takes in one game event from a message. Returns true for a description
 // (shown as a message too).
 async function gameEvent(g, from) {
@@ -626,12 +642,32 @@ async function gameEvent(g, from) {
   if (g.k === 'ballot' && dealer && game && g.gid === dealer.gid && from !== you && game.phase === 'vote' && !game.voted.includes(from)) {
     try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
   }
+  if (g.k === 'tr-new' && (!game || game.phase === 'over')) { myPact = null; myWord = ''; myClues = null; }
+  // A shown choice counts only if it matches its commitment; every page
+  // checks for itself (whatever ok the sender put in).
+  if (g.k === 'tr-show') {
+    const ok = game?.type === 'tr' && g.gid === game.gid && !!game.locks[from] && await Pact.check(game.gid, g.r, from, game.locks[from], g.c, g.salt);
+    g = { ...g, ok };
+  }
+  let shown = null;
+  if (g.k === 'tr-note' && game?.type === 'tr' && g.gid === game.gid) {
+    if (from === you && myNotes.has(g.id)) {
+      const n = myNotes.get(g.id);
+      myNotes.delete(g.id);
+      shown = { text: n.text, tag: { cls: 'whisper', label: `🤫 ${t('tr.noteTo', { b: badge(n.to) })}` } };
+    } else if (g.to === you) {
+      let text = '';
+      try { text = await group.openFrom(from, g.w, `note|${g.gid}|${g.id}`); } catch {}
+      if (text && text.length <= Pact.NOTE_MAX) shown = { text, tag: { cls: 'whisper', label: `🤫 ${t('tr.noteFrom')}` } };
+    }
+  }
   const before = game;
   const { s, note } = applyGame(game, g, from, Date.now());
   game = s;
-  if (note) gameNote(note);
-  if (before !== game) { renderGame(); dealerStep(); }
-  return note?.k === 'say';
+  if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
+  if (before !== game) { renderGame(); dealerStep(); pactStep(); }
+  if (note?.k === 'say') return { tag: { cls: 'said', label: `🗣 ${t('game.said')}` } };
+  return note ? shown : null;
 }
 function gameNote(note) {
   const list = (ns) => ns.map(badge).join(' ');
@@ -645,6 +681,7 @@ function gameNote(note) {
     if (note.end) system(endText(note.end));
   }
   if (note.k === 'abort') system(t('game.aborted'));
+  if (note.k.startsWith('tr-')) pactNote(note);
   if (note.k === 'esc-new') system(t('esc.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('esc.hold')}` : ''));
   if (note.k === 'esc-new' || note.k === 'esc-open') {
     if (note.k === 'esc-open') system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
@@ -659,6 +696,28 @@ function gameNote(note) {
     system(escEndText(game.end));
   }
 }
+const choiceWord = (c) => t(c === 'betray' ? 'tr.betrayWord' : 'tr.keepWord');
+const pairList = (pairs) => pairs.map(([a, b]) => `${badge(a)}↔${badge(b)}`).join('，');
+function pactNote(note) {
+  const list = (ns) => ns.map(badge).join(' ');
+  if (note.k === 'tr-new') system(t('tr.started', { b: badge(note.by), list: list(note.players) }));
+  if (note.k === 'tr-result') {
+    const lines = note.results.map((x) => t('tr.result', { a: badge(x.a), ca: choiceWord(x.ca), b: badge(x.b), cb: choiceWord(x.cb), pa: x.pa, pb: x.pb }));
+    system(`${t('tr.roundEnd', { r: note.round })}${lines.join('；')}。`);
+    for (const x of note.results) for (const n of x.hid) system(t('tr.hid', { b: badge(n) }));
+    if (note.end) system(pactEndText(note.end));
+  }
+  if (note.k === 'tr-new' || (note.k === 'tr-result' && !note.end)) {
+    system(t('tr.pairs', { r: game.round, list: pairList(game.pairs) }) + (game.rest ? ` ${t('tr.rest', { b: badge(game.rest) })}` : ''));
+  }
+  if (note.k === 'tr-note') system(t('tr.noted', { b: badge(note.n), to: badge(note.to) }));
+  if (note.k === 'tr-gone') system(t('tr.gone', { b: badge(note.n) }));
+}
+function pactEndText(end) {
+  const scores = game.players.slice().sort((a, b) => end.score[b] - end.score[a]).map((n) => `${badge(n)} ${end.score[n]}`).join('，');
+  const betrayals = game.players.map((n) => `${badge(n)} ${end.betrayals[n]}`).join('，');
+  return `${t('tr.end', { list: scores, w: end.winners.map(badge).join(' ') })} ${t('tr.betrayals', { list: betrayals })}`;
+}
 function escEndText(end) {
   const codes = end.codes ? ` ${t('esc.codes', { codes: end.codes.join(' · ') })}` : '';
   return t(end.win ? 'esc.win' : end.why === 'time' ? 'esc.timeUp' : 'esc.alarm') + codes;
@@ -671,6 +730,8 @@ function endGame() {
   game = null;
   myWord = '';
   myClues = null;
+  myPact = null;
+  myNotes.clear();
   dealer = null;
   gameOut = [];
   clearInterval(gameTick);
@@ -686,6 +747,29 @@ function gameMembers() {
   renderGame();
   dealerStep();
 }
+// 密约交易所: show this page's choice once the choices are opened.
+function pactStep() {
+  if (game?.type !== 'tr' || game.phase !== 'open' || !myPact || myPact.r !== game.round || myPact.shown || !game.locks[you]) return;
+  myPact.shown = true;
+  queueGame({ k: 'tr-show', gid: game.gid, r: myPact.r, c: myPact.c, salt: myPact.salt });
+}
+async function choose(c) {
+  if (game?.type !== 'tr' || game.phase !== 'talk' || !Pact.partnerOf(game, you) || game.locks[you] || myPact?.r === game.round) return;
+  const { gid, round } = game;
+  myPact = { r: round, ...(await Pact.commit(gid, round, you, c)), shown: false };
+  renderGame();
+  queueGame({ k: 'tr-lock', gid, r: round, h: myPact.h });
+}
+async function passNote() {
+  const to = game?.type === 'tr' && game.phase !== 'over' ? Pact.partnerOf(game, you) : 0;
+  const text = checkMessage($('trNote').value).slice(0, Pact.NOTE_MAX);
+  if (!to || !text) return;
+  const id = Pact.noteId();
+  const w = await group.sealFor(to, text, `note|${game.gid}|${id}`);
+  myNotes.set(id, { to, text });
+  $('trNote').value = '';
+  queueGame({ k: 'tr-note', gid: game.gid, to, id, w });
+}
 // What only the dealer's page does: skip someone whose turn ran out (or who
 // left), call the vote after the talk, count once all votes are in.
 function dealerStep() {
@@ -693,6 +777,11 @@ function dealerStep() {
   const here = gameRoom();
   const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
   const gid = game.gid;
+  if (game.type === 'tr') {
+    const g = Pact.dealerMove(game, here, Date.now());
+    if (g) once(`${g.k}|${g.n ?? game.round}`, g);
+    return;
+  }
   if (game.type === 'esc') {
     // Make a leaver's clues public; judge a try; call the time.
     for (const n of game.players) if (!here.includes(n) && !game.dropped[n]) once(`drop|${n}`, { k: 'esc-drop', gid, n, clues: dealer.hands.get(n) });
@@ -728,10 +817,14 @@ function renderGame() {
   $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
   panel.hidden = !game;
   $('escStart').disabled = !canStartGame('esc');
+  $('trStart').disabled = !canStartGame('tr');
+  $('trStart').title = t('game.startHint', { min: Pact.MIN_PLAYERS, max: Pact.MAX_PLAYERS });
   $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
   if (game.type === 'esc') return renderEscape();
+  if (game.type === 'tr') return renderPact();
   $('escForm').hidden = true;
+  $('trForm').hidden = true;
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('game.holdButton');
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
   const playing = game.players.includes(you);
@@ -775,11 +868,51 @@ function renderEscape() {
   $('gameWord').hidden = over || (!myClues && !Object.keys(game.dropped).length);
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('esc.holdButton');
   $('gameVotes').replaceChildren();
+  $('trForm').hidden = true;
   $('escForm').hidden = over || !playing;
   $('escCode').maxLength = Escape.LOCKS[game.lock] ?? 5;
   $('escCode').placeholder = '•'.repeat(Escape.LOCKS[game.lock] ?? 5);
   $('escCode').title = t('esc.codeHint', { len: Escape.LOCKS[game.lock] ?? 5 });
   $('escTry').disabled = !!game.trying;
+  $('gameEnd').hidden = !(dealer && !over);
+  $('gameClose').hidden = !over;
+  $('messageInput').placeholder = t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+function renderPact() {
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const over = game.phase === 'over';
+  const partner = Pact.partnerOf(game, you);
+  const locked = !!game.locks[you] || myPact?.r === game.round;
+  $('gameTitle').textContent = t('tr.title', { r: game.round, n: Pact.ROUNDS });
+  let line;
+  if (over) line = game.end ? pactEndText(game.end) : t('game.aborted');
+  else if (game.phase === 'open') line = t('tr.opening');
+  else if (!game.players.includes(you)) line = t('tr.watching', { s: left });
+  else if (!partner) line = t('tr.resting', { s: left });
+  else line = t('tr.line', { b: badge(partner), s: left }) + (locked && myPact ? ` ${t('tr.locked', { c: choiceWord(myPact.c) })}` : '');
+  if (!over && game.phase === 'talk') line += ` · ${t('tr.decided', { n: Object.keys(game.locks).length, total: game.pairs.length * 2 })}`;
+  $('gameLine').textContent = line;
+  $('gamePlayers').textContent = game.players.map((n) => `${gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`}${game.score[n]}`).join(' ');
+  $('gameWord').hidden = true;
+  $('escForm').hidden = true;
+  const votes = $('gameVotes');
+  const canChoose = !over && game.phase === 'talk' && partner && !locked;
+  if (!canChoose) votes.replaceChildren();
+  else if (!votes.childElementCount) {
+    votes.replaceChildren(...['keep', 'betray'].map((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `secondary-button pact-${c}`;
+      b.textContent = t(`tr.${c}`);
+      b.addEventListener('click', () => choose(c));
+      b.addEventListener('pointerdown', (e) => e.preventDefault()); // keep a phone's keyboard (and the panel) where it is
+      return b;
+    }));
+  }
+  $('trForm').hidden = over || !partner;
+  if (partner) $('trNote').placeholder = t('tr.notePh', { b: badge(partner) });
   $('gameEnd').hidden = !(dealer && !over);
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
@@ -806,6 +939,9 @@ $('escForm').addEventListener('submit', (e) => { e.preventDefault(); tryCode(); 
 // away would move the panel under the finger before the tap ends.
 $('escTry').addEventListener('pointerdown', (e) => e.preventDefault());
 $('escStart').addEventListener('click', () => { startEscape(); });
+$('trStart').addEventListener('click', () => { startPact(); });
+$('trForm').addEventListener('submit', (e) => { e.preventDefault(); passNote(); });
+$('trSend').addEventListener('pointerdown', (e) => e.preventDefault());
 $('gameStart').addEventListener('click', () => { startGame(); });
 $('gameEnd').addEventListener('click', () => { if (dealer && game) queueGame({ k: 'abort', gid: game.gid }); });
 $('gameClose').addEventListener('click', () => { endGame(); });

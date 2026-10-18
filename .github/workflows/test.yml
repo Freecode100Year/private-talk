@@ -73,7 +73,7 @@ jobs:
         run: |
           PORT=8099 node server/server.mjs &
           for i in $(seq 1 20); do curl -fs http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
-          for t in v3 verify faults full25 mixed receipts game escape; do echo "== $t"; node browser-tests/$t.mjs http://127.0.0.1:8099; done
+          for t in v3 verify faults full25 mixed receipts game escape trade; do echo "== $t"; node browser-tests/$t.mjs http://127.0.0.1:8099; done
 
   # The Cloudflare version in its own runtime (workerd, via wrangler dev; no
   # account needed): two clients chat through the Worker and Durable Object.

@@ -125,6 +125,7 @@
           <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
           <button class="secondary-button game-start" id="gameStart" type="button" disabled><span data-t="game.start">🕵️ 开一局暗号潜伏</span></button>
           <button class="secondary-button game-start" id="escStart" type="button" disabled><span data-t="esc.start">🔐 开一局密电逃脱</span></button>
+          <button class="secondary-button game-start" id="trStart" type="button" disabled><span data-t="tr.start">🤝 开一局密约交易所</span></button>
           <div class="sidebar-actions">
             <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
             <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
@@ -167,6 +168,7 @@
               <button class="secondary-button game-word" id="gameWord" type="button" data-t="game.holdButton">按住看我的词</button>
               <span class="game-votes" id="gameVotes"></span>
               <form class="esc-form" id="escForm" hidden autocomplete="off"><input id="escCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" spellcheck="false" aria-label="密码" data-t-aria="esc.codeAria" /><button class="secondary-button" id="escTry" type="submit" data-t="esc.try">开锁</button></form>
+              <form class="esc-form tr-form" id="trForm" hidden autocomplete="off"><input id="trNote" maxlength="200" spellcheck="false" aria-label="纸条" data-t-aria="tr.noteAria" /><button class="secondary-button" id="trSend" type="submit" data-t="tr.noteSend">递纸条</button></form>
               <button class="ghost-button" id="gameEnd" type="button" hidden data-t="game.end">结束本局</button>
               <button class="ghost-button" id="gameClose" type="button" hidden data-t="game.close">关闭</button>
             </div>

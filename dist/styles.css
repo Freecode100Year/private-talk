@@ -189,4 +189,8 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 .game-votes .secondary-button{min-width:48px}
 .ghost-button{background:transparent;border:1px solid #31506b;border-radius:6px;color:#9fb8cc;min-height:36px;padding:6px 12px;font-size:11px}
 .message.said .bubble{border-color:#d9a441;box-shadow:0 0 0 1px #d9a44155}
+.message.whisper .bubble{border:1px dashed #b48cf0;background:#2a1d45;color:#efe6ff}
+.tr-form input{width:min(260px,52vw);letter-spacing:0;font:inherit;font-size:14px}
+.pact-keep{border-color:#43c787!important}
+.pact-betray{border-color:#e0605a!important}
 @media(max-width:600px){.game-panel{padding:10px 16px;font-size:14px}.game-actions .secondary-button,.ghost-button{min-height:44px;font-size:14px}}
