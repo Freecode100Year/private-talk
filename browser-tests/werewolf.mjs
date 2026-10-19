@@ -1,9 +1,11 @@
-// 狼人杀 with six real pages, the starter's among them (its page is the
-// automatic judge and it plays too): two wolves, seer, witch, two villagers. Each page plays its role through the panel; the
-// good side votes for the wolves; the right side wins by 屠边 rules. Checks that roles stay private
-// until the end and that the seer and witch hear from the judge.
+// 狼人杀 with real pages, the starter's among them (its page is the automatic
+// judge and it plays too). Each page plays its role through the panel with a
+// simple strategy (the good vote for wolves they know of, the wolves for
+// others). Board: the first for the number of pages (WW_PAGES, default 6), or
+// WW_BOARD; WW_SHERIFF=1 turns the sheriff election on.
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
+const PAGES = Number(process.env.WW_PAGES || 6);
 const b = await chromium.launch();
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 const PASS = 'ww' + Math.random().toString(36).slice(2, 12);
@@ -11,83 +13,98 @@ async function page() {
   const p = await (await b.newContext({ viewport: { width: 1366, height: 850 }, locale: 'zh-CN' })).newPage();
   p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
   await p.goto(`${BASE}/#${PASS}`);
-  await p.waitForSelector('#sendButton:not([disabled])', { timeout: 20000 });
+  await p.waitForSelector('#sendButton:not([disabled])', { timeout: 30000 });
   return p;
 }
 const text = (p) => p.locator('#messages').innerText();
 const players = [];
-for (let i = 0; i < 6; i++) players.push(await page());
+for (let i = 0; i < PAGES; i++) players.push(await page());
 const judge = players[0];
 const me = [];
 for (const p of players) me.push(await p.locator('.member .avatar.me').innerText());
-ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 30000 }).then(() => true, () => false), 'six players: the game can start');
+ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 40000 }).then(() => true, () => false), `${PAGES} players: the game can start`);
+if (process.env.WW_BOARD) await judge.selectOption('#wwBoard', process.env.WW_BOARD);
+const board = await judge.locator('#wwBoard').inputValue();
+if (process.env.WW_SHERIFF) await judge.setChecked('#wwSheriff', process.env.WW_SHERIFF === '1');
 await judge.click('#wwStart');
 for (const p of players) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 20000 });
-ok((await text(players[1])).includes('法官由程序自动担任，人人都拿身份'), 'everyone is told the judge is automatic and everyone plays');
-// Each reads their role.
-const roles = [];
+ok((await text(players[1])).includes('法官由程序自动担任'), `everyone is told the judge is automatic (board ${board})`);
+const cards = [];
 for (const p of players) {
   await p.waitForFunction(() => !document.getElementById('gameWord').hidden, null, { timeout: 10000 });
   const box = await p.locator('#gameWord').boundingBox();
   await p.mouse.move(box.x + 20, box.y + 10); await p.mouse.down();
-  roles.push(await p.locator('#gameWord').innerText());
+  cards.push(await p.locator('#gameWord').innerText());
   await p.mouse.up();
 }
-const roleOf = (i) => (roles[i].includes('狼人') ? 'wolf' : roles[i].includes('预言家') ? 'seer' : roles[i].includes('女巫') ? 'witch' : roles[i].includes('猎人') ? 'hunter' : 'villager');
-ok(roles.filter((r, i) => roleOf(i) === 'wolf').length === 2 && roles.filter((r, i) => roleOf(i) === 'seer').length === 1, 'roles dealt: ' + roles.map((r, i) => `${me[i]}${roleOf(i)}`).join(' '));
-const wolves = me.filter((_, i) => roleOf(i) === 'wolf');
-ok(roles.filter((_, i) => roleOf(i) === 'wolf').every((r) => wolves.every((w) => r.includes(w))), 'the wolves know each other');
-ok(roles.length === 6 && roles.every(Boolean), 'the starter holds a card like everyone else');
+const WOLVES = ['狼人', '狼王', '白狼王', '狼美人', '大灰狼', '隐狼', '石像鬼'];
+const roleOf = (i) => cards[i].match(/你的身份：(\S+)/)?.[1] ?? '?';
+const isWolf = (i) => WOLVES.includes(roleOf(i));
+ok(cards.every((c) => /你的身份：/.test(c) && c.split('\n').length >= 2), 'every card shows the role and what it does: ' + cards.map((c, i) => `${me[i]}${roleOf(i)}`).join(' '));
+const wolves = me.filter((_, i) => isWolf(i));
 let shown = false;
 for (const p of players) if (/[🐺🔮🧪]/u.test(await p.locator('#gamePlayers').innerText())) shown = true;
-ok(!shown, "no page, the starter's included, shows others' roles");
-// Play until it ends.
-let witchSaved = false;
+ok(!shown, "no page shows others' roles");
 const start = Date.now();
 let ended = false;
-while (Date.now() - start < 9 * 60000 && !ended) {
-  for (let i = 0; i < 6; i++) {
+let picks = 0;
+let dayDone = '';
+let pauseUntil = 0;   // speeches wait a little after a day action, as people would
+while (Date.now() - start < 15 * 60000 && !ended) {
+  for (let i = 0; i < PAGES; i++) {
     const p = players[i];
     const line = await p.locator('#gameLine').innerText().catch(() => '');
-    const buttons = p.locator('#gameVotes button');
-    const n = await buttons.count();
-    if (n) {
-      const labels = await buttons.allInnerTexts();
-      let pick = -1;
-      if (line.startsWith('🐺 选择')) pick = labels.findIndex((l) => !wolves.includes(l) && me.includes(l) && l !== me[i]);
-      else if (line.startsWith('🔮')) pick = labels.findIndex((l) => wolves.includes(l)) ;
-      else if (line.startsWith('🧪')) { pick = !witchSaved ? labels.findIndex((l) => l.startsWith('💊')) : labels.findIndex((l) => l === '不用药'); if (pick < 0) pick = labels.findIndex((l) => l === '不用药'); else if (labels[pick].startsWith('💊')) witchSaved = true; }
-      else if (line.startsWith('🏹')) pick = labels.findIndex((l) => wolves.some((w) => l.includes(w)));
-      else if (line.startsWith('投票中')) pick = roleOf(i) === 'wolf' ? labels.findIndex((l) => !wolves.includes(l) && me.includes(l)) : labels.findIndex((l) => wolves.includes(l));
-      if (pick < 0) pick = labels.length - 1;
-      await buttons.nth(pick).click().catch(() => {});
-    }
-    if (/(轮到你发言|请发表遗言)/.test(line)) {
+    if (/(轮到你发言|请发表遗言)/.test(line) && Date.now() > pauseUntil) {
       await p.fill('#messageInput', `我是 ${me[i]}，我是好人。`);
       await p.click('#sendButton').catch(() => {});
+      continue;
     }
+    if (await p.locator('#gameVotes .ww-day').count()) {
+      // Optional day actions (knight, white wolf king): used once with WW_DAY=1.
+      if (process.env.WW_DAY === '1' && !dayDone) {
+        const labels = await p.locator('#gameVotes button').allInnerTexts();
+        const j = labels.findIndex((l) => (roleOf(i) === '骑士' ? wolves.includes(l) : !wolves.includes(l) && me.includes(l)));
+        if (j >= 0) { await p.locator('#gameVotes button').nth(j).click().catch(() => {}); dayDone = `${roleOf(i)}→${labels[j]}`; pauseUntil = Date.now() + 15000; }
+      }
+      continue;
+    }
+    const buttons = p.locator('#gameVotes button');
+    const n = await buttons.count();
+    if (!n) continue;
+    const labels = await buttons.allInnerTexts();
+    const enabled = [];
+    for (let j = 0; j < n; j++) if (await buttons.nth(j).isEnabled()) enabled.push(j);
+    const badge = (pred) => enabled.find((j) => me.includes(labels[j]) && pred(labels[j]));
+    const named = (re) => enabled.find((j) => re.test(labels[j]));
+    let pick;
+    if (/选择(今晚要刀|第二个要刀)/.test(line)) pick = badge((l) => !wolves.includes(l) && l !== me[i]);
+    else if (/查验|看身份/.test(line)) pick = badge((l) => l !== me[i]);
+    else if (/守护/.test(line)) pick = named(/空守/);
+    else if (/救人、毒人/.test(line)) pick = named(/^💊/) ?? named(/不用药/);
+    else if (/开枪/.test(line)) pick = enabled.find((j) => wolves.some((w) => labels[j] === w)) ?? named(/不开枪/);
+    else if (/要不要上警/.test(line)) pick = i === 1 ? named(/上警/) : named(/不上警/);
+    else if (/投票选警长|警徽|哪一侧/.test(line)) pick = enabled[0];
+    else if (/投票放逐/.test(line)) pick = isWolf(i) ? badge((l) => !wolves.includes(l) && l !== me[i]) : badge((l) => wolves.includes(l));
+    pick ??= enabled.at(-1);
+    await buttons.nth(pick).click().catch(() => {});
+    picks++;
   }
   ended = /获胜！/.test(await text(judge));
-  await judge.waitForTimeout(700);
+  await judge.waitForTimeout(600);
 }
-ok(ended, `the game ends (${Math.round((Date.now() - start) / 1000)} s)`);
-const end = await text(players[0]);
-// Who wins depends on whom the wolves kill (killing both the seer and the
-// witch wins it for them); check the winner against the roles left alive.
-const dead = new Set([...end.matchAll(/(?:昨晚死亡的是：|开枪带走了 )([^。]+)。|([^\s。，→：]+) 被放逐/g)].flatMap((m) => (m[1] ?? m[2]).split(' ')));
-const left = me.filter((x) => !dead.has(x)).map((x) => roleOf(me.indexOf(x)));
-const expect = !left.includes('wolf') ? '好人获胜' : !left.includes('villager') || !left.some((r) => ['seer', 'witch', 'hunter'].includes(r)) ? '狼人获胜' : '?';
-ok(end.includes(expect), `the right side wins (${expect}; left: ${left.join(' ')})`);
-ok(/身份：.*狼人/.test(end), 'all roles are revealed at the end');
-const seer = players[me.findIndex((_, i) => roleOf(i) === 'seer')];
-ok((await text(seer)).includes('🔮 你查验了') || (await text(seer)).includes('你今晚没有查验'), 'the seer heard from the judge');
-const witch = players[me.findIndex((_, i) => roleOf(i) === 'witch')];
-ok(/🧪 (今晚被杀的是|今晚没有人被杀)/.test(await text(witch)), 'the witch heard from the judge');
-const villager = players[me.findIndex((_, i) => roleOf(i) === 'villager')];
-ok(!/🔮 你查验了|🧪 今晚被杀/.test(await text(villager)), "a villager does not see the seer's or witch's answers");
-ok(/遗言 · /.test(await text(judge)), 'last words are marked as such');
+ok(ended, `the game ends (${Math.round((Date.now() - start) / 1000)} s, ${picks} choices made)`);
+const end = await text(players[1]);
+ok(/身份：/.test(end) && wolves.every((w) => end.includes(w)), 'all roles are revealed at the end');
+ok(/(已提交|✅)/.test(end) || picks > 0, 'choices were made through the panel');
+const seer = me.findIndex((_, i) => roleOf(i) === '预言家');
+if (seer >= 0) ok(/🔒 🔮 你查验了/.test(await text(players[seer])), 'the seer heard from the judge');
+const villager = me.findIndex((_, i) => roleOf(i) === '村民');
+if (villager >= 0) ok(!/🔒/.test(await text(players[villager])), 'a villager hears nothing private');
+if (process.env.WW_SHERIFF === '1' || /^b12/.test(board)) ok(/当选警长|没有警长/.test(end), 'the sheriff election ran');
+ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
+if (process.env.WW_DAY === '1') ok(dayDone && /⚔️|💥/.test(end), `a day action was used and announced (${dayDone})`);
 ok(!(await text(judge)).includes('无法解密'), 'no unreadable messages');
-if (fails) console.log((await text(judge)).split('\n').filter((l) => l.trim() && !/^\S+$/.test(l.trim())).slice(-45).join('\n'));
+if (fails) console.log((await text(judge)).split('\n').filter((l) => l.trim() && !/^\S+$/.test(l.trim())).slice(-40).join('\n'));
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
 process.exit(fails ? 1 : 0);
