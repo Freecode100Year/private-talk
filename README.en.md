@@ -2,7 +2,7 @@
 
 [中文](README.md)
 
-**Android**: [online APK (0.9 MB, website built in)](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.15.1/PrivateTalk-online-v2.15.1.apk) · [offline APK (58 MB, arm64, no internet needed: one phone's hotspot is the server)](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v13/PrivateTalk-offline-arm64-v13.apk)
+**Android**: [online APK (0.9 MB, website built in)](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.15.2/PrivateTalk-online-v2.15.2.apk) · [offline APK (58 MB, arm64, no internet needed: one phone's hotspot is the server)](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v14/PrivateTalk-offline-arm64-v14.apk)
 
 ![Private Talk: only for those who know the passphrase, and nothing left behind](docs/images/banner.jpg)
 
