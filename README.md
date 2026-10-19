@@ -4,7 +4,7 @@
 
 **iPhone / iPad**：[添加本项目的 iOS 捷径「隐匿对话」](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)
 
-**安卓**：[联网版 APK（0.9 MB，网页内置）](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.15.0/PrivateTalk-online-v2.15.0.apk) · [离线版 APK（58 MB，arm64，免互联网，一部手机开热点当服务器）](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v12/PrivateTalk-offline-arm64-v12.apk)（说明与校验值：[联网版](https://github.com/Freecode100Year/private-talk/releases/tag/android-online-v2.15.0)、[离线版](https://github.com/Freecode100Year/private-talk/releases/tag/android-offline-v12)）
+**安卓**：[联网版 APK（0.9 MB，网页内置）](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.15.1/PrivateTalk-online-v2.15.1.apk) · [离线版 APK（58 MB，arm64，免互联网，一部手机开热点当服务器）](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v13/PrivateTalk-offline-arm64-v13.apk)（说明与校验值：[联网版](https://github.com/Freecode100Year/private-talk/releases/tag/android-online-v2.15.1)、[离线版](https://github.com/Freecode100Year/private-talk/releases/tag/android-offline-v13)）
 
 ![隐匿对话 Private Talk：只给知道暗号的人，聊完不留痕](docs/images/banner.jpg)
 
