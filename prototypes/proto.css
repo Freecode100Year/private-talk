@@ -1,0 +1,42 @@
+/* Prototype styles (not the site's): the 2.18 night-sky palette, plain CSS,
+   no fonts or pictures from elsewhere, nothing Chrome 83 lacks. */
+:root{--bg0:#150f42;--bg1:#1d1458;--bg2:#2c1a86;--card:#ffffff12;--card2:#ffffff1c;--line:#ffffff26;--text:#f4f1ff;--muted:#c9bff2;--dim:#9d92d4;--gold1:#ffd84d;--gold2:#ffb21a;--gold-ink:#3b2200;--lav:#f1edff;--lav-ink:#2b1d63;--pink:#ff4f9a;--mint:#3ee6c1;--red:#ff6b6b}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font:15px/1.6 Inter,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--text);background:linear-gradient(180deg,var(--bg2) 0,var(--bg1) 480px,var(--bg0) 100%) fixed;background-color:var(--bg0);min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+a{color:var(--gold1)}
+.proto-bar{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;align-items:center;padding:6px 12px;background:#000c;color:#fff;font-size:12px;border-bottom:2px dashed var(--gold1)}
+.proto-bar>*{margin:3px 10px 3px 0}
+.proto-bar b{color:var(--gold1)}
+.proto-bar label{display:flex;align-items:center}
+.proto-bar input{margin-right:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:999px;font-weight:700;transition:transform .1s,box-shadow .1s}
+.btn:active{transform:translateY(2px)}
+.btn-gold{background:linear-gradient(180deg,var(--gold1),var(--gold2));color:var(--gold-ink);box-shadow:0 4px 0 #c97d00}
+.btn-gold:active{box-shadow:0 1px 0 #c97d00}
+.btn-ghost{background:var(--card);border:1px solid var(--line);color:var(--text)}
+.btn-pink{background:var(--pink);color:#fff;box-shadow:0 4px 0 #b3245f}
+.btn-mint{background:var(--mint);color:#063b30;box-shadow:0 4px 0 #1b9c80}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn-sm{min-height:36px;padding:0 14px;font-size:13px}
+.chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12px;color:var(--muted);white-space:nowrap}
+.chip.live{color:#063b30;background:var(--mint);border:0;font-weight:700}
+.chip.warn{color:#fff;background:#ff4f9a55;border-color:var(--pink)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mint);margin-right:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px}
+.sheet-wrap{position:fixed;inset:0;z-index:60;background:#08052acc;display:flex;align-items:flex-end;justify-content:center}
+.sheet-wrap[hidden]{display:none}
+.sheet{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:linear-gradient(170deg,#3b25a8,#24187a);border-radius:24px 24px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -10px 40px #0008}
+@media(min-width:700px){.sheet-wrap{align-items:center}.sheet{border-radius:24px}}
+.sheet h3{margin:0 0 6px;font-size:20px}
+.sheet .x{float:right;width:40px;height:40px;border-radius:50%;background:var(--card);font-size:18px}
+.muted{color:var(--muted)}
+.dim{color:var(--dim);font-size:13px}
+.row{display:flex;flex-wrap:wrap;align-items:center}
+.row>*{margin:0 8px 8px 0}
+.note{font-size:12px;color:var(--muted);background:#ffffff0d;border-left:3px solid var(--gold1);padding:8px 10px;border-radius:8px}
+.note.pink{border-color:var(--pink)}
+input.text{width:100%;height:50px;border-radius:14px;border:2px solid #d6ccff;background:#fff;color:var(--lav-ink);padding:0 14px;font-size:16px}
+.proto-bar select{background:#2a2a2a;color:#fff;border:1px solid #666;border-radius:6px;height:28px}

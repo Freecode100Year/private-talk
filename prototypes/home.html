@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>原型 · 首页 · Private Talk</title>
+<link rel="stylesheet" href="proto.css" />
+<style>
+header{display:flex;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:14px 20px}
+.brand{display:flex;align-items:center;font-weight:800;font-size:20px}
+.brand i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;border:2px solid var(--gold1);margin-right:10px;font-style:normal}
+.brand b{color:var(--gold1);margin-left:4px}
+nav{display:flex;align-items:center}
+nav a,nav select{margin-left:14px;color:var(--muted);text-decoration:none;font-size:14px}
+nav select{background:var(--card);border:1px solid var(--line);border-radius:10px;height:36px;padding:0 8px}
+main{max-width:1200px;margin:0 auto;padding:10px 20px 40px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:start;padding:30px 0 24px;position:relative}
+.moon{position:absolute;right:4%;top:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,#fff6d9 0,#fff6d980 35%,transparent 70%);opacity:.5;pointer-events:none}
+h1{font-size:46px;line-height:1.15;margin:0 0 14px;letter-spacing:-1px}
+h1 span{color:var(--gold1)}
+.lead{color:var(--muted);font-size:17px;margin:0 0 22px;max-width:560px}
+.ctas .btn{min-height:58px;font-size:17px;padding:0 26px}
+.ctas .btn small{display:block;font-weight:500;font-size:12px;opacity:.8}
+.ctas .btn{flex-direction:column;line-height:1.2}
+.promise{margin-top:18px}
+.promise .chip{margin:0 6px 6px 0}
+.lobby{padding:18px}
+.lobby h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;justify-content:space-between}
+.table-row{display:flex;align-items:center;padding:12px;border-radius:14px;background:var(--card);margin-top:10px}
+.table-row .em{font-size:26px;width:42px}
+.table-row .info{flex:1;min-width:0}
+.table-row .info b{display:block}
+.seats{display:flex;margin-top:4px}
+.seats i{width:12px;height:12px;border-radius:50%;margin-right:3px;background:#ffffff30}
+.seats i.on{background:var(--mint)}
+.empty{text-align:center;padding:26px 10px;color:var(--muted)}
+.empty .big{font-size:34px}
+.section-title{display:flex;align-items:baseline;justify-content:space-between;margin:26px 0 12px}
+.section-title h2{margin:0;font-size:20px}
+.games{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.game{display:flex;flex-direction:column;text-align:left;padding:16px;min-height:150px;border-radius:20px;background:var(--card);border:1px solid var(--line);color:var(--text);transition:background .15s}
+.game:hover{background:var(--card2)}
+.game .top{display:flex;justify-content:space-between;align-items:flex-start}
+.game .icon{font-size:32px;line-height:1}
+.game b{font-size:17px;margin-top:8px}
+.game .desc{font-size:13px;color:var(--muted);margin:2px 0 10px}
+.game .meta{margin-top:auto;display:flex;flex-wrap:wrap}
+.game .meta .chip{margin:0 6px 4px 0}
+.game.main{background:linear-gradient(160deg,#ff4f9a30,#ffffff10);border-color:#ff4f9a66}
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+.trust .card{padding:16px}
+.trust b{display:block;margin-bottom:4px}
+footer{max-width:1200px;margin:0 auto;padding:20px;color:var(--dim);font-size:13px;display:flex;flex-wrap:wrap;justify-content:space-between}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.pick button{padding:12px;border-radius:16px;background:var(--card);border:2px solid transparent;text-align:left;color:var(--text)}
+.pick button.on{border-color:var(--gold1);background:var(--card2)}
+.pick button span{display:block;font-size:12px;color:var(--muted)}
+.steps{display:flex;margin:4px 0 12px}
+.steps i{flex:1;height:4px;border-radius:2px;background:#ffffff30;margin-right:4px}
+.steps i.on{background:var(--gold1)}
+.tabs2{display:flex;background:#ffffff14;border-radius:999px;padding:4px;margin:12px 0}
+.tabs2 button{flex:1;height:40px;border-radius:999px;color:var(--muted)}
+.tabs2 button.on{background:var(--lav);color:var(--lav-ink);font-weight:700}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000d;color:#fff;padding:12px 18px;border-radius:12px;z-index:80;max-width:90vw;font-size:14px}
+.toast[hidden]{display:none}
+@media(max-width:820px){
+  .hero{grid-template-columns:1fr;padding-top:10px}
+  h1{font-size:34px}
+  .lead{font-size:15px}
+  .games{grid-template-columns:1fr 1fr;gap:10px}
+  .game{min-height:136px;padding:13px}
+  .game.main{grid-column:1/-1}
+  .trust{grid-template-columns:1fr}
+  nav a{display:none}
+  .ctas{display:grid !important;grid-template-columns:1fr}
+  .ctas .btn{width:100%;margin-right:0 !important}
+}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <b>原型演示</b>
+  <span>首页 · 窗口宽度自动切换桌面 / 手机</span>
+  <label><input type="radio" name="lobby" value="some" checked />大厅有人在等</label>
+  <label><input type="radio" name="lobby" value="none" />大厅空</label>
+  <label><input type="radio" name="lobby" value="off" />大厅不可用（离线版 / 关闭）</label>
+  <a href="index.html">← 原型目录</a>
+</div>
+<header>
+  <div class="brand"><i>🔒</i>Private<b>Talk</b></div>
+  <nav><a href="#">使用说明</a><a href="#">隐私说明</a><a href="#">安卓 App</a><select aria-label="语言"><option>简体中文</option><option>English</option><option>Español</option></select></nav>
+</header>
+<main>
+  <section class="hero">
+    <div class="moon" aria-hidden="true"></div>
+    <div>
+      <h1>一家不打烊的<br /><span>匿名桌游咖啡馆</span></h1>
+      <p class="lead">不注册、不下载、不用真名。找一张桌子坐下就能玩：狼人杀、暗号潜伏、骗子骰……也可以开一间只有朋友知道暗号的私密房间。</p>
+      <div class="row ctas">
+        <button class="btn btn-gold" id="quick">🎲 快速找一桌<small>和陌生人玩 · 公开桌</small></button>
+        <button class="btn btn-ghost" id="private">🔒 私密房间<small>知道暗号的人才能进</small></button>
+      </div>
+      <div class="promise"><span class="chip">✓ 无需注册</span><span class="chip">✓ 无需下载</span><span class="chip">✓ 端到端加密聊天</span><span class="chip">✓ 不留记录</span></div>
+    </div>
+    <div class="card lobby" id="lobby">
+      <h2><span>🪑 正在等人的公开桌</span><span class="chip live" id="liveChip"><span class="dot" style="background:#063b30"></span>实时</span></h2>
+      <div class="dim">数字来自服务器的公开桌列表；私密房间不会出现在这里。</div>
+      <div id="lobbyList"></div>
+    </div>
+  </section>
+
+  <div class="section-title"><h2>🎲 可以玩的游戏</h2><span class="dim">点卡片看规则，或直接开一桌</span></div>
+  <div class="games" id="games"></div>
+
+  <div class="trust">
+    <div class="card"><b>🔐 私密房间：服务器什么都看不到</b><span class="dim">聊天和牌局都在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
+    <div class="card"><b>🌍 公开桌：给陌生人快速开局</b><span class="dim">任何人都能加入；服务器当裁判，能看到牌局（谁是狼、骰子点数），看不到私密房间。</span></div>
+    <div class="card"><b>🧩 开源，可以自己部署</b><span class="dim">MIT 许可；安卓离线版一部手机就能当服务器。</span></div>
+  </div>
+</main>
+<footer><span>Private Talk · 隐匿对话 · 原型</span><span>开源 · MIT · 隐私说明</span></footer>
+
+<div class="sheet-wrap" id="sheet" hidden><div class="sheet" id="sheetBody"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+var GAMES = [
+  { id: 'ww', icon: '🐺', name: '狼人杀', desc: '程序当法官，人人都玩 · 23 种板子', p: '6–12 人', t: '20–40 分钟', main: true },
+  { id: 'spy', icon: '🕵️', name: '暗号潜伏', desc: '谁拿到了不一样的词？', p: '4–8 人', t: '10–15 分钟' },
+  { id: 'ld', icon: '🎲', name: '骗子骰', desc: '吹牛还是开？谁也偷看不到骰子', p: '2–8 人', t: '10–20 分钟' },
+  { id: 'esc', icon: '🔐', name: '密电逃脱', desc: '全队合作，拼线索开三道锁', p: '2–8 人', t: '≤12 分钟' },
+  { id: 'tr', icon: '🤝', name: '密约交易所', desc: '守约还是背叛？五轮囚徒困境', p: '2–8 人', t: '约 7 分钟' },
+  { id: 'sm', icon: '🎯', name: '秘密任务', desc: '暗中引导别人说出你的词', p: '3–8 人', t: '8 分钟' }
+];
+// Demo lobby data (the prototype's own, clearly fake): tables waiting.
+var DEMO = [
+  { game: 'ww', seats: 9, taken: 6, lang: '中文', age: '2 分钟前', board: '9 人预女守' },
+  { game: 'ld', seats: 6, taken: 2, lang: 'Español', age: '刚刚' },
+  { game: 'spy', seats: 6, taken: 4, lang: '中文', age: '5 分钟前' }
+];
+var mode = 'some';
+var $ = function (id) { return document.getElementById(id); };
+function g(id) { return GAMES.filter(function (x) { return x.id === id; })[0]; }
+function tables() { return mode === 'some' ? DEMO : []; }
+function waitingFor(id) {
+  if (mode === 'off') return null;
+  return tables().filter(function (x) { return x.game === id; }).reduce(function (a, x) { return a + x.taken; }, 0);
+}
+function seatDots(t) { var s = ''; for (var i = 0; i < t.seats; i++) s += '<i class="' + (i < t.taken ? 'on' : '') + '"></i>'; return s; }
+function renderLobby() {
+  var list = $('lobbyList');
+  $('liveChip').style.display = mode === 'off' ? 'none' : '';
+  if (mode === 'off') { list.innerHTML = '<div class="empty"><div class="big">📡</div>这台服务器没有开公开桌大厅（例如离线局域网版）。<br />可以开私密房间，把链接发给朋友。</div>'; return; }
+  var t = tables();
+  if (!t.length) { list.innerHTML = '<div class="empty"><div class="big">🪑</div>现在没有人在等。<br />开一张公开桌，第一个坐下吧。<div style="margin-top:12px"><button class="btn btn-gold btn-sm" onclick="quick()">开一张公开桌</button></div></div>'; return; }
+  list.innerHTML = t.map(function (x, i) {
+    var gm = g(x.game);
+    return '<div class="table-row"><span class="em">' + gm.icon + '</span><div class="info"><b>' + gm.name + (x.board ? ' · ' + x.board : '') + '</b><span class="dim">' + x.taken + '/' + x.seats + ' 人 · ' + x.lang + ' · ' + x.age + '</span><div class="seats">' + seatDots(x) + '</div></div><button class="btn btn-gold btn-sm" onclick="join(' + i + ')">坐下</button></div>';
+  }).join('');
+}
+function renderGames() {
+  $('games').innerHTML = GAMES.map(function (x) {
+    var w = waitingFor(x.id);
+    var wait = w === null ? '<span class="chip">等待人数：—</span>' : w ? '<span class="chip live">' + w + ' 人在等</span>' : '<span class="chip">暂无人等待</span>';
+    return '<button class="game' + (x.main ? ' main' : '') + '" onclick="detail(\'' + x.id + '\')"><div class="top"><span class="icon">' + x.icon + '</span>' + wait + '</div><b>' + x.name + '</b><span class="desc">' + x.desc + '</span><div class="meta"><span class="chip">👥 ' + x.p + '</span><span class="chip">⏱ ' + x.t + '</span></div></button>';
+  }).join('');
+}
+function openSheet(html) { $('sheetBody').innerHTML = '<button class="x" onclick="closeSheet()" aria-label="关闭">✕</button>' + html; $('sheet').hidden = false; }
+function closeSheet() { $('sheet').hidden = true; }
+$('sheet').addEventListener('click', function (e) { if (e.target === $('sheet')) closeSheet(); });
+function toast(t) { var el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(function () { el.hidden = true; }, 2600); }
+var chosen = 'ww';
+function quick() {
+  openSheet('<h3>🎲 快速找一桌</h3><div class="steps"><i class="on"></i><i></i></div><div class="muted">想玩什么？有人在等的会优先让你坐下。</div><div class="pick" id="pick">' +
+    GAMES.map(function (x) { var w = waitingFor(x.id); return '<button data-id="' + x.id + '" class="' + (x.id === chosen ? 'on' : '') + '">' + x.icon + ' ' + x.name + '<span>' + x.p + ' · ' + (w ? w + ' 人在等' : '暂无人等待') + '</span></button>'; }).join('') +
+    '</div><button class="btn btn-gold" style="width:100%" onclick="seat()">下一步</button>');
+  Array.prototype.forEach.call(document.querySelectorAll('#pick button'), function (b) { b.onclick = function () { chosen = b.dataset.id; quick(); }; });
+}
+function seat(t) {
+  var gm = g(t ? t.game : chosen);
+  var waiting = t || tables().filter(function (x) { return x.game === chosen; })[0];
+  openSheet('<h3>' + gm.icon + ' ' + (waiting ? '坐到等待中的桌子' : '开一张新公开桌') + '</h3><div class="steps"><i class="on"></i><i class="on"></i></div>' +
+    (waiting ? '<div class="table-row"><span class="em">' + gm.icon + '</span><div class="info"><b>' + gm.name + '</b><span class="dim">' + waiting.taken + '/' + waiting.seats + ' 人 · ' + waiting.lang + '</span><div class="seats">' + seatDots(waiting) + '</div></div></div>' : '<div class="muted" style="margin:8px 0">新桌子会出现在大厅里，等人坐满就开始；10 分钟没人来自动关闭。</div>') +
+    '<div style="margin:16px 0 6px">临时昵称（只在这张桌子用，不保存）</div><input class="text" id="nick" maxlength="12" value="夜行的猫" />' +
+    '<div class="note pink" style="margin:14px 0">公开桌：任何人都能进来；服务器当裁判，能看到牌局（身份、骰子点数），看不到私密房间；聊天加密传输，但桌上的人都看得到。不要在公开桌说私密的事。</div>' +
+    '<button class="btn btn-gold" style="width:100%" onclick="go()">坐下</button><div style="text-align:center;margin-top:10px"><button class="dim" onclick="quick()">← 换个游戏</button></div>');
+}
+function join(i) { seat(tables()[i]); }
+function go() { closeSheet(); toast('原型：这里会进入「游戏桌」页面'); setTimeout(function () { location.href = 'table.html'; }, 1200); }
+function privateRoom(tab) {
+  tab = tab || 'join';
+  openSheet('<h3>🔒 私密房间</h3><div class="muted">和现在一样：知道暗号的人才能进；服务器看不到聊天和牌局，也不会出现在大厅。</div><div class="tabs2"><button class="' + (tab === 'join' ? 'on' : '') + '" onclick="privateRoom(\'join\')">加入房间</button><button class="' + (tab === 'create' ? 'on' : '') + '" onclick="privateRoom(\'create\')">创建房间</button></div>' +
+    '<input class="text" placeholder="' + (tab === 'join' ? '输入房间暗号' : '') + '" value="' + (tab === 'create' ? '月光-松鼠-7342-蓝莓' : '') + '" />' +
+    '<div class="dim" style="margin:8px 0 14px">暗号就是钥匙，只通过可信的渠道告诉朋友。' + (tab === 'create' ? '已为你生成随机暗号。' : '') + '</div><button class="btn btn-gold" style="width:100%" onclick="closeSheet();toast(\'原型：进入私密房间（现有流程）\')">进入房间</button>');
+}
+function detail(id) {
+  var x = g(id);
+  var w = waitingFor(id);
+  openSheet('<h3>' + x.icon + ' ' + x.name + '</h3><div class="row" style="margin:8px 0"><span class="chip">👥 ' + x.p + '</span><span class="chip">⏱ ' + x.t + '</span><span class="chip">' + (w === null ? '等待人数：—' : w ? w + ' 人在等' : '暂无人等待') + '</span></div><p class="muted">' + x.desc + '。完整规则在这里展开（和现在「📖 规则」的内容相同）。</p>' +
+    '<button class="btn btn-gold" style="width:100%;margin-bottom:10px" onclick="chosen=\'' + id + '\';seat()">在公开桌玩</button><button class="btn btn-ghost" style="width:100%" onclick="privateRoom(\'create\')">开私密房间和朋友玩</button>');
+}
+window.quick = quick; window.seat = seat; window.join = join; window.go = go; window.privateRoom = privateRoom; window.detail = detail; window.closeSheet = closeSheet;
+$('quick').onclick = quick;
+$('private').onclick = function () { privateRoom('join'); };
+Array.prototype.forEach.call(document.querySelectorAll('input[name=lobby]'), function (r) { r.onchange = function () { mode = r.value; renderLobby(); renderGames(); }; });
+renderLobby(); renderGames();
+</script>
+</body>
+</html>
