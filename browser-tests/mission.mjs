@@ -55,19 +55,32 @@ ok(await until(pages[2], new RegExp(`${me[0]} 完成任务：让 ${m0.target} �
 ok(await pages[1].waitForFunction((b) => document.getElementById('gamePlayers').innerText.includes(`${b}3`), me[0], { timeout: 5000 }).then(() => true, () => false), 'three points on the board');
 const next = await mission(pages[0]);
 ok(next && `${next.target}${next.word}` !== `${m0.target}${m0.word}`, `a new mission is drawn: ${next?.target}「${next?.word}」`);
-// Page 1 guesses page 2's word right.
-await pages[1].selectOption('#smWho', await pages[1].locator('#smWho option', { hasText: me[2] }).getAttribute('value'));
-await pages[1].fill('#smWord', missions[2].word);
-await pages[1].click('#smGuess');
-ok(await until(pages[0], new RegExp(`猜中了！${me[2]} 的任务是让 ${missions[2].target} 说出「${missions[2].word}」`)), 'a right guess exposes the mission');
-// Page 2 guesses page 0's word wrong.
-await pages[2].selectOption('#smWho', await pages[2].locator('#smWho option', { hasText: me[0] }).getAttribute('value'));
-await pages[2].fill('#smWord', next.word === '星星' ? '月亮' : '星星');
-await pages[2].click('#smGuess');
-ok(await until(pages[1], new RegExp(`没猜中，${me[2]} −1`)), 'a wrong guess costs a point');
-const board = await pages[0].locator('#gamePlayers').innerText();
-ok(board.includes(`${me[0]}3`) && board.includes(`${me[1]}2`) && board.includes(`${me[2]}-1`), 'the board: ' + board);
+// Two pages may draw the very same mission (target and word); the target's
+// message then completes both. The one guessed below must still hold its
+// first mission, so it is one whose mission differs from page 0's.
+const same = (i) => missions[i].target === m0.target && missions[i].word === m0.word;
+const points = Object.fromEntries(me.map((x, i) => [x, i === 0 || same(i) ? 3 : 0]));
+const c = !same(2) ? 2 : !same(1) ? 1 : 0;   // guessed
+const a = c === 2 ? 1 : 2;                    // guesses
+if (!c) console.log('both other pages drew page 0\'s mission: the guesses are skipped');
+else {
+  // Page a guesses page c's word right.
+  await pages[a].selectOption('#smWho', await pages[a].locator('#smWho option', { hasText: me[c] }).getAttribute('value'));
+  await pages[a].fill('#smWord', missions[c].word);
+  await pages[a].click('#smGuess');
+  ok(await until(pages[0], new RegExp(`猜中了！${me[c]} 的任务是让 ${missions[c].target} 说出「${missions[c].word}」`)), 'a right guess exposes the mission');
+  points[me[a]] += 2;
+  // Page c guesses page 0's word wrong.
+  await pages[c].selectOption('#smWho', await pages[c].locator('#smWho option', { hasText: me[0] }).getAttribute('value'));
+  await pages[c].fill('#smWord', next.word === '星星' ? '月亮' : '星星');
+  await pages[c].click('#smGuess');
+  ok(await until(pages[a], new RegExp(`没猜中，${me[c]} −1`)), 'a wrong guess costs a point');
+  points[me[c]] -= 1;
+  const board = await pages[0].locator('#gamePlayers').innerText();
+  ok(me.every((x) => board.includes(`${x}${points[x]}`)), 'the board: ' + board);
+}
 ok(!(await text(pages[0])).includes('无法解密'), 'no unreadable messages');
+if (fails) for (const [i, p] of pages.entries()) console.log(`--- page ${me[i]} (mission ${missions[i]?.target}「${missions[i]?.word}」)\n` + (await text(p)).split('\n').filter((l) => /猜|任务|说出|揭穿|−|\+/.test(l)).slice(-12).join('\n'));
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
 process.exit(fails ? 1 : 0);
