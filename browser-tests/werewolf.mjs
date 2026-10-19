@@ -36,6 +36,7 @@ for (const p of players) {
   const box = await p.locator('#gameWord').boundingBox();
   await p.mouse.move(box.x + 20, box.y + 10); await p.mouse.down();
   cards.push(await p.locator('#gameWord').innerText());
+  await p.waitForTimeout(450);   // held, not tapped (a tap leaves it open)
   await p.mouse.up();
 }
 const WOLVES = ['狼人', '狼王', '白狼王', '狼美人', '大灰狼', '隐狼', '石像鬼'];

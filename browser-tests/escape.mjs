@@ -36,6 +36,7 @@ async function clues(p) {
   await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await p.mouse.down();
   const text = await p.locator('#gameWord').innerText();
+  await p.waitForTimeout(450);   // held, not tapped (a tap leaves it open)
   await p.mouse.up();
   return text;
 }

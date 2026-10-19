@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { detect, t, setLang, LANGS, TEXT } from '../dist/i18n.js';
+import { BOARDS } from '../dist/werewolf.js';
 
 test('language follows the browser list; others get English', () => {
   assert.equal(detect(['zh-CN']), 'zh-Hans');
@@ -61,4 +62,19 @@ test('every language has exactly the English keys, the same placeholders and the
       assert.equal(tags(text[k]), tags(en[k]), `${l} ${k} markup`);
     }
   }
+});
+
+test('the rules of every game and board are there in every language', () => {
+  setLang('zh-Hans');
+  const keys = Object.keys(TEXT['zh-Hans']).filter((k) => k.startsWith('rules.') || k.startsWith('game.hint.'));
+  assert.ok(keys.length >= 40);
+  for (const id of [...Object.keys(BOARDS), 'spy', 'esc', 'tr', 'sm', 'ww']) assert.ok(keys.includes(BOARDS[id] ? `rules.b.${id}` : `rules.${id}`), `rules for ${id}`);
+  for (const l of Object.keys(LANGS)) {
+    setLang(l);
+    for (const k of keys) {
+      assert.notEqual(t(k), k, `${l} is missing ${k}`);
+      assert.deepEqual((TEXT[l][k] ?? '').match(/\{\w+\}/g)?.sort() ?? null, TEXT['zh-Hans'][k].match(/\{\w+\}/g)?.sort() ?? null, `${l} ${k} keeps its placeholders`);
+    }
+  }
+  setLang('en');
 });

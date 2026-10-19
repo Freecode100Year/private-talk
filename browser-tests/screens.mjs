@@ -26,7 +26,7 @@ async function shot(p, name) {
   console.log('saved', name);
 }
 const holdCard = async (p) => p.evaluate(() => document.getElementById('gameWord').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
-const letGo = async (p) => p.evaluate(() => document.getElementById('gameWord').dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
+const letGo = async (p) => p.waitForTimeout(450).then(() => p.evaluate(() => document.getElementById('gameWord').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))));
 const line = (p) => p.locator('#gameLine').innerText().catch(() => '');
 const badgeOf = async (p) => { const x = await p.locator('.member .avatar.me').innerText(); return /^\d{2}$/.test(x) ? `#${x}` : x; };
 

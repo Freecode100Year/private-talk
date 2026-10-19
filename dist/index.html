@@ -130,6 +130,8 @@
           <button class="secondary-button game-start" id="smStart" type="button" disabled><span data-t="sm.start">🎯 开一局秘密任务</span></button>
           <div class="ww-setup"><select id="wwBoard" aria-label="板子" data-t-aria="ww.board"></select><label class="allow-old"><input type="checkbox" id="wwSheriff" /><span data-t="ww.sheriffOpt">警长竞选</span></label></div>
           <button class="secondary-button game-start" id="wwStart" type="button" disabled><span data-t="ww.start">🐺 开一局狼人杀</span></button>
+          <p class="sidebar-note game-hint" id="gameHint"></p>
+          <button class="secondary-button game-start" id="rulesButton" type="button"><span data-t="rules.button">📖 游戏规则</span></button>
           <div class="sidebar-actions">
             <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
             <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
@@ -174,6 +176,7 @@
               <form class="esc-form" id="escForm" hidden autocomplete="off"><input id="escCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" spellcheck="false" aria-label="密码" data-t-aria="esc.codeAria" /><button class="secondary-button" id="escTry" type="submit" data-t="esc.try">开锁</button></form>
               <form class="esc-form tr-form" id="trForm" hidden autocomplete="off"><input id="trNote" maxlength="200" spellcheck="false" aria-label="纸条" data-t-aria="tr.noteAria" /><button class="secondary-button" id="trSend" type="submit" data-t="tr.noteSend">递纸条</button></form>
               <form class="esc-form sm-form" id="smForm" hidden autocomplete="off"><select id="smWho" aria-label="猜谁" data-t-aria="sm.whoAria"></select><input id="smWord" maxlength="40" spellcheck="false" placeholder="猜他的词" data-t-ph="sm.guessPh" aria-label="猜的词" data-t-aria="sm.wordAria" /><button class="secondary-button" id="smGuess" type="submit" data-t="sm.guessBtn">揭穿</button></form>
+              <button class="ghost-button" id="gameRules" type="button" data-t="rules.panel">📖 规则</button>
               <button class="ghost-button" id="gameEnd" type="button" hidden data-t="game.end">结束本局</button>
               <button class="ghost-button" id="gameClose" type="button" hidden data-t="game.close">关闭</button>
             </div>
@@ -234,6 +237,13 @@
       <div class="qr-code" id="qrCode"></div>
       <p class="qr-note" data-t="qr.note">二维码里含房间暗号：只给要邀请的人当面扫，不要截图或转发。</p>
       <button class="primary-button" id="qrClose" type="button"><span data-t="qr.close">关闭</span><svg><use href="#i-arrow"/></svg></button>
+    </dialog>
+    <dialog class="rules-dialog" id="rulesDialog" aria-labelledby="rulesTitle">
+      <div class="dialog-top"><span class="overline">HOW TO PLAY</span><button class="icon-button" type="button" id="rulesX" aria-label="关闭" data-t-aria="rules.close"><svg><use href="#i-close"/></svg></button></div>
+      <h2 id="rulesTitle" data-t="rules.title">游戏规则</h2>
+      <select id="rulesPick" aria-label="选择要看规则的游戏" data-t-aria="rules.pickAria"></select>
+      <div class="rules-text" id="rulesText"></div>
+      <button class="primary-button" id="rulesClose" type="button"><span data-t="rules.close">关闭</span><svg><use href="#i-arrow"/></svg></button>
     </dialog>
     <script type="module" src="app.js"></script>
   </body>

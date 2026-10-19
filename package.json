@@ -1,6 +1,6 @@
 {
   "name": "private-talk",
-  "version": "2.16.2",
+  "version": "2.17.0",
   "description": "隐匿对话：匿名、临时、端对端加密的私密聊天室",
   "license": "MIT",
   "private": true,

@@ -28,10 +28,17 @@ for (const p of pages) {
   await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await p.mouse.down();
   words.push(await p.locator('#gameWord').innerText());
+  await p.waitForTimeout(450);   // held, not tapped (a tap leaves it open)
   await p.mouse.up();
 }
 const hidden = await pages[0].locator('#gameWord').innerText();
 ok(hidden.includes('按住'), 'the word hides again when let go: ' + hidden);
+// A tap (not a hold) leaves the word open until the next tap.
+await pages[1].click('#gameWord');
+await pages[1].waitForTimeout(600);
+ok((await pages[1].locator('#gameWord').innerText()) === words[1], 'a tap shows the word and leaves it open');
+await pages[1].click('#gameWord');
+ok((await pages[1].locator('#gameWord').innerText()).includes('按住'), 'another tap hides it');
 const counts = new Map(); for (const w of words) counts.set(w, (counts.get(w) ?? 0) + 1);
 ok(counts.size === 2 && [...counts.values()].sort().join() === '1,3', 'three share a word, one has another: ' + words.join(' / '));
 const spyIndex = words.findIndex((w) => counts.get(w) === 1);

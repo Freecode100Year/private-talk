@@ -21,6 +21,7 @@ async function mission(p) {
     await p.mouse.move(box.x + 20, box.y + 10);
     await p.mouse.down();
     const shown = await p.locator('#gameWord').innerText();
+    await p.waitForTimeout(450);   // held, not tapped (a tap leaves it open)
     await p.mouse.up();
     const m = shown.match(/让 (\S+) 说出「(.+)」/);
     if (m) return { target: m[1], word: m[2] };

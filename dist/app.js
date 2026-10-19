@@ -317,7 +317,7 @@ function lockState(locked) {
 function clearScreen(withInput) {
   view++;
   $('messages').replaceChildren();
-  if (withInput) { clearInput(); closeQr(); }
+  if (withInput) { clearInput(); closeQr(); if ($('rulesDialog').open) $('rulesDialog').close(); }
 }
 
 // The QR code holds the passphrase: it is drawn here, never fetched, and
@@ -1265,6 +1265,7 @@ async function voteFor(n) {
   $('gameVotes').replaceChildren();
   queueGame(g);
 }
+let panelGid = '';
 function renderGame() {
   const panel = $('gamePanel');
   $('gameStart').disabled = !canStartGame();
@@ -1289,7 +1290,13 @@ function renderGame() {
   pickBoard.disabled = !boards.length;
   $('wwStart').title = t('ww.startHint', { min: Wolf.MIN_PLAYERS, max: Wolf.MAX_PLAYERS });
   $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
+  // Why the start buttons are grey: a phone shows no tooltips.
+  const range = (r) => `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}`;
+  const hint = !(online && group && relayV3) ? 'game.hint.wait' : (game && game.phase !== 'over') || busyGame ? 'game.hint.busy' : !group.quantumSafe(gameRoom()) ? 'game.hint.keys' : '';
+  $('gameHint').textContent = hint ? t(hint) : t('game.hint.count', { n: gameRoom().length, spy: `${MIN_PLAYERS}–${MAX_PLAYERS}`, esc: range(Escape), tr: range(Pact), sm: range(Mission), ww: range(Wolf) });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
+  // A game that starts closes the drawer (on a phone it covers the panel).
+  if (game.gid !== panelGid) { panelGid = game.gid; closeSidebar(false); }
   if (game.type === 'esc') return renderEscape();
   if (game.type === 'tr') return renderPact();
   if (game.type === 'sm') return renderMission();
@@ -1321,6 +1328,7 @@ function renderGame() {
       b.className = 'secondary-button';
       b.textContent = badge(n);
       b.addEventListener('click', () => voteFor(n));
+      b.addEventListener('pointerdown', (e) => e.preventDefault());
       return b;
     }));
   }
@@ -1547,6 +1555,36 @@ $('gameEnd').addEventListener('click', () => {
   if (dealer && game) queueGame({ k: 'abort', gid: game.gid });
 });
 $('gameClose').addEventListener('click', () => { endGame(); });
+
+// The rules: of each game, and of each werewolf board (its cards, a note
+// on how it plays and what each of its roles does).
+const RULES = ['spy', 'esc', 'tr', 'sm', 'ww', ...Object.keys(Wolf.BOARDS)];
+const GAME_ICON = { spy: '🕵️', esc: '🔐', tr: '🤝', sm: '🎯' };
+function rulesLabel(id) {
+  if (id === 'ww') return t('rules.wwGeneral');
+  if (Wolf.BOARDS[id]) return t('rules.board', { n: Wolf.BOARDS[id].n, list: boardText(id) });
+  return `${GAME_ICON[id]} ${t(`game.name.${id}`)}`;
+}
+function rulesText(id) {
+  const b = Wolf.BOARDS[id];
+  if (!b) return t(`rules.${id}`);
+  const roles = [...new Set(b.cards)].map((r) => `· ${roleName(r)} — ${t(`ww.desc.${r}`)}`);
+  return [`${t('rules.boardHead', { n: b.n, list: boardText(id) })}\n${t(b.sheriff ? 'rules.sheriffOn' : 'rules.sheriffOff')}`, t(`rules.b.${id}`), [t('rules.boardRoles'), ...roles].join('\n'), t('rules.boardMore')].join('\n\n');
+}
+function showRules(id) {
+  const pick = $('rulesPick');
+  pick.replaceChildren(...RULES.map((x) => new Option(rulesLabel(x), x)));
+  pick.value = RULES.includes(id) ? id : 'spy';
+  $('rulesText').textContent = rulesText(pick.value);
+  if (!$('rulesDialog').open) $('rulesDialog').showModal();
+  $('rulesDialog').scrollTop = 0;
+}
+// The game in the panel (its board for werewolf), else the first.
+const rulesNow = () => (game ? (game.type === 'ww' ? game.board : game.type ?? 'spy') : 'spy');
+$('rulesButton').addEventListener('click', () => showRules(rulesNow()));
+$('gameRules').addEventListener('click', () => showRules(rulesNow()));
+$('rulesPick').addEventListener('change', () => showRules($('rulesPick').value));
+for (const id of ['rulesClose', 'rulesX']) $(id).addEventListener('click', () => $('rulesDialog').close());
 // The card shows only while it is held down.
 const showWord = (on) => {
   const esc = game?.type === 'esc';
@@ -1562,8 +1600,24 @@ const showWord = (on) => {
   $('gameWord').textContent = on ? (esc ? clueLines() : sm ? mission : myWord) : t(esc ? 'esc.holdButton' : sm ? 'sm.holdButton' : 'game.holdButton');
   $('gameWord').classList.toggle('open', on);
 };
-$('gameWord').addEventListener('pointerdown', (e) => { e.preventDefault(); showWord(true); });
-for (const ev of ['pointerup', 'pointerleave', 'pointercancel', 'blur']) $('gameWord').addEventListener(ev, () => showWord(false));
+// A tap leaves it open (for a few seconds, or until the next tap): a quick
+// tap on a hold-only button showed nothing and looked broken.
+let cardDown = 0, cardOpen = false, cardTimer = 0;
+const hideCard = () => { clearTimeout(cardTimer); cardOpen = false; cardDown = 0; showWord(false); };
+$('gameWord').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (cardOpen) return hideCard();
+  cardDown = Date.now();
+  showWord(true);
+});
+$('gameWord').addEventListener('pointerup', () => {
+  if (!cardDown) return;
+  if (Date.now() - cardDown < 400) { cardOpen = true; cardDown = 0; clearTimeout(cardTimer); cardTimer = setTimeout(hideCard, 8000); }
+  else hideCard();
+});
+for (const ev of ['pointerleave', 'pointercancel']) $('gameWord').addEventListener(ev, () => { if (!cardOpen) hideCard(); });
+$('gameWord').addEventListener('blur', hideCard);
+$('gameWord').addEventListener('contextmenu', (e) => e.preventDefault());
 $('gameWord').addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); showWord(true); } });
 $('gameWord').addEventListener('keyup', () => showWord(false));
 
