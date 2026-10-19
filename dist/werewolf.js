@@ -8,9 +8,11 @@
 // every wolf is dead; the wolves win when every villager, or every one of
 // the special roles, is dead (屠边).
 //
-// The judge's page deals, collects the night's actions, tells each player
-// what they may know and moves the game on; the person who started it best
-// only judges (the page knows every role). Everything goes in ordinary
+// The judge is automatic: the page of the person who started the game deals,
+// collects the night's actions, tells each player what they may know and
+// moves the game on, while that person plays like everyone else. Their page
+// knows every role, so someone who reads their own browser's memory could
+// cheat; it is a party game. Everything goes in ordinary
 // messages: cards, actions and private answers are sealed for one member
 // (Group.sealFor), and at night every living player's page sends one action
 // in each step, a real one or an empty one, so nobody can tell from the
@@ -72,7 +74,7 @@ export function apply(s, g, from, now) {
     const players = Array.isArray(g.players) ? g.players : [];
     if (!GID.test(g.gid ?? '') || !SETS[players.length] || !players.every(isNumber) || new Set(players).size !== players.length) return { s, note: null };
     const next = { type: 'ww', gid: g.gid, dealer: from, players: players.slice(), alive: players.slice(), day: 0, phase: 'start', step: '', actors: [], acted: [], speakers: [], turn: 0, spoke: false, voted: [], deadline: now };
-    return { s: next, note: { k: 'ww-new', by: from, players: next.players, judging: !players.includes(from) } };
+    return { s: next, note: { k: 'ww-new', by: from, players: next.players } };
   }
   if (!s || s.type !== 'ww' || s.phase === 'over' || g.gid !== s.gid) return { s, note: null };
   const fromJudge = from === s.dealer;

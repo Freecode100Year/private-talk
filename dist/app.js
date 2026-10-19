@@ -672,9 +672,7 @@ const usedWords = [];
 let myPact = null;      // this page's choice this round (密约交易所): { r, c, salt, h, shown }
 const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
-  // In 狼人杀 the one who starts it judges and, unless they choose to play
-  // too, takes no role.
-  const n = gameRoom().length - (kind === 'ww' && !$('wwPlay').checked ? 1 : 0);
+  const n = gameRoom().length;
   const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf }[kind];
   const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && n >= min && n <= max && group.quantumSafe(gameRoom());
@@ -720,7 +718,7 @@ async function startEscape() {
 }
 async function startWerewolf() {
   if (!canStartGame('ww')) return;
-  const players = gameRoom().filter((n) => n !== you || $('wwPlay').checked);
+  const players = gameRoom().slice();
   const d = Wolf.deal(players, you);
   const cards = {};
   for (const n of d.start.players) if (n !== you) cards[n] = await group.sealFor(n, JSON.stringify(d.cards.get(n)), `wwcard|${d.start.gid}`);
@@ -866,11 +864,10 @@ function pactNote(note) {
   if (note.k === 'tr-gone') system(t('tr.gone', { b: badge(note.n) }));
 }
 const roleName = (r) => t(`ww.role.${r}`);
-const ROLE_ICON = { wolf: '🐺', seer: '🔮', witch: '🧪', hunter: '🏹', villager: '👤' };
 function wolfNote(note) {
   const list = (ns) => ns.map(badge).join(' ');
   if (note.k === 'ww-new') {
-    system(t('ww.started', { b: badge(note.by), list: list(note.players), n: note.players.length }) + ` ${t(note.judging ? 'ww.judgeOnly' : 'ww.judgePlays')}`);
+    system(t('ww.started', { b: badge(note.by), list: list(note.players), n: note.players.length }) + ` ${t('ww.judge')}`);
     if (myRole) system(t('ww.hold'));
   }
   if (note.k === 'ww-skip') system(t('game.skipped', { b: badge(note.n) }));
@@ -1232,8 +1229,7 @@ function renderWerewolf() {
   else line = t('ww.wait');
   if (!over && !alive && game.players.includes(you)) line = `${t('ww.youDead')} ${line}`;
   $('gameLine').textContent = line;
-  const roles = judging ? dealer.secret.roles : {};
-  $('gamePlayers').textContent = game.players.map((n) => `${game.alive.includes(n) ? badge(n) : `${badge(n)}✖`}${roles[n] ? ROLE_ICON[roles[n]] : ''}`).join(' ');
+  $('gamePlayers').textContent = game.players.map((n) => (game.alive.includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
   $('gameWord').hidden = over || !myRole;
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('ww.holdButton');
   $('escForm').hidden = true;
@@ -1362,7 +1358,6 @@ $('escStart').addEventListener('click', () => { startEscape(); });
 $('trStart').addEventListener('click', () => { startPact(); });
 $('smStart').addEventListener('click', () => { startMission(); });
 $('wwStart').addEventListener('click', () => { startWerewolf(); });
-$('wwPlay').addEventListener('change', () => renderGame());
 $('smForm').addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
 $('smGuess').addEventListener('pointerdown', (e) => e.preventDefault());
 $('trForm').addEventListener('submit', (e) => { e.preventDefault(); passNote(); });

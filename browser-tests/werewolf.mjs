@@ -1,5 +1,5 @@
-// 狼人杀 with seven real pages: one judges, six play (two wolves, seer,
-// witch, two villagers). Each page plays its role through the panel; the
+// 狼人杀 with six real pages, the starter's among them (its page is the
+// automatic judge and it plays too): two wolves, seer, witch, two villagers. Each page plays its role through the panel; the
 // good side votes for the wolves; the right side wins by 屠边 rules. Checks that roles stay private
 // until the end and that the seer and witch hear from the judge.
 import { chromium } from 'playwright';
@@ -15,15 +15,15 @@ async function page() {
   return p;
 }
 const text = (p) => p.locator('#messages').innerText();
-const judge = await page();
 const players = [];
 for (let i = 0; i < 6; i++) players.push(await page());
+const judge = players[0];
 const me = [];
 for (const p of players) me.push(await p.locator('.member .avatar.me').innerText());
-ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 30000 }).then(() => true, () => false), 'six players and a judge: the game can start');
+ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 30000 }).then(() => true, () => false), 'six players: the game can start');
 await judge.click('#wwStart');
 for (const p of players) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 20000 });
-ok((await text(players[0])).includes('开局者只当法官'), 'everyone is told the judge has no role');
+ok((await text(players[1])).includes('法官由程序自动担任，人人都拿身份'), 'everyone is told the judge is automatic and everyone plays');
 // Each reads their role.
 const roles = [];
 for (const p of players) {
@@ -37,9 +37,10 @@ const roleOf = (i) => (roles[i].includes('狼人') ? 'wolf' : roles[i].includes(
 ok(roles.filter((r, i) => roleOf(i) === 'wolf').length === 2 && roles.filter((r, i) => roleOf(i) === 'seer').length === 1, 'roles dealt: ' + roles.map((r, i) => `${me[i]}${roleOf(i)}`).join(' '));
 const wolves = me.filter((_, i) => roleOf(i) === 'wolf');
 ok(roles.filter((_, i) => roleOf(i) === 'wolf').every((r) => wolves.every((w) => r.includes(w))), 'the wolves know each other');
-ok(!(await judge.locator('#gameWord').isVisible()), 'the judge holds no card');
-ok((await judge.locator('#gamePlayers').innerText()).includes('🐺'), "the judge's page shows the roles");
-ok(!(await players[0].locator('#gamePlayers').innerText()).includes('🐺'), "players' pages do not");
+ok(roles.length === 6 && roles.every(Boolean), 'the starter holds a card like everyone else');
+let shown = false;
+for (const p of players) if (/[🐺🔮🧪]/u.test(await p.locator('#gamePlayers').innerText())) shown = true;
+ok(!shown, "no page, the starter's included, shows others' roles");
 // Play until it ends.
 let witchSaved = false;
 const start = Date.now();
