@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>原型 · 游戏围桌 · Private Talk</title>
+<link rel="stylesheet" href="proto.css" />
+<style>
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#00000030;border-bottom:1px solid var(--line)}
+.topbar b{font-size:15px}
+.topbar .chip{margin-left:6px}
+.layout{flex:1;min-height:0;display:grid;grid-template-columns:270px 1fr 340px}
+.pane{min-height:0;overflow:auto}
+.left{border-right:1px solid var(--line);padding:14px}
+.right{border-left:1px solid var(--line);display:flex;flex-direction:column}
+.center{display:flex;flex-direction:column;min-height:0}
+.tabsbar{display:none}
+/* the table */
+.phase{display:flex;align-items:center;justify-content:center;padding:10px 12px 0}
+.phase .title{font-weight:800;font-size:17px;color:var(--gold1)}
+.phase .sub{font-size:13px;color:var(--muted)}
+.ring{width:46px;height:46px;margin-right:12px;position:relative;flex:none}
+.ring svg{width:46px;height:46px;transform:rotate(-90deg)}
+.ring span{position:absolute;inset:0;display:grid;place-items:center;font-weight:800;font-size:14px}
+.tablewrap{flex:1;min-height:250px;position:relative;margin:6px 10px}
+.felt{position:absolute;left:11%;right:11%;top:16%;bottom:16%;border-radius:50%/50%;background:radial-gradient(ellipse at 50% 40%,#5b3fd8 0,#3a24a8 60%,#2a1a86 100%);box-shadow:inset 0 0 0 6px #ffffff14,inset 0 10px 40px #0005,0 10px 30px #0006;display:grid;place-items:center;text-align:center;padding:10px}
+.felt .state{font-size:13px;color:#efeaff;max-width:220px}
+.felt .state b{display:block;font-size:20px;color:#fff}
+.seat{position:absolute;width:64px;margin-left:-32px;margin-top:-34px;text-align:center;transition:transform .15s}
+.seat .av{position:relative;width:52px;height:52px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:24px;border:3px solid #fff3;box-shadow:0 3px 0 #0004}
+.seat .no{position:absolute;left:-4px;top:-4px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#fff;color:var(--lav-ink);font-size:11px;font-weight:800;line-height:20px}
+.seat .st{position:absolute;right:-6px;bottom:-4px;font-size:15px}
+.seat .nm{display:block;font-size:11px;color:#e9e2ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.seat.me .av{border-color:var(--gold1)}
+.seat.turn .av{box-shadow:0 0 0 4px var(--gold1),0 0 18px var(--gold1)}
+.seat.dead .av{filter:grayscale(1);opacity:.45}
+.seat.off .av{opacity:.55;border-style:dashed}
+.seat.pick .av{box-shadow:0 0 0 4px var(--pink),0 0 18px var(--pink)}
+.seat.can{cursor:pointer}
+.seat.can:active{transform:scale(.94)}
+.react{position:absolute;font-size:28px;pointer-events:none;animation:up 1.6s ease-out forwards}
+@keyframes up{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-60px);opacity:0}}
+.tray{padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#00000033;border-top:1px solid var(--line)}
+.tray .prompt{font-weight:700;margin-bottom:8px}
+.tray .row .btn{margin:0 8px 8px 0}
+.emo{display:flex;overflow-x:auto}
+.emo button{flex:none;width:40px;height:40px;border-radius:50%;background:var(--card);font-size:20px;margin-right:6px}
+.card-btn{width:100%}
+.card-btn.open{background:var(--lav);color:var(--lav-ink);box-shadow:0 0 0 3px var(--gold1);border-radius:18px;min-height:80px;white-space:pre-line;text-align:left;padding:10px 16px;font-weight:600}
+/* chat */
+.msgs{flex:1;overflow:auto;padding:12px}
+.msg{margin:0 0 10px}
+.msg .who{font-size:12px;color:var(--dim)}
+.msg .bub{display:inline-block;background:var(--card2);border-radius:14px;padding:8px 12px;max-width:100%}
+.msg.me{text-align:right}
+.msg.me .bub{background:#5b3fd8;border:1px solid var(--gold1)}
+.sys{text-align:center;font-size:12px;color:var(--dim);margin:0 0 10px}
+.compose{display:flex;padding:10px;border-top:1px solid var(--line)}
+.compose input{flex:1;height:44px;border-radius:12px;border:1px solid var(--line);background:#ffffff12;padding:0 12px;margin-right:8px}
+.compose .btn{min-height:44px;padding:0 16px}
+/* room */
+.left h4{margin:16px 0 8px;font-size:13px;color:var(--muted);font-weight:600}
+.member{display:flex;align-items:center;padding:6px 0}
+.member .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;margin-right:10px;font-size:16px}
+.member b{font-weight:600;font-size:14px}
+.member .dim{margin-left:auto}
+.left .btn{width:100%;margin-bottom:8px}
+.danger{color:#ffb0c8;border-color:#ff4f9a66 !important}
+.vote-bar{height:10px;border-radius:5px;background:#ffffff22;overflow:hidden;position:relative;margin:10px 0}
+.vote-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--mint);transition:width .3s}
+.vote-bar b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--gold1);left:80%}
+@media(max-width:999px){
+  .layout{grid-template-columns:1fr;position:relative}
+  .left,.right{display:none}
+  .layout.tab-chat .center,.layout.tab-room .center{display:none}
+  .layout.tab-chat .right{display:flex;border:0}
+  .layout.tab-room .left{display:block;border:0}
+  .tabsbar{display:flex;border-top:1px solid var(--line);background:#120c3a;padding-bottom:env(safe-area-inset-bottom)}
+  .tabsbar button{flex:1;height:54px;color:var(--muted);font-size:13px;position:relative}
+  .tabsbar button.on{color:var(--gold1);font-weight:700}
+  .tabsbar .badge{position:absolute;top:6px;left:56%;min-width:18px;height:18px;border-radius:9px;background:var(--pink);color:#fff;font-size:11px;line-height:18px}
+}
+</style>
+</head>
+<body>
+<div class="proto-bar">
+  <b>原型演示</b>
+  <label>阶段 <select id="phaseSel"><option value="night">夜晚 · 狼人选刀</option><option value="day">白天 · 轮流发言</option><option value="vote">投票放逐</option><option value="over">结束 · 再来一局</option></select></label>
+  <button class="btn btn-ghost btn-sm" id="dropBtn">模拟 3 号掉线 → 补位</button>
+  <a href="index.html">← 原型目录</a>
+</div>
+<div class="topbar"><div><b>🐺 狼人杀 · 9 人预女守</b><span class="chip">公开桌</span></div><div><span class="chip">房间 7F3K</span><span class="chip live">🔐 加密</span></div></div>
+<div class="layout" id="layout">
+  <aside class="pane left" id="roomPane">
+    <h4>在座 · 9 人</h4><div id="members"></div>
+    <h4>分享</h4><button class="btn btn-ghost btn-sm">复制房间链接</button><button class="btn btn-ghost btn-sm">房间二维码</button>
+    <h4>安全</h4><div class="dim">安全码 61256 73522 51420 30672 · 抗量子</div><button class="btn btn-ghost btn-sm" style="margin-top:8px">我已核对安全码</button>
+    <h4>设置</h4><div class="dim" style="margin-bottom:8px">本机自动清屏：不自动</div><button class="btn btn-ghost btn-sm">锁定房间</button>
+    <h4>　</h4><button class="btn btn-ghost btn-sm danger" id="leaveBtn">🚪 离桌 / 离开房间</button>
+  </aside>
+  <section class="center">
+    <div class="phase"><div class="ring"><svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="20" stroke="#ffffff22" stroke-width="5" fill="none"/><circle id="ringArc" cx="23" cy="23" r="20" stroke="#ffd84d" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="125.7" stroke-dashoffset="0"/></svg><span id="secs">45</span></div><div><div class="title" id="phaseTitle"></div><div class="sub" id="phaseSub"></div></div></div>
+    <div class="tablewrap" id="table"><div class="felt"><div class="state" id="felt"></div></div></div>
+    <div class="tray" id="tray"></div>
+  </section>
+  <aside class="pane right" id="chatPane">
+    <div class="msgs" id="msgs"></div>
+    <div class="compose"><input placeholder="说点什么，只给此刻的人听…" id="chatIn" /><button class="btn btn-gold" id="sendBtn">发送</button></div>
+  </aside>
+</div>
+<nav class="tabsbar" id="tabs"><button data-tab="table" class="on">🎲 桌子</button><button data-tab="chat">💬 聊天<span class="badge" id="badge">3</span></button><button data-tab="room">👥 房间</button></nav>
+<div class="sheet-wrap" id="sheet" hidden><div class="sheet" id="sheetBody"></div></div>
+<div class="toast" id="toast" hidden style="position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#000d;color:#fff;padding:12px 18px;border-radius:12px;z-index:80"></div>
+<script>
+var $ = function (id) { return document.getElementById(id); };
+var COLORS = ['#ff7a59', '#ffd84d', '#3ee6c1', '#5ab0ff', '#c38bff', '#ff4f9a', '#9be15d', '#ffb21a', '#7ce3ff'];
+var FACES = ['🦊', '🐼', '🐸', '🐧', '🦉', '🐱', '🐻', '🐰', '🐨'];
+var NAMES = ['夜行的猫', '小熊猫', '青蛙王子', '企鹅', '猫头鹰', '你', '大熊', '兔子', '考拉'];
+var ME = 6;
+var seats = [];
+for (var i = 1; i <= 9; i++) seats.push({ n: i, name: NAMES[i - 1], face: FACES[i - 1], color: COLORS[i - 1], dead: i === 4, off: false, sheriff: i === 2, acted: false });
+var phase = 'night', left = 45, total = 45, pick = 0, turn = 3, unread = 3, cardOpen = false, votes = {}, rematch = {};
+function seatXY(i, n) {
+  var a = Math.PI / 2 + (2 * Math.PI * i) / n;
+  return { x: 50 + 44 * Math.cos(a), y: 50 + 42 * Math.sin(a) };
+}
+function render() {
+  var t = $('table');
+  Array.prototype.forEach.call(t.querySelectorAll('.seat'), function (s) { s.remove(); });
+  var meIdx = ME - 1;
+  seats.forEach(function (s, i) {
+    var p = seatXY((i - meIdx + 9) % 9, 9);
+    var el = document.createElement('button');
+    var canPick = (phase === 'night' || phase === 'vote') && !s.dead && s.n !== ME && !seats[ME - 1].dead;
+    el.className = 'seat' + (s.n === ME ? ' me' : '') + (s.dead ? ' dead' : '') + (s.off ? ' off' : '') + (s.n === pick ? ' pick' : '') + (canPick ? ' can' : '') + (phase === 'day' && s.n === turn ? ' turn' : '');
+    el.style.left = p.x + '%'; el.style.top = p.y + '%';
+    var st = s.dead ? '✖' : s.off ? '📡' : s.sheriff ? '🎖' : (phase === 'night' || phase === 'vote') && s.acted ? '✅' : phase === 'day' && s.n === turn ? '🗣' : '';
+    el.innerHTML = '<span class="av" style="background:' + s.color + '33">' + s.face + '<span class="no">' + s.n + '</span><span class="st">' + st + '</span></span><span class="nm">' + (s.n === ME ? '你' : s.name) + '</span>';
+    el.setAttribute('aria-label', s.n + ' 号 ' + s.name);
+    el.onclick = function () { if (canPick) { pick = s.n; render(); } };
+    t.appendChild(el);
+  });
+  var acted = seats.filter(function (s) { return s.acted && !s.dead; }).length, alive = seats.filter(function (s) { return !s.dead; }).length;
+  var T = { night: ['🌙 第 2 夜', '狼人请睁眼 · 已行动 ' + acted + '/' + alive], day: ['☀️ 第 2 天 · 发言', '轮到 ' + turn + ' 号 ' + seats[turn - 1].name + ' 发言'], vote: ['🗳 投票放逐', '已投 ' + Object.keys(votes).length + '/' + alive], over: ['🏁 好人胜利', '全部身份已公布'] }[phase];
+  $('phaseTitle').textContent = T[0]; $('phaseSub').textContent = T[1];
+  $('felt').innerHTML = { night: '<b>夜晚</b>天黑请闭眼<br />昨夜：平安夜', day: '<b>白天</b>昨晚 4 号出局<br />警长 2 号决定从小号开始', vote: '<b>投票中</b>投票结果在所有人投完后一起公布', over: '<b>🎉 好人胜利</b>狼人：3、6（你）、8 号<br />预言家 1 · 女巫 5 · 守卫 9' }[phase];
+  tray();
+  $('members').innerHTML = seats.map(function (s) { return '<div class="member"><span class="av" style="background:' + s.color + '33">' + s.face + '</span><b>' + s.n + ' · ' + (s.n === ME ? '你' : s.name) + '</b><span class="dim">' + (s.off ? '📡 掉线' : s.dead ? '出局' : '在线') + '</span></div>'; }).join('');
+}
+function tray() {
+  var h = '';
+  var card = '<button class="btn btn-gold card-btn' + (cardOpen ? ' open' : '') + '" id="cardBtn">' + (cardOpen ? '你的身份：狼人\n狼人阵营。夜里和狼队一起刀人。\n狼队同伴：3 号、8 号' : '👁 看我的身份（点一下或按住）') + '</button>';
+  if (phase === 'night') h = '<div class="prompt">🐺 点座位选今晚要刀的人' + (pick ? '：' + pick + ' 号' : '') + '</div>' + card + '<div class="row" style="margin-top:10px"><button class="btn btn-pink" ' + (pick ? '' : 'disabled') + ' onclick="act()">确认刀 ' + (pick || '?') + ' 号</button><button class="btn btn-ghost" onclick="pick=-1;act()">空刀</button><button class="btn btn-ghost btn-sm" onclick="rules()">📖 规则</button></div>';
+  if (phase === 'day') h = '<div class="prompt">' + (turn === ME ? '轮到你发言：在聊天里发一条' : '听 ' + turn + ' 号发言，可以发快捷表情') + '</div>' + card + '<div class="emo" style="margin-top:10px">' + ['👍', '🤔', '😂', '😱', '🙏', '👀', '🐺', '❓'].map(function (e) { return '<button onclick="emote(\'' + e + '\')">' + e + '</button>'; }).join('') + '</div>';
+  if (phase === 'vote') h = '<div class="prompt">🗳 点座位投票放逐' + (pick ? '：' + pick + ' 号' : '') + '</div><div class="row"><button class="btn btn-gold" ' + (pick ? '' : 'disabled') + ' onclick="act()">投给 ' + (pick || '?') + ' 号</button><button class="btn btn-ghost" onclick="pick=-1;act()">弃票</button></div>';
+  if (phase === 'over') {
+    var n = Object.keys(rematch).length;
+    h = '<div class="prompt">再来一局？同意 ' + n + '/8（过半就重新发牌，座位不变）</div><div class="vote-bar"><i style="width:' + (n / 8 * 100) + '%"></i></div><div class="row"><button class="btn btn-gold" onclick="again()">🔁 再来一局</button><button class="btn btn-ghost" onclick="leave()">🚪 离桌</button></div>';
+  }
+  $('tray').innerHTML = h;
+  var cb = $('cardBtn');
+  if (cb) cb.onclick = function () { cardOpen = !cardOpen; tray(); };
+}
+function act() {
+  seats[ME - 1].acted = true;
+  if (phase === 'vote') votes[ME] = pick;
+  toast(pick === -1 ? (phase === 'vote' ? '已弃票' : '已提交：空刀') : '✅ 已提交：' + pick + ' 号');
+  pick = 0; render();
+}
+function emote(e) {
+  var me = $('table').querySelector('.seat.me');
+  var r = document.createElement('span'); r.className = 'react'; r.textContent = e;
+  r.style.left = me.style.left; r.style.top = me.style.top; $('table').appendChild(r);
+  setTimeout(function () { r.remove(); }, 1700);
+  say('你', e, true);
+}
+function say(who, text, me) {
+  var m = document.createElement('div'); m.className = 'msg' + (me ? ' me' : '');
+  m.innerHTML = '<div class="who">' + who + '</div><span class="bub"></span>'; m.querySelector('.bub').textContent = text;
+  $('msgs').appendChild(m); $('msgs').scrollTop = 1e6;
+}
+function sys(t) { var m = document.createElement('div'); m.className = 'sys'; m.textContent = t; $('msgs').appendChild(m); }
+function toast(t) { var el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { el.hidden = true; }, 2200); }
+function openSheet(h) { $('sheetBody').innerHTML = '<button class="x" onclick="closeSheet()">✕</button>' + h; $('sheet').hidden = false; }
+function closeSheet() { $('sheet').hidden = true; clearInterval(window.voteTimer); }
+function rules() { openSheet('<h3>📖 9 人预女守</h3><p class="muted">3 狼人 · 预言家 · 女巫 · 守卫 · 3 村民。和现在「📖 规则」的内容相同：通用流程 + 本板说明 + 每个身份的技能。</p>'); }
+function leave() { openSheet('<h3>🚪 友善离桌</h3><p class="muted">游戏还在进行。离桌后你的座位会空出来，大家可以投票让别人补位（需要 80% 在座的人同意）；你的身份不会公开。</p><div class="row"><button class="btn btn-pink" onclick="closeSheet();toast(\'原型：已离桌，回到首页\')">确认离桌</button><button class="btn btn-ghost" onclick="closeSheet()">再想想</button></div>'); }
+function again() { rematch[ME] = 1; var n = 1; var tm = setInterval(function () { rematch[++n] = 1; tray(); if (n >= 6) { clearInterval(tm); toast('过半同意：重新发牌！'); setTimeout(function () { phase = 'night'; $('phaseSel').value = 'night'; rematch = {}; seats.forEach(function (s) { s.dead = s.n === 4 && false; s.acted = false; }); left = total = 45; render(); }, 1200); } }, 500); tray(); }
+// Seat 6 is the viewer here, so the drop-out is seat 3; a spectator asks to take it.
+function dropDemo() {
+  var s = seats[2]; s.off = true; render(); sys('📡 3 号 青蛙王子 掉线了，等他 60 秒……'); toast('3 号掉线');
+  setTimeout(function () {
+    sys('🙋 旁观者「路过的狐狸」申请补位 3 号');
+    var yes = { 6: 0 }, eligible = [1, 2, 5, 6, 7, 8, 9];
+    var need = Math.ceil(eligible.length * 0.8);
+    function draw() {
+      var n = Object.keys(yes).filter(function (k) { return yes[k]; }).length;
+      openSheet('<h3>🙋 补位申请</h3><p class="muted">「路过的狐狸」想坐 3 号的位置（3 号已掉线 60 秒）。在座且在线的 ' + eligible.length + ' 人中需要 ≥80%（' + need + ' 人）同意。补位后，法官重新把 3 号的身份私下发给他；3 号回来就当旁观者。</p><div class="vote-bar"><i style="width:' + (n / eligible.length * 100) + '%"></i><b></b></div><div class="dim">同意 ' + n + '/' + eligible.length + ' · 门槛 ' + need + '</div><div class="row" style="margin-top:12px"><button class="btn btn-mint" ' + (yes[6] ? 'disabled' : '') + ' onclick="voteYes()">同意</button><button class="btn btn-ghost" onclick="closeSheet()">不同意</button></div>');
+      if (n >= need) { clearInterval(window.voteTimer); setTimeout(function () { closeSheet(); s.off = false; s.name = '路过的狐狸'; s.face = '🦊'; render(); sys('✅ ' + n + '/' + eligible.length + ' 同意，路过的狐狸 坐上了 3 号'); toast('补位成功'); }, 900); }
+    }
+    window.voteYes = function () { yes[6] = 1; draw(); };
+    var others = [1, 2, 5, 7, 8, 9], k = 0;
+    window.voteTimer = setInterval(function () { if (k < others.length) { yes[others[k++]] = 1; draw(); } }, 900);
+    draw();
+  }, 1500);
+}
+setInterval(function () {
+  if (phase === 'over') return;
+  left = left > 0 ? left - 1 : total;
+  if (phase === 'night' && left % 4 === 0) { var s = seats.filter(function (x) { return !x.acted && !x.dead && x.n !== ME; })[0]; if (s) { s.acted = true; render(); } }
+  $('secs').textContent = left;
+  $('ringArc').setAttribute('stroke-dashoffset', String(125.7 * (1 - left / total)));
+  $('ringArc').setAttribute('stroke', left <= 10 ? '#ff4f9a' : '#ffd84d');
+}, 1000);
+$('phaseSel').onchange = function () { phase = this.value; pick = 0; votes = {}; seats.forEach(function (s) { s.acted = false; }); left = total = phase === 'day' ? 60 : phase === 'vote' ? 30 : 45; render(); };
+$('dropBtn').onclick = dropDemo;
+$('leaveBtn').onclick = leave;
+$('sendBtn').onclick = function () { var v = $('chatIn').value.trim(); if (v) { say('你 · 6 号', v, true); $('chatIn').value = ''; } };
+Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) {
+  b.onclick = function () {
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (x) { x.classList.toggle('on', x === b); });
+    $('layout').className = 'layout tab-' + b.dataset.tab;
+    if (b.dataset.tab === 'chat') { unread = 0; $('badge').style.display = 'none'; }
+  };
+});
+$('sheet').addEventListener('click', function (e) { if (e.target === $('sheet')) closeSheet(); });
+window.act = act; window.emote = emote; window.rules = rules; window.leave = leave; window.again = again; window.closeSheet = closeSheet;
+sys('🐺 1 号开了一局狼人杀（9 人预女守），法官由程序自动担任'); say('2 · 小熊猫', '昨晚平安夜，女巫救人了？'); say('5 · 猫头鹰', '我先听听大家的'); sys('🔒 只有你看得到：狼队同伴 3 号、8 号');
+render();
+</script>
+</body>
+</html>
