@@ -1317,7 +1317,7 @@ function renderWerewolf() {
   const stage = c && myAct?.step === game.step && !myAct.sent ? c.stages[myAct.stage] : c?.send === 'day' ? c.stages[0] : null;
   if (over) line = wolfEndText(game.end);
   else if (sp) line = sp === you ? t(game.phase === 'last' ? 'ww.yourLast' : 'ww.yourSpeak', { s: left }) : t('game.turn', { b: badge(sp), s: left });
-  else if (stage && c.send !== 'day') line = `${t(stage.prompt)}（${left}s）`;
+  else if (stage && c.send !== 'day') line = `${t(stage.prompt)} (${left}s)`;
   else if (myAct?.step === game.step && myAct.sent && myAct.done) line = t('ww.done', { what: myAct.done, s: left });
   else line = t(night ? 'ww.nightWait' : 'ww.wait', { s: left });
   if (!over && Wolf.ACTING.includes(game.phase)) line += ` · ${t('ww.acted', { n: game.acted.length, total: game.actors.length })}`;
