@@ -293,3 +293,12 @@ body{background:linear-gradient(180deg,#2c1a86 0,#1d1458 520px,#150f42 100%) fix
 .hero-tags{gap:0;flex-wrap:wrap}.hero-tags span{margin:0 8px 8px 0}
 .game-actions,.game-votes{gap:0}.game-actions>*,.game-votes>*{margin:0 8px 8px 0}
 .shelf-card{gap:0}.shelf-card>*+*{margin-top:6px}
+.ld-form select{min-height:44px;padding:4px 8px;border:2px solid #fff;border-radius:12px;background:var(--lav);color:var(--lav-ink);font-size:16px;font-weight:700}
+.ld-form .secondary-button{min-height:44px;border-radius:999px;font-weight:700}
+.ld-form #ldBid{background:linear-gradient(180deg,var(--gold1),var(--gold2));color:var(--gold-ink);border:0}
+.ld-form .ld-call{background:var(--pink);color:#fff;border:0}
+.ld-form>*{margin:0 6px 6px 0}
+.ld-setup{margin:8px 0 0}
+@media(max-width:1430px){.shelf-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1431px){.shelf-grid{grid-template-columns:repeat(6,1fr)}}
+@media(max-width:600px){.shelf-grid{grid-template-columns:1fr 1fr}}

@@ -44,7 +44,7 @@ for (const id of ids) {
   const text = await J.locator('#rulesText').innerText();
   if (text.length < 120 || /\b(rules|ww|game)\.\w/.test(text)) bad.push(id);
 }
-ok(ids.length === 28 && !bad.length, `rules for ${ids.length} games and boards, none missing (${bad.join(' ') || 'all there'})`);
+ok(ids.length === 29 && !bad.length, `rules for ${ids.length} games and boards, none missing (${bad.join(' ') || 'all there'})`);
 ok((await J.locator('#rulesText').innerText()).includes('盗贼'), 'a board\'s rules list its roles');
 await tap(J, '#rulesClose');
 ok(!(await J.evaluate(() => document.getElementById('rulesDialog').open)), 'the rules close');

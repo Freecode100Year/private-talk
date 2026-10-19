@@ -10,6 +10,7 @@ import * as Pact from './trade.js';
 import * as Mission from './mission.js';
 import * as Picture from './picture.js';
 import * as Wolf from './werewolf.js';
+import * as Dice from './dice.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 
@@ -670,18 +671,18 @@ let lastGameSend = 0;   // when this page last sent a game event
 // during it): { gid, kind, players, dealer }. Only one game runs in a room.
 let busyGame = null;
 const gameRoom = () => present ?? [];
-// Which game an event belongs to: 'spy' (暗号潜伏), 'esc', 'tr' or 'sm'.
+// Which game an event belongs to: 'spy' (暗号潜伏), 'esc', 'tr', 'sm', 'ww' or 'ld'.
 const kindOf = (g, s = game) => {
-  const prefix = /^(esc|tr|sm|ww)-/.exec(g.k);
+  const prefix = /^(esc|tr|sm|ww|ld)-/.exec(g.k);
   return prefix ? prefix[1] : g.k === 'new' ? 'spy' : s?.type ?? 'spy';
 };
 function applyGame(s, g, from, now) {
   if (typeof g?.k !== 'string') return { s, note: null };
   const kind = kindOf(g, s);
-  const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply, ww: Wolf.apply }[kind] ?? applyUndercover;
+  const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply, ww: Wolf.apply, ld: Dice.apply }[kind] ?? applyUndercover;
   return rules(s, g, from, now);
 }
-const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire', ww: 'ww.wire' };
+const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire', ww: 'ww.wire', ld: 'ld.wire' };
 // 狼人杀: this page's card ({ role, wolves? }), what the judge told it this
 // step, and its action for the step ({ step, sent, due }).
 let myRole = null;      // { role, pack? }
@@ -697,10 +698,11 @@ let chatLog = [];
 const pickedAt = new Map();
 const usedWords = [];
 let myPact = null;      // this page's choice this round (密约交易所): { r, c, salt, h, shown }
+let myDice = null;      // this page's round in 骗子骰: { gid, r, seed, nonce, h, c, rolled, mixed, shown, faces }
 const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
   const n = gameRoom().length;
-  const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf }[kind];
+  const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf, ld: Dice }[kind];
   const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && !busyGame && n >= min && n <= max && group.quantumSafe(gameRoom());
 }
@@ -773,6 +775,15 @@ function startMission() {
   if (!canStartGame('sm')) return;
   const g = Mission.newGame(gameRoom());
   dealer = { gid: g.gid, done: new Set() };
+  queueGame(g);
+}
+function startDice() {
+  if (!canStartGame('ld')) return;
+  const g = Dice.newGame(gameRoom(), $('ldWild').checked);
+  dealer = { gid: g.gid, done: new Set() };
+  myWord = '';
+  myClues = null;
+  myDice = null;
   queueGame(g);
 }
 function startPact() {
@@ -849,6 +860,18 @@ async function gameEvent(g, from) {
     const ok = game?.type === 'tr' && g.gid === game.gid && !!game.locks[from] && await Pact.check(game.gid, g.r, from, game.locks[from], g.c, g.salt);
     g = { ...g, ok };
   }
+  // 骗子骰: a nonce or a seed counts only if it matches its commitment; the
+  // dice are worked out here from the seed (whatever the sender says).
+  if (g.k === 'ld-new' && (!game || game.phase === 'over')) { myDice = null; myWord = ''; myClues = null; }
+  if (game?.type === 'ld' && g.gid === game.gid && g.r === game.round) {
+    const c = game.rolls?.[from];
+    if (g.k === 'ld-mix') g = { ...g, ok: !!c && await Dice.checkNonce(game.gid, game.round, from, c.c, g.nonce) };
+    if (g.k === 'ld-show') {
+      let faces = null;
+      if (c && game.phase === 'show' && await Dice.checkSeed(game.gid, game.round, from, c.h, g.seed)) faces = await Dice.dice(game.gid, game.round, from, g.seed, await Dice.mix(game.gid, game.round, game.nonces), game.dice[from]);
+      g = { ...g, faces };
+    }
+  }
   let shown = null;
   if (g.k === 'tr-note' && game?.type === 'tr' && g.gid === game.gid) {
     if (from === you && myNotes.has(g.id)) {
@@ -867,7 +890,7 @@ async function gameEvent(g, from) {
   if (g.k === 'sm-pick' && game?.type === 'sm' && before?.missions && !before.missions[from] && game.missions[from]) pickedAt.set(from, chatLog.length);
   if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
   if (g.k === 'ww-go' && from === you && dealer?.gid === g.gid) { dealer.moves++; dealer.acts = new Map(); }
-  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); }
+  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); diceStep(); }
   if (game?.phase === 'over' && dealer?.gid === game.gid && dealer.busySaid && !dealer.freed) { dealer.freed = true; queueGame({ k: 'free', gid: game.gid }); }
   if (note?.k === 'say' || note?.k === 'ww-say') return { tag: { cls: 'said', label: `🗣 ${t(game?.type === 'ww' ? (game.phase === 'last' ? 'ww.lastWords' : 'ww.speech') : 'game.said')}` } };
   return note ? shown : null;
@@ -887,6 +910,7 @@ function gameNote(note) {
   if (note.k.startsWith('tr-')) pactNote(note);
   if (note.k.startsWith('sm-')) missionNote(note);
   if (note.k.startsWith('ww-')) wolfNote(note);
+  if (note.k.startsWith('ld-')) diceNote(note);
   if (note.k === 'esc-new') system(t('esc.started', { b: badge(note.by), list: list(note.players) }) + (note.players.includes(you) ? ` ${t('esc.hold')}` : ''));
   if (note.k === 'esc-new' || note.k === 'esc-open') {
     if (note.k === 'esc-open') system(t('esc.opened', { i: note.opened + 1, b: badge(note.n) }));
@@ -1024,6 +1048,7 @@ function endGame() {
   myWord = '';
   myClues = null;
   myPact = null;
+  myDice = null;
   myNotes.clear();
   myMission = null;
   chatLog = [];
@@ -1039,7 +1064,7 @@ function endGame() {
   clearGameInputs();
   if ($('gamePanel')) renderGame();
 }
-const GAME_NAMES = { spy: 'game.name.spy', esc: 'game.name.esc', tr: 'game.name.tr', sm: 'game.name.sm', ww: 'game.name.ww' };
+const GAME_NAMES = { spy: 'game.name.spy', esc: 'game.name.esc', tr: 'game.name.tr', sm: 'game.name.sm', ww: 'game.name.ww', ld: 'game.name.ld' };
 // This page deals a running game: tell the room it is on.
 function sayBusy() {
   if (!dealer || !game || game.gid !== dealer.gid || game.phase === 'over') return;
@@ -1231,6 +1256,11 @@ function dealerStep() {
     if (g) once(g.k === 'sm-void' ? `void|${g.n}|${game.guesses[g.n].at}` : g.k, g);
     return;
   }
+  if (game.type === 'ld') {
+    const g = Dice.dealerMove(game, here, Date.now());
+    if (g) once(g.k === 'ld-gone' ? `gone|${g.n}` : `time|${game.round}|${game.phase}|${game.bids}|${game.turn}`, g);
+    return;
+  }
   if (game.type === 'tr') {
     const g = Pact.dealerMove(game, here, Date.now());
     if (g) once(`${g.k}|${g.n ?? game.round}`, g);
@@ -1277,6 +1307,7 @@ function renderGame() {
   $('smStart').disabled = !canStartGame('sm');
   $('smStart').title = t('game.startHint', { min: Mission.MIN_PLAYERS, max: Mission.MAX_PLAYERS });
   $('wwStart').disabled = !canStartGame('ww');
+  $('ldStart').disabled = !canStartGame('ld');
   // The boards for the number of people here.
   const boards = Wolf.boardsFor(gameRoom().length);
   const pickBoard = $('wwBoard');
@@ -1293,16 +1324,18 @@ function renderGame() {
   // Why the start buttons are grey: a phone shows no tooltips.
   const range = (r) => `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}`;
   const hint = !(online && group && relayV3) ? 'game.hint.wait' : (game && game.phase !== 'over') || busyGame ? 'game.hint.busy' : !group.quantumSafe(gameRoom()) ? 'game.hint.keys' : '';
-  $('gameHint').textContent = hint ? t(hint) : t('game.hint.count', { n: gameRoom().length, spy: `${MIN_PLAYERS}–${MAX_PLAYERS}`, esc: range(Escape), tr: range(Pact), sm: range(Mission), ww: range(Wolf) });
+  $('gameHint').textContent = hint ? t(hint) : t('game.hint.count', { n: gameRoom().length, spy: `${MIN_PLAYERS}–${MAX_PLAYERS}`, esc: range(Escape), tr: range(Pact), sm: range(Mission), ww: range(Wolf), ld: range(Dice) });
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
   // A game that starts closes the drawer (on a phone it covers the panel).
   if (game.gid !== panelGid) { panelGid = game.gid; closeSidebar(false); }
   if (game.type === 'esc') return renderEscape();
   if (game.type === 'tr') return renderPact();
+  if (game.type === 'ld') return renderDice();
   if (game.type === 'sm') return renderMission();
   if (game.type === 'ww') return renderWerewolf();
   $('escForm').hidden = true;
   $('trForm').hidden = true;
+  $('ldForm').hidden = true;
   $('smForm').hidden = true;
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('game.holdButton');
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
@@ -1351,6 +1384,7 @@ function renderEscape() {
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('esc.holdButton');
   $('gameVotes').replaceChildren();
   $('trForm').hidden = true;
+  $('ldForm').hidden = true;
   $('smForm').hidden = true;
   $('escForm').hidden = over || !playing;
   if (!over && playing) nudge(`esc|${game.gid}|${game.lock}`);
@@ -1390,6 +1424,7 @@ function renderWerewolf() {
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('ww.holdButton');
   $('escForm').hidden = true;
   $('trForm').hidden = true;
+  $('ldForm').hidden = true;
   $('smForm').hidden = true;
   // The buttons for the stage in hand.
   const votes = $('gameVotes');
@@ -1454,6 +1489,7 @@ function renderMission() {
   $('gameVotes').replaceChildren();
   $('escForm').hidden = true;
   $('trForm').hidden = true;
+  $('ldForm').hidden = true;
   $('smForm').hidden = over || !playing;
   if (!over && playing) nudge(`sm|${game.gid}|${game.done[you]}`);
   const others = game.players.filter((n) => n !== you);
@@ -1486,6 +1522,7 @@ function renderPact() {
   $('gameWord').hidden = true;
   $('escForm').hidden = true;
   $('smForm').hidden = true;
+  $('ldForm').hidden = true;
   const votes = $('gameVotes');
   const canChoose = !over && game.phase === 'talk' && partner && !locked;
   if (canChoose) nudge(`tr|${game.round}`);
@@ -1508,6 +1545,129 @@ function renderPact() {
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
   gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+// 骗子骰.
+// Faces as digits: the die-face characters are missing from many phones' fonts.
+const FACES = ['', '1', '2', '3', '4', '5', '6'];
+const faceList = (faces) => faces.map((f) => FACES[f]).join(' ');
+const bidText = (b) => t('ld.bidText', { q: b.q, f: FACES[b.f] });
+const diceTotal = () => game.inRound.reduce((a, n) => a + game.dice[n], 0);
+// The turn this page has bid or called in, so a second tap sends nothing.
+let diceSent = '';
+const diceTurn = () => `${game.gid}|${game.round}|${game.bids}`;
+// What this page does by itself: roll and commit, show its nonce, work out
+// its dice once the mix is known, show its seed on a call.
+async function diceStep() {
+  if (game?.type !== 'ld' || !game.inRound.includes(you)) return;
+  const { gid, round: r } = game;
+  if (!myDice || myDice.gid !== gid || myDice.r !== r) {
+    const d = { gid, r };
+    myDice = d;
+    Object.assign(d, await Dice.roll(gid, r, you));
+  }
+  const d = myDice;
+  if (!d.h || game?.gid !== gid || game.round !== r) return;
+  if (game.phase === 'roll' && !d.rolled) { d.rolled = true; queueGame({ k: 'ld-roll', gid, r, h: d.h, c: d.c }); }
+  if (game.phase === 'mix' && game.rolls[you]?.h === d.h && !d.mixed) { d.mixed = true; queueGame({ k: 'ld-mix', gid, r, nonce: d.nonce }); }
+  if ((game.phase === 'bid' || game.phase === 'show') && game.rolls[you]?.h === d.h && !d.faces && !d.working) {
+    d.working = true;
+    d.faces = await Dice.dice(gid, r, you, d.seed, await Dice.mix(gid, r, game.nonces), game.dice[you]);
+    learnDice(d);
+    renderGame();
+  }
+  if (game?.gid === gid && game.round === r && game.phase === 'show' && game.rolls[you]?.h === d.h && !d.shown) { d.shown = true; queueGame({ k: 'ld-show', gid, r, seed: d.seed }); }
+}
+// This page's dice, said once (only here) when they are known.
+function learnDice(d) {
+  if (d.told) return;
+  d.told = true;
+  system(`🔒 ${t('ld.yours')} ${faceList(d.faces)}`);
+  nudge(`ld|${d.gid}|${d.r}`);
+}
+function diceBid() {
+  if (game?.type !== 'ld' || game.phase !== 'bid' || game.turn !== you || diceSent === diceTurn()) return;
+  const bid = { q: Number($('ldQ').value), f: Number($('ldF').value) };
+  if (!Dice.canBid(bid, game.bid, diceTotal(), game.wild)) return system(t(game.wild && !game.bid && bid.f === 1 ? 'ld.noOnes' : 'ld.tooLow'));
+  diceSent = diceTurn();
+  renderGame();
+  queueGame({ k: 'ld-bid', gid: game.gid, r: game.round, q: bid.q, f: bid.f });
+}
+function diceCall() {
+  if (game?.type !== 'ld' || game.phase !== 'bid' || game.turn !== you || !game.bid || diceSent === diceTurn()) return;
+  diceSent = diceTurn();
+  renderGame();
+  queueGame({ k: 'ld-call', gid: game.gid, r: game.round });
+}
+$('ldForm').addEventListener('submit', (e) => { e.preventDefault(); diceBid(); });
+$('ldCall').addEventListener('click', diceCall);
+for (const id of ['ldBid', 'ldCall']) $(id).addEventListener('pointerdown', (e) => e.preventDefault());
+// The quantity picker starts at the least bid allowed for the face.
+$('ldF').addEventListener('change', () => { if (game?.type === 'ld') { const min = Dice.least(game.bid, diceTotal(), game.wild)[Number($('ldF').value)]; if (min) $('ldQ').value = String(min); } });
+function renderDice() {
+  const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
+  const over = game.phase === 'over';
+  const playing = game.inRound?.includes(you);
+  $('gameTitle').textContent = t('ld.title', { r: Math.max(1, game.round) });
+  let line;
+  if (over) line = game.end ? diceEndText(game.end) : t('game.aborted');
+  else if (game.phase === 'roll' || game.phase === 'mix') line = t('ld.rolling');
+  else if (game.phase === 'show') line = t('ld.showing');
+  else line = (game.turn === you ? t('ld.yourTurn', { s: left }) : t('ld.turn', { b: badge(game.turn), s: left })) + (game.bid ? ` · ${t('ld.current', { b: badge(game.bid.n), bid: bidText(game.bid) })}` : '');
+  if (!over && game.phase !== 'roll' && game.phase !== 'mix') line += ` · ${t('ld.onTable', { n: diceTotal() })}`;
+  if (!over && !playing && game.players.includes(you)) line = `${t(game.dice[you] > 0 ? 'ld.sitOut' : 'ld.outLine')} ${line}`;
+  $('gameLine').textContent = line;
+  $('gamePlayers').textContent = game.players.map((n) => `${game.gone.includes(n) || !game.dice[n] ? `${badge(n)}✖` : badge(n)}🎲${game.dice[n]}${!over && n === game.turn && game.phase === 'bid' ? '◀' : ''}`).join(' ');
+  $('gameWord').hidden = over || !playing;
+  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('ld.holdButton');
+  $('gameVotes').replaceChildren();
+  $('escForm').hidden = true;
+  $('trForm').hidden = true;
+  $('smForm').hidden = true;
+  const mine = !over && game.phase === 'bid' && game.turn === you && diceSent !== diceTurn();
+  $('ldForm').hidden = !mine;
+  if (mine) {
+    nudge(`ldturn|${game.round}|${game.bids}`);
+    const total = diceTotal();
+    const key = `${game.round}|${game.bids}|${total}`;
+    if ($('ldForm').dataset.key !== key) {
+      $('ldForm').dataset.key = key;
+      $('ldQ').replaceChildren(...Array.from({ length: total }, (_, i) => new Option(String(i + 1), String(i + 1))));
+      $('ldF').replaceChildren(...[1, 2, 3, 4, 5, 6].map((f) => new Option(t('ld.face', { f }), String(f))));
+      // The least raise on the same face (or a two to open).
+      const least = Dice.least(game.bid, total, game.wild);
+      const f = game.bid && least[game.bid.f] ? game.bid.f : [2, 3, 4, 5, 6, 1].find((x) => least[x]) ?? 2;
+      $('ldF').value = String(f);
+      $('ldQ').value = String(least[f] || 1);
+    }
+    $('ldCall').disabled = !game.bid;
+  }
+  $('gameEnd').hidden = !(dealer && !over);
+  $('gameClose').hidden = !over;
+  $('messageInput').placeholder = t('input.placeholder');
+  clearInterval(gameTick);
+  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+}
+function diceEndText(end) {
+  return end.winner ? t('ld.end', { b: badge(end.winner) }) : t('game.aborted');
+}
+function diceNote(note) {
+  const list = (ns) => ns.map(badge).join(' ');
+  if (note.k === 'ld-new') system(t('ld.started', { b: badge(note.by), list: list(note.players), n: Dice.DICE }) + (note.wild ? ` ${t('ld.wildOn')}` : ''));
+  if (note.k === 'ld-late' && note.list.length) system(t('ld.late', { list: list(note.list) }));
+  if (note.k === 'ld-rolled') {
+    if (note.late?.length) system(t('ld.late', { list: list(note.late) }));
+    system(t('ld.rolled', { r: note.round, b: badge(note.turn), n: diceTotal() }));
+  }
+  if (note.k === 'ld-bid') system(`${t('ld.bid', { b: badge(note.n), bid: bidText(note) })}${note.late ? ` ${t('ld.auto')}` : ''}`);
+  if (note.k === 'ld-call') system(`${t('ld.call', { b: badge(note.n), c: badge(note.bid.n), bid: bidText(note.bid) })}${note.late ? ` ${t('ld.auto')}` : ''}`);
+  if (note.k === 'ld-result') {
+    const hands = Object.entries(note.shown).map(([n, f]) => `${badge(Number(n))} ${Array.isArray(f) ? faceList(f) : t('ld.hidden')}`);
+    system(`${t('ld.hands')}${hands.join('；')}`);
+    system(t('ld.count', { n: note.count, f: FACES[note.bid.f], bid: bidText(note.bid) }) + (note.wild && note.bid.f !== 1 ? ` ${t('ld.wildCount')}` : '') + ' ' + t('ld.lose', { b: badge(note.loser) }));
+    for (const n of note.hid) if (n !== note.loser) system(t('ld.hidLose', { b: badge(n) }));
+    if (note.end) system(diceEndText(note.end));
+  }
+  if (note.k === 'ld-gone') { system(t('ld.gone', { b: badge(note.n) })); if (note.end) system(diceEndText(note.end)); }
 }
 // This page's clues for the lock in play, and those made public.
 function clueLines() {
@@ -1535,6 +1695,7 @@ $('escStart').addEventListener('click', () => { startEscape(); });
 $('trStart').addEventListener('click', () => { startPact(); });
 $('smStart').addEventListener('click', () => { startMission(); });
 $('wwStart').addEventListener('click', () => { startWerewolf(); });
+$('ldStart').addEventListener('click', () => { startDice(); });
 $('wwBoard').addEventListener('change', () => { $('wwSheriff').checked = !!Wolf.BOARDS[$('wwBoard').value]?.sheriff; });
 $('smForm').addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
 $('smGuess').addEventListener('pointerdown', (e) => e.preventDefault());
@@ -1558,8 +1719,8 @@ $('gameClose').addEventListener('click', () => { endGame(); });
 
 // The rules: of each game, and of each werewolf board (its cards, a note
 // on how it plays and what each of its roles does).
-const RULES = ['spy', 'esc', 'tr', 'sm', 'ww', ...Object.keys(Wolf.BOARDS)];
-const GAME_ICON = { spy: '🕵️', esc: '🔐', tr: '🤝', sm: '🎯' };
+const RULES = ['spy', 'esc', 'tr', 'sm', 'ld', 'ww', ...Object.keys(Wolf.BOARDS)];
+const GAME_ICON = { spy: '🕵️', esc: '🔐', tr: '🤝', sm: '🎯', ld: '🎲' };
 function rulesLabel(id) {
   if (id === 'ww') return t('rules.wwGeneral');
   if (Wolf.BOARDS[id]) return t('rules.board', { n: Wolf.BOARDS[id].n, list: boardText(id) });
@@ -1587,7 +1748,7 @@ $('rulesPick').addEventListener('change', () => showRules($('rulesPick').value))
 // The game cards on the front page open their rules.
 for (const card of document.querySelectorAll('[data-rules]')) card.addEventListener('click', () => showRules(card.dataset.rules));
 function shelfPlayers() {
-  const rules = { spy: { MIN_PLAYERS, MAX_PLAYERS }, esc: Escape, tr: Pact, sm: Mission, ww: Wolf };
+  const rules = { spy: { MIN_PLAYERS, MAX_PLAYERS }, esc: Escape, tr: Pact, sm: Mission, ww: Wolf, ld: Dice };
   for (const e of document.querySelectorAll('[data-players]')) { const r = rules[e.dataset.players]; e.textContent = `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}${t('ww.people')}`; }
 }
 shelfPlayers();
@@ -1599,6 +1760,11 @@ const showWord = (on) => {
     // The card: role, what it does, the pack, and what this page has learnt.
     const card = myRole ? [t('ww.card', { r: roleName(myRole.role) }), t(`ww.desc.${myRole.role}`), ...(myRole.pack ? [t('ww.pack', { list: myRole.pack.map(badge).join(' ') })] : []), ...myLog].join('\n') : '';
     $('gameWord').textContent = on ? card : t('ww.holdButton');
+    $('gameWord').classList.toggle('open', on);
+    return;
+  }
+  if (game?.type === 'ld') {
+    $('gameWord').textContent = on ? (myDice?.faces ? `${t('ld.yours')}\n${faceList(myDice.faces)}` : t('ld.rolling')) : t('ld.holdButton');
     $('gameWord').classList.toggle('open', on);
     return;
   }
