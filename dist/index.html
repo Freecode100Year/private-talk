@@ -49,7 +49,7 @@
         <div class="hero-coordinates" aria-hidden="true"><span>01 / PRIVATE CHANNEL</span><span>ACCESS BY PASSPHRASE</span></div>
         <div class="hero-inner">
           <div class="hero-copy">
-            <div class="eyebrow"><span class="live-dot"></span> PRIVATE CONVERSATIONS. SIMPLY.</div>
+            <div class="eyebrow"><span class="live-dot"></span> PRIVATE GAME ROOMS · END-TO-END ENCRYPTED</div>
             <h1 data-t-html="h1">只给知道<br /><span class="headline-secret">暗号的人<span class="cyan">。</span></span><br /><em>聊完，轻装离开。</em></h1>
             <p class="hero-description" data-t-html="hero.desc">不交换身份，不建立关系链。<br />一个暗号，一间只属于此刻的房间。</p>
             <div class="hero-tags"><span><svg><use href="#i-shield"/></svg><b data-t="tag.e2ee">端对端加密</b></span><span><svg><use href="#i-eye"/></svg><b data-t="tag.noSignup">无需注册</b></span><span><b data-t="tag.max">最多 25 人</b></span></div>
@@ -57,7 +57,7 @@
           </div>
 
           <section class="entry-card" aria-labelledby="entryTitle">
-            <div class="entry-card-top"><span class="overline">YOUR PRIVATE SPACE</span><svg><use href="#i-lock"/></svg></div>
+            <div class="entry-card-top"><span class="overline">YOUR TABLE TONIGHT</span><svg><use href="#i-lock"/></svg></div>
             <div class="tabs" role="tablist" aria-label="房间" data-t-aria="tabs.aria">
               <button id="joinTab" type="button" role="tab" aria-selected="true" class="active" data-t="tab.join">加入房间</button>
               <button id="createTab" type="button" role="tab" aria-selected="false" tabindex="-1" data-t="tab.create">创建房间</button>
@@ -81,6 +81,18 @@
             <div class="card-divider"></div>
             <button class="privacy-link" type="button" data-open-privacy><svg><use href="#i-shield"/></svg><span data-t="entry.privacy">我们如何保护你的对话</span><svg><use href="#i-chevron"/></svg></button>
           </section>
+        </div>
+      </section>
+
+      <section class="shelf" aria-labelledby="shelfTitle">
+        <h2 id="shelfTitle" data-t="shelf.title">🎲 房间里能玩的游戏</h2>
+        <p data-t="shelf.hint">进房间后在「房间」侧栏开局；点卡片看详细规则。</p>
+        <div class="shelf-grid">
+          <button class="shelf-card main" type="button" data-rules="ww"><span class="icon">🐺</span><b data-t="game.name.ww">狼人杀</b><span data-t="shelf.ww">23 种板子 · 程序当法官，人人都玩</span><em data-players="ww"></em></button>
+          <button class="shelf-card" type="button" data-rules="spy"><span class="icon">🕵️</span><b data-t="game.name.spy">暗号潜伏</b><span data-t="shelf.spy">谁拿到了不一样的词？</span><em data-players="spy"></em></button>
+          <button class="shelf-card" type="button" data-rules="esc"><span class="icon">🔐</span><b data-t="game.name.esc">密电逃脱</b><span data-t="shelf.esc">全队合作，拼线索开三道锁</span><em data-players="esc"></em></button>
+          <button class="shelf-card" type="button" data-rules="tr"><span class="icon">🤝</span><b data-t="game.name.tr">密约交易所</b><span data-t="shelf.tr">守约还是背叛？五轮囚徒困境</span><em data-players="tr"></em></button>
+          <button class="shelf-card" type="button" data-rules="sm"><span class="icon">🎯</span><b data-t="game.name.sm">秘密任务</b><span data-t="shelf.sm">暗中引导别人说出你的词</span><em data-players="sm"></em></button>
         </div>
       </section>
 

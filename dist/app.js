@@ -1584,6 +1584,13 @@ const rulesNow = () => (game ? (game.type === 'ww' ? game.board : game.type ?? '
 $('rulesButton').addEventListener('click', () => showRules(rulesNow()));
 $('gameRules').addEventListener('click', () => showRules(rulesNow()));
 $('rulesPick').addEventListener('change', () => showRules($('rulesPick').value));
+// The game cards on the front page open their rules.
+for (const card of document.querySelectorAll('[data-rules]')) card.addEventListener('click', () => showRules(card.dataset.rules));
+function shelfPlayers() {
+  const rules = { spy: { MIN_PLAYERS, MAX_PLAYERS }, esc: Escape, tr: Pact, sm: Mission, ww: Wolf };
+  for (const e of document.querySelectorAll('[data-players]')) { const r = rules[e.dataset.players]; e.textContent = `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}${t('ww.people')}`; }
+}
+shelfPlayers();
 for (const id of ['rulesClose', 'rulesX']) $(id).addEventListener('click', () => $('rulesDialog').close());
 // The card shows only while it is held down.
 const showWord = (on) => {
@@ -2252,6 +2259,7 @@ window.addEventListener('hashchange', () => {
 // Interface language: the browser's, unless switched in the header.
 function translate() {
   apply();
+  shelfPlayers();
   // The how-to shows this site's own address, so self-hosted copies are right too.
   for (const el of document.querySelectorAll('.origin-hash')) el.textContent = `${HOME}/#`;
   for (const el of document.querySelectorAll('.origin-example')) el.textContent = `${HOME}/#${t('howto.examplePass')}`;
