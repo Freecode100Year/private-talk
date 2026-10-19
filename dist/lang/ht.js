@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'Pale…',
   'ww.lastWords': 'dènye mo',
   'ww.speech': 'diskou',
+  'ww.turn': '{b} ap pale (rete {s} s)',
+  'ww.turnLast': '{b}: dènye pawòl (rete {s} s)',
   'ww.role.wolf': 'lougawou',
   'ww.role.wolfKing': 'wa lougawou',
   'ww.role.whiteWolf': 'wa lougawou blan',

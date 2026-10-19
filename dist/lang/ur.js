@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'بولیں…',
   'ww.lastWords': 'آخری الفاظ',
   'ww.speech': 'تقریر',
+  'ww.turn': '{b} بول رہے ہیں (باقی {s} سیکنڈ)',
+  'ww.turnLast': '{b}: آخری الفاظ (باقی {s} سیکنڈ)',
   'ww.role.wolf': 'بھیڑیا',
   'ww.role.wolfKing': 'بھیڑیا بادشاہ',
   'ww.role.whiteWolf': 'سفید بھیڑیا بادشاہ',

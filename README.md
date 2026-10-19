@@ -49,6 +49,20 @@
 
 完整说明见 [隐私与安全设计](docs/privacy.md)。
 
+## 截图
+
+以下截图由 `browser-tests/screens.mjs` 用真浏览器自动玩一局后截取（手机尺寸，房间是临时新建的，成员只有编号）。
+
+| 狼人杀 · 狼人夜里选刀口 | 预言家查验 | 女巫用药 | 竞选警长 |
+|---|---|---|---|
+| <img src="docs/screenshots/werewolf-night-wolf.webp" width="200"> | <img src="docs/screenshots/werewolf-night-seer.webp" width="200"> | <img src="docs/screenshots/werewolf-night-witch.webp" width="200"> | <img src="docs/screenshots/werewolf-sheriff.webp" width="200"> |
+| **按住身份牌：技能说明和私下信息** | **白天轮流发言** | **放逐投票** | **结束公布身份** |
+| <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
+| **暗号潜伏** | **密电逃脱** | **密约交易所（纸条）** | **秘密任务** |
+| <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |
+| **发图片（已去掉 EXIF）** | **电脑版房间** | | |
+| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | | |
+
 ## 部署
 
 任何人都可以免费部署自己的一份（[MIT 许可](LICENSE)），不需要我们同意。**大多数人从下面三种里选一种**，每种都有完整的安装、确认成功、升级、回退和卸载步骤：

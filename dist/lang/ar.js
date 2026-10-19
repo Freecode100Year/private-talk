@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'تكلّم…',
   'ww.lastWords': 'كلمات أخيرة',
   'ww.speech': 'خطاب',
+  'ww.turn': 'يتكلّم {b} (بقي {s} ث)',
+  'ww.turnLast': '{b}: الكلمات الأخيرة (بقي {s} ث)',
   'ww.role.wolf': 'ذئب',
   'ww.role.wolfKing': 'ملك الذئاب',
   'ww.role.whiteWolf': 'ملك الذئاب الأبيض',

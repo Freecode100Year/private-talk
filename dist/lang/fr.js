@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'Parlez…',
   'ww.lastWords': 'derniers mots',
   'ww.speech': 'discours',
+  'ww.turn': '{b} parle ({s} s)',
+  'ww.turnLast': '{b} : dernières paroles ({s} s)',
   'ww.role.wolf': 'loup-garou',
   'ww.role.wolfKing': 'roi des loups',
   'ww.role.whiteWolf': 'roi loup blanc',

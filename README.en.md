@@ -45,6 +45,20 @@ A passphrase may use letters and digits of any language, no symbols. Opening the
 - It cannot prove who is in the room. People can take screenshots. Keyboards that upload what you type, and devices that are being watched, are beyond what a web page can protect.
 - The web page comes from the server. If the operator's account is taken over, the page could be swapped. The signed list catches that for everyone, but not a swap aimed at one person; the Android apps and offline packages, whose page is built in, do not have this problem.
 
+## Screenshots
+
+Taken by `browser-tests/screens.mjs`, which plays the games with real browsers (phone-sized; fresh rooms, numbered members only). The interface is in Chinese here; it follows the browser's language.
+
+| Werewolf: the wolves choose | The seer checks | The witch's potions | Sheriff election |
+|---|---|---|---|
+| <img src="docs/screenshots/werewolf-night-wolf.webp" width="200"> | <img src="docs/screenshots/werewolf-night-seer.webp" width="200"> | <img src="docs/screenshots/werewolf-night-witch.webp" width="200"> | <img src="docs/screenshots/werewolf-sheriff.webp" width="200"> |
+| **Holding the role card** | **Speeches by day** | **The vote** | **The end, roles revealed** |
+| <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
+| **Undercover** | **Cipher Escape** | **Pact Exchange (a note)** | **Secret Mission** |
+| <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |
+| **A picture (EXIF removed)** | **The room on a computer** | | |
+| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | | |
+
 ## Run your own
 
 Anyone may run their own copy for free ([MIT licence](LICENSE)), no permission needed.

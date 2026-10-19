@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': '발언…',
   'ww.lastWords': '유언',
   'ww.speech': '발언',
+  'ww.turn': '{b} 님 발언 중 (남은 {s}초)',
+  'ww.turnLast': '{b} 님 유언 중 (남은 {s}초)',
   'ww.role.wolf': '늑대인간',
   'ww.role.wolfKing': '늑대왕',
   'ww.role.whiteWolf': '흰늑대왕',

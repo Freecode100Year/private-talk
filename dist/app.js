@@ -1316,7 +1316,7 @@ function renderWerewolf() {
   let line;
   const stage = c && myAct?.step === game.step && !myAct.sent ? c.stages[myAct.stage] : c?.send === 'day' ? c.stages[0] : null;
   if (over) line = wolfEndText(game.end);
-  else if (sp) line = sp === you ? t(game.phase === 'last' ? 'ww.yourLast' : 'ww.yourSpeak', { s: left }) : t('game.turn', { b: badge(sp), s: left });
+  else if (sp) line = sp === you ? t(game.phase === 'last' ? 'ww.yourLast' : 'ww.yourSpeak', { s: left }) : t(game.phase === 'last' ? 'ww.turnLast' : 'ww.turn', { b: badge(sp), s: left });
   else if (stage && c.send !== 'day') line = `${t(stage.prompt)} (${left}s)`;
   else if (myAct?.step === game.step && myAct.sent && myAct.done) line = t('ww.done', { what: myAct.done, s: left });
   else line = t(night ? 'ww.nightWait' : 'ww.wait', { s: left });
@@ -1969,8 +1969,16 @@ function syncViewport() {
   // Newer iOS shrinks innerHeight along with the keyboard, so a focused text
   // field on a touch screen counts as "keyboard open" too.
   const typing = coarse.matches && document.activeElement?.matches('textarea, input[type=text], input:not([type])');
-  document.body.classList.toggle('keyboard-open', typing || window.innerHeight - vv.height > 150);
+  const open = typing || window.innerHeight - vv.height > 150;
+  // Opening shows at once; closing waits a moment. A tap on Send (or any
+  // button) takes the focus from the text box before the tap ends: changing
+  // the layout right then would move the button from under the finger, and
+  // the tap would miss.
+  clearTimeout(keyboardTimer);
+  if (open) document.body.classList.add('keyboard-open');
+  else if (document.body.classList.contains('keyboard-open')) keyboardTimer = setTimeout(() => { if (!document.activeElement?.matches('textarea, input[type=text], input:not([type])') || !coarse.matches) document.body.classList.remove('keyboard-open'); }, 400);
 }
+let keyboardTimer = 0;
 const coarse = matchMedia('(pointer: coarse)');
 document.addEventListener('focusin', syncViewport);
 document.addEventListener('focusout', () => setTimeout(syncViewport, 50));

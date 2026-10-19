@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'बोलें…',
   'ww.lastWords': 'अंतिम शब्द',
   'ww.speech': 'भाषण',
+  'ww.turn': '{b} बोल रहे हैं (बाकी {s} सेकंड)',
+  'ww.turnLast': '{b}: अंतिम शब्द (बाकी {s} सेकंड)',
   'ww.role.wolf': 'वेयरवॉल्फ़',
   'ww.role.wolfKing': 'वेयरवॉल्फ़ राजा',
   'ww.role.whiteWolf': 'सफ़ेद वेयरवॉल्फ़ राजा',

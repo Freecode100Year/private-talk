@@ -21,7 +21,8 @@ const players = [];
 for (let i = 0; i < PAGES; i++) players.push(await page());
 const judge = players[0];
 const me = [];
-for (const p of players) me.push(await p.locator('.member .avatar.me').innerText());
+// Buttons write members from 11 on as #11; avatars as 11.
+for (const p of players) { const x = await p.locator('.member .avatar.me').innerText(); me.push(/^\d{2}$/.test(x) ? `#${x}` : x); }
 ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 40000 }).then(() => true, () => false), `${PAGES} players: the game can start`);
 if (process.env.WW_BOARD) await judge.selectOption('#wwBoard', process.env.WW_BOARD);
 const board = await judge.locator('#wwBoard').inputValue();

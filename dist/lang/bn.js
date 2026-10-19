@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'বলুন…',
   'ww.lastWords': 'শেষ কথা',
   'ww.speech': 'বক্তব্য',
+  'ww.turn': '{b} বলছেন (বাকি {s} সেকেন্ড)',
+  'ww.turnLast': '{b}: শেষ কথা (বাকি {s} সেকেন্ড)',
   'ww.role.wolf': 'উয়ারউলফ',
   'ww.role.wolfKing': 'উয়ারউলফ রাজা',
   'ww.role.whiteWolf': 'সাদা উয়ারউলফ রাজা',

@@ -332,6 +332,8 @@ export default {
   'ww.speakHint': 'Говорите…',
   'ww.lastWords': 'последнее слово',
   'ww.speech': 'речь',
+  'ww.turn': 'Говорит {b} (осталось {s} с)',
+  'ww.turnLast': '{b}: последнее слово (осталось {s} с)',
   'ww.role.wolf': 'волк',
   'ww.role.wolfKing': 'король волков',
   'ww.role.whiteWolf': 'белый волк-король',
