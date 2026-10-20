@@ -32,9 +32,9 @@ export async function list() {
   } catch { return null; }
 }
 // Lists a new table; true if the server took it.
-export async function create(pass, lang) {
+export async function create(pass, lang, room) {
   try {
-    const r = await fetch('lobby', { method: 'POST', cache: 'no-store', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass, lang }) });
+    const r = await fetch('lobby', { method: 'POST', cache: 'no-store', credentials: 'omit', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass, lang, roomId: room?.roomId, access: room?.access }) });
     return r.ok;
   } catch { return false; }
 }

@@ -3,6 +3,7 @@
 // the seats are full, and the table leaves the list of waiting ones. Private
 // rooms never show up; the list takes no bad or too many tables.
 import { chromium } from 'playwright';
+import { deriveRoom } from '../dist/crypto.js';
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
 const b = await chromium.launch();
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
@@ -52,7 +53,11 @@ ok(!(await K.locator('#lobbyList').innerText()).includes('2/2'), 'a table playin
 const status = async (body) => K.evaluate(async (b) => (await fetch('lobby', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) })).status, body);
 ok((await status({ pass: 'not a public table' })) === 400, 'a private passphrase cannot be listed');
 const codes = [];
-for (let i = 0; i < 4; i++) codes.push(await status({ pass: `pubtr2${'abcdefghjkmnpqr'}${i}` }));
+for (let i = 0; i < 4; i++) {
+  const pass = `pubtr2${'abcdefghjkmnpqr'}${i}`;
+  const room = await deriveRoom(pass);
+  codes.push(await status({ pass, roomId: room.roomId, access: room.access }));
+}
 ok(codes.includes(429), 'too many new tables from one address are refused: ' + codes.join(','));
 // When everyone leaves, the table goes.
 for (const p of [H, J]) await p.context().close();

@@ -131,7 +131,13 @@ const handler = async (req, res) => {
     req.setEncoding('utf8');
     req.on('data', (c) => { body += c; if (body.length > BODY_MAX) req.destroy(); });
     req.on('end', async () => {
-      const r = await lobby.create(readBody(body), clientIP(req), async (pass) => (await deriveRoom(pass)).roomId);
+      const verify = async (b) => {
+        if (!b || typeof b.roomId !== 'string' || typeof b.access !== 'string' || typeof b.pass !== 'string') return null;
+        if (!(await accessMatches(b.roomId, b.access))) return null;
+        const derived = await deriveRoom(b.pass);
+        return derived.roomId === b.roomId ? b.roomId : null;
+      };
+      const r = await lobby.create(readBody(body), clientIP(req), verify);
       json(r.error ? (r.error === 'too many' ? 429 : 400) : 200, r.error ? { error: r.error } : { id: r.id });
     });
     return;

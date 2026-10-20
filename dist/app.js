@@ -1950,7 +1950,8 @@ $('quickGo').addEventListener('click', async () => {
   $('quickDialog').close();
   if (table) return join(table.pass);
   const p = Tables.newPass(quickGame, Number($('quickSeats').value));
-  const listed = await Tables.create(p, lang());
+  const room = await deriveRoom(p);
+  const listed = await Tables.create(p, lang(), room);
   await join(p);
   if (!listed) system(t('quick.failed'));
 });

@@ -3,9 +3,12 @@
 //
 // A public table is an ordinary room whose passphrase says what it is:
 // "pub" + game + seats + 16 random letters or digits (PUBLIC below). The page
-// that opens one asks the server to list it; the server works the room
-// address out from the passphrase itself (deriveRoom, the same slow step the
-// browser does) and from then on counts the people in that room. The list
+// that opens one derives the room address and access credential, then asks the
+// server to list it. The server verifies the access credential (accessMatches);
+// Cloudflare Workers WebCrypto caps PBKDF2 at 100,000 iterations and cannot run
+// deriveRoom (310,000 iterations), so the Worker relies on the access check,
+// while the Node server additionally verifies that the room address matches the
+// passphrase. From then on the server counts the people in that room. The list
 // shows, for each table: the game, seats, how many are in, whether a game is
 // on, the language and how long it has been waiting, and the passphrase, so
 // that anyone can join. That is the point of a public table, and the page
@@ -47,18 +50,20 @@ export class Lobby {
     this.creates = new Map();  // address → [times]
   }
 
-  // Lists a new table. derive(pass) gives its room address. Returns
+  // Lists a new table. verify(body) checks that the page knows the room's
+  // access credential, and returns the room address (or null). Returns
   // { id } or { error }.
-  async create(body, ip, derive, now = Date.now()) {
+  async create(body, ip, verify, now = Date.now()) {
     const t = tableOf(body?.pass);
     if (!t) return { error: 'bad table' };
     const recent = (this.creates.get(ip) ?? []).filter((x) => now - x < CREATE_WINDOW);
     if (recent.length >= CREATES) return { error: 'too many' };
     this.sweep(now);
     if (this.tables.size >= MAX_TABLES) return { error: 'full' };
+    const roomId = await verify(body);
+    if (!roomId) return { error: 'bad table' };
     recent.push(now);
     this.creates.set(ip, recent);
-    const roomId = await derive(body.pass);
     const old = this.tables.get(roomId);
     if (old) return { id: old.id };
     const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');

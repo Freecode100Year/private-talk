@@ -4,6 +4,7 @@
 // others). Board: the first for the number of pages (WW_PAGES, default 6), or
 // WW_BOARD; WW_SHERIFF=1 turns the sheriff election on.
 import { chromium } from 'playwright';
+import { deriveRoom } from '../dist/crypto.js';
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
 const PAGES = Number(process.env.WW_PAGES || 6);
 const b = await chromium.launch();
@@ -13,9 +14,10 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
 const PUBLIC = process.env.WW_PUBLIC === '1';
 const PASS = PUBLIC ? `pubww${PAGES}${Array.from({ length: 16 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 31)]).join('')}` : 'ww' + Math.random().toString(36).slice(2, 12);
 if (PUBLIC) {
+  const room = await deriveRoom(PASS);
   const p = await (await b.newContext()).newPage();
   await p.goto(BASE);
-  const status = await p.evaluate(async (pass) => (await fetch('lobby', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass, lang: 'zh-Hans' }) })).status, PASS);
+  const status = await p.evaluate(async (args) => (await fetch('lobby', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) })).status, { pass: PASS, lang: 'zh-Hans', roomId: room.roomId, access: room.access });
   ok(status === 200, 'the public table is listed');
   await p.context().close();
 }

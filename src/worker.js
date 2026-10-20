@@ -16,7 +16,6 @@ import {
 } from './rules.js';
 import { Lobby as Tables, readBody, tableOf } from './lobby.js';
 import { WolfJudge } from './judge.js';
-import { deriveRoom } from '../dist/crypto.js';
 
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
 // The page asks for the pt2 subprotocol; a 101 answer must name it or the
@@ -279,7 +278,8 @@ export class Lobby extends DurableObject {
     if (path === '/list') return json(200, { tables: this.lobby.list() });
     const body = readBody(await request.text());
     if (path === '/create') {
-      const r = await this.lobby.create(body, request.headers.get('X-IP') || 'unknown', async (pass) => (await deriveRoom(pass)).roomId);
+      const verify = async (b) => (b && typeof b.roomId === 'string' && typeof b.access === 'string' && await accessMatches(b.roomId, b.access)) ? b.roomId : null;
+      const r = await this.lobby.create(body, request.headers.get('X-IP') || 'unknown', verify);
       if (r.error) return json(r.error === 'too many' ? 429 : 400, { error: r.error });
       if (r.roomId) await this.env.ROOMS.get(this.env.ROOMS.idFromName(r.roomId)).fetch('https://room/listed', { method: 'POST', body: JSON.stringify({ roomId: r.roomId, info: this.lobby.info(r.roomId) }) });
       return json(200, { id: r.id });
