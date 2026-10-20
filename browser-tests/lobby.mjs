@@ -42,10 +42,14 @@ const row = J.locator('.lobby-row', { hasText: '1/2' }).first();
 await row.locator('.sit').click();
 await J.waitForSelector('#sendButton:not([disabled])', { timeout: 30000 });
 ok(await H.waitForFunction(() => /开了一局骗子骰/.test(document.getElementById('messages').innerText), null, { timeout: 40000 }).then(() => true, () => false), 'the seats are full: the game starts by itself');
-await H.waitForTimeout(2500);
-tables = await lobby(H);
-const now = tables.find((x) => x.pass === mine.pass);
-ok(now && now.taken === 2 && now.playing, 'the list knows the table is full and playing');
+let now = null;
+for (let i = 0; i < 20; i++) {
+  await H.waitForTimeout(1000);
+  tables = await lobby(H);
+  now = tables.find((x) => x.pass === mine.pass);
+  if (now && now.taken === 2 && now.playing) break;
+}
+ok(now && now.taken === 2 && now.playing, 'the list knows the table is full and playing: ' + JSON.stringify(now && { taken: now.taken, playing: now.playing }));
 const K = await open();
 await K.waitForTimeout(1500);
 ok(!(await K.locator('#lobbyList').innerText()).includes('2/2'), 'a table playing is not offered on the front page');

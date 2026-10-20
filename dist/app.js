@@ -1909,7 +1909,7 @@ function renderLobby() {
   }));
 }
 // Keys may still be arriving when the seats fill: look again now and then.
-setInterval(() => { if (pass && publicTable && !(game && game.phase !== 'over')) publicStep(); }, 2000);
+setInterval(() => { if (pass && publicTable) publicStep(); }, 2000);
 // Quick play: pick a game; sit at a table waiting for it, or open one.
 let quickGame = 'ld';
 function bestTable(game) {
@@ -1966,7 +1966,12 @@ function publicStep() {
   if (!publicTable) return;
   $('publicNote').textContent = t('pub.note', { game: t(`game.name.${publicTable.game}`), seats: publicTable.seats });
   const on = !!game && game.phase !== 'over';
-  if (isHost() && ws?.readyState === WebSocket.OPEN && tableSaid !== on) { tableSaid = on; ws.send(JSON.stringify({ type: 'table', playing: on })); }
+  // The server takes one of these per person every 2 s (LOCK_GAP) and drops
+  // the rest, so a change that comes sooner waits for the next step.
+  if (isHost() && ws?.readyState === WebSocket.OPEN && (tableSaid !== on || publicStep.ws !== ws) && Date.now() - (publicStep.at ?? 0) > 2200) {
+    tableSaid = on; publicStep.ws = ws; publicStep.at = Date.now();
+    ws.send(JSON.stringify({ type: 'table', playing: on }));
+  }
   // The host's page starts the game once everyone is here.
   if (publicTable.game === 'ww') return; // the server deals and judges
   if (!on && isHost() && gameRoom().length >= publicTable.seats && canStartGame(publicTable.game)) {
