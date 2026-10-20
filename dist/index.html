@@ -52,6 +52,7 @@
             <div class="eyebrow"><span class="live-dot"></span> PRIVATE GAME ROOMS · END-TO-END ENCRYPTED</div>
             <h1 data-t-html="h1">只给知道<br /><span class="headline-secret">暗号的人<span class="cyan">。</span></span><br /><em>聊完，轻装离开。</em></h1>
             <p class="hero-description" data-t-html="hero.desc">不交换身份，不建立关系链。<br />一个暗号，一间只属于此刻的房间。</p>
+            <div class="hero-ctas"><button class="primary-button quick-cta" id="quickPlay" type="button"><span><b data-t="lobby.quick">🎲 快速找一桌</b><small data-t="lobby.quickSub">和陌生人玩 · 公开桌</small></span></button><button class="private-cta" id="privateCta" type="button"><span><b data-t="lobby.private">🔒 私密房间</b><small data-t="lobby.privateSub">知道暗号的人才能进</small></span></button></div>
             <div class="hero-tags"><span><svg><use href="#i-shield"/></svg><b data-t="tag.e2ee">端对端加密</b></span><span><svg><use href="#i-eye"/></svg><b data-t="tag.noSignup">无需注册</b></span><span><b data-t="tag.max">最多 25 人</b></span></div>
             <div class="hero-note"><span class="short-line"></span><span data-t="hero.note">少一点痕迹，多一点自在。</span></div>
           </div>
@@ -84,16 +85,22 @@
         </div>
       </section>
 
+      <section class="lobby-panel" aria-labelledby="lobbyTitle">
+        <h2 id="lobbyTitle" data-t="lobby.title">🪑 正在等人的公开桌</h2>
+        <p data-t="lobby.hint">这里只列公开桌；私密房间永远不会出现在这里。</p>
+        <div id="lobbyList" aria-live="polite"><p class="lobby-empty" data-t="lobby.loading">正在看有没有人在等……</p></div>
+      </section>
+
       <section class="shelf" aria-labelledby="shelfTitle">
         <h2 id="shelfTitle" data-t="shelf.title">🎲 房间里能玩的游戏</h2>
         <p data-t="shelf.hint">进房间后在「房间」侧栏开局；点卡片看详细规则。</p>
         <div class="shelf-grid">
-          <button class="shelf-card main" type="button" data-rules="ww"><span class="icon">🐺</span><b data-t="game.name.ww">狼人杀</b><span data-t="shelf.ww">23 种板子 · 程序当法官，人人都玩</span><em data-players="ww"></em></button>
-          <button class="shelf-card" type="button" data-rules="spy"><span class="icon">🕵️</span><b data-t="game.name.spy">暗号潜伏</b><span data-t="shelf.spy">谁拿到了不一样的词？</span><em data-players="spy"></em></button>
-          <button class="shelf-card" type="button" data-rules="esc"><span class="icon">🔐</span><b data-t="game.name.esc">密电逃脱</b><span data-t="shelf.esc">全队合作，拼线索开三道锁</span><em data-players="esc"></em></button>
-          <button class="shelf-card" type="button" data-rules="tr"><span class="icon">🤝</span><b data-t="game.name.tr">密约交易所</b><span data-t="shelf.tr">守约还是背叛？五轮囚徒困境</span><em data-players="tr"></em></button>
-          <button class="shelf-card" type="button" data-rules="ld"><span class="icon">🎲</span><b data-t="game.name.ld">骗子骰</b><span data-t="shelf.ld">吹牛还是开？骰子谁也偷看不到</span><em data-players="ld"></em></button>
-          <button class="shelf-card" type="button" data-rules="sm"><span class="icon">🎯</span><b data-t="game.name.sm">秘密任务</b><span data-t="shelf.sm">暗中引导别人说出你的词</span><em data-players="sm"></em></button>
+          <button class="shelf-card main" type="button" data-rules="ww"><span class="icon">🐺</span><b data-t="game.name.ww">狼人杀</b><span data-t="shelf.ww">23 种板子 · 程序当法官，人人都玩</span><em data-players="ww"></em><i class="shelf-meta"><span data-minutes="ww"></span><span data-wait="ww"></span></i></button>
+          <button class="shelf-card" type="button" data-rules="spy"><span class="icon">🕵️</span><b data-t="game.name.spy">暗号潜伏</b><span data-t="shelf.spy">谁拿到了不一样的词？</span><em data-players="spy"></em><i class="shelf-meta"><span data-minutes="spy"></span><span data-wait="spy"></span></i></button>
+          <button class="shelf-card" type="button" data-rules="esc"><span class="icon">🔐</span><b data-t="game.name.esc">密电逃脱</b><span data-t="shelf.esc">全队合作，拼线索开三道锁</span><em data-players="esc"></em><i class="shelf-meta"><span data-minutes="esc"></span><span data-wait="esc"></span></i></button>
+          <button class="shelf-card" type="button" data-rules="tr"><span class="icon">🤝</span><b data-t="game.name.tr">密约交易所</b><span data-t="shelf.tr">守约还是背叛？五轮囚徒困境</span><em data-players="tr"></em><i class="shelf-meta"><span data-minutes="tr"></span><span data-wait="tr"></span></i></button>
+          <button class="shelf-card" type="button" data-rules="ld"><span class="icon">🎲</span><b data-t="game.name.ld">骗子骰</b><span data-t="shelf.ld">吹牛还是开？骰子谁也偷看不到</span><em data-players="ld"></em><i class="shelf-meta"><span data-minutes="ld"></span><span data-wait="ld"></span></i></button>
+          <button class="shelf-card" type="button" data-rules="sm"><span class="icon">🎯</span><b data-t="game.name.sm">秘密任务</b><span data-t="shelf.sm">暗中引导别人说出你的词</span><em data-players="sm"></em><i class="shelf-meta"><span data-minutes="sm"></span><span data-wait="sm"></span></i></button>
         </div>
       </section>
 
@@ -181,6 +188,7 @@
               <button class="clear-button panic-button" id="panicButton" type="button" title="立即离开房间并清空页面（连按两次 Esc）" aria-label="紧急离开" data-t-title="panic.title" data-t-aria="panic"><svg><use href="#i-close"/></svg><span data-t="panic">紧急离开</span></button>
             </div>
           </header>
+          <p class="public-note" id="publicNote" hidden></p>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <section class="game-panel" id="gamePanel" hidden aria-live="polite">
             <div class="game-head"><strong id="gameTitle"></strong><span id="gamePlayers"></span></div>
@@ -253,6 +261,15 @@
       <div class="qr-code" id="qrCode"></div>
       <p class="qr-note" data-t="qr.note">二维码里含房间暗号：只给要邀请的人当面扫，不要截图或转发。</p>
       <button class="primary-button" id="qrClose" type="button"><span data-t="qr.close">关闭</span><svg><use href="#i-arrow"/></svg></button>
+    </dialog>
+    <dialog class="rules-dialog quick-dialog" id="quickDialog" aria-labelledby="quickTitle">
+      <div class="dialog-top"><span class="overline">PUBLIC TABLES</span><button class="icon-button" type="button" id="quickX" aria-label="关闭" data-t-aria="quick.close"><svg><use href="#i-close"/></svg></button></div>
+      <h2 id="quickTitle" data-t="quick.title">🎲 快速找一桌</h2>
+      <p class="muted" data-t="quick.pick">想玩什么？有人在等的会让你直接坐下。</p>
+      <div class="quick-games" id="quickGames"></div>
+      <label class="quick-seats"><span data-t="quick.seats">几人桌</span> <select id="quickSeats"></select></label>
+      <p class="quick-note" data-t="quick.note">公开桌：任何人都能进来，服务器也能看到这里的聊天和牌局；不要在公开桌说私密的事。人坐满就自动开局。</p>
+      <button class="primary-button" id="quickGo" type="button"><span id="quickGoLabel" data-t="quick.go">坐下</span><svg><use href="#i-arrow"/></svg></button>
     </dialog>
     <dialog class="rules-dialog" id="rulesDialog" aria-labelledby="rulesTitle">
       <div class="dialog-top"><span class="overline">HOW TO PLAY</span><button class="icon-button" type="button" id="rulesX" aria-label="关闭" data-t-aria="rules.close"><svg><use href="#i-close"/></svg></button></div>

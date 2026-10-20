@@ -8,7 +8,17 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8099';
 const PAGES = Number(process.env.WW_PAGES || 6);
 const b = await chromium.launch();
 let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
-const PASS = 'ww' + Math.random().toString(36).slice(2, 12);
+// WW_PUBLIC=1: a public table, judged by the server (src/judge.js); the
+// game starts by itself when the seats are full.
+const PUBLIC = process.env.WW_PUBLIC === '1';
+const PASS = PUBLIC ? `pubww${PAGES}${Array.from({ length: 16 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random() * 31)]).join('')}` : 'ww' + Math.random().toString(36).slice(2, 12);
+if (PUBLIC) {
+  const p = await (await b.newContext()).newPage();
+  await p.goto(BASE);
+  const status = await p.evaluate(async (pass) => (await fetch('lobby', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pass, lang: 'zh-Hans' }) })).status, PASS);
+  ok(status === 200, 'the public table is listed');
+  await p.context().close();
+}
 async function page() {
   const p = await (await b.newContext({ viewport: { width: 1366, height: 850 }, locale: 'zh-CN' })).newPage();
   p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
@@ -23,21 +33,31 @@ const judge = players[0];
 const me = [];
 // Buttons write members from 11 on as #11; avatars as 11.
 for (const p of players) { const x = await p.locator('.member .avatar.me').innerText(); me.push(/^\d{2}$/.test(x) ? `#${x}` : x); }
-ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 40000 }).then(() => true, () => false), `${PAGES} players: the game can start`);
-if (process.env.WW_BOARD) await judge.selectOption('#wwBoard', process.env.WW_BOARD);
-const board = await judge.locator('#wwBoard').inputValue();
-if (process.env.WW_SHERIFF) await judge.setChecked('#wwSheriff', process.env.WW_SHERIFF === '1');
-await judge.click('#wwStart');
-for (const p of players) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 20000 });
-ok((await text(players[1])).includes('法官由程序自动担任'), `everyone is told the judge is automatic (board ${board})`);
+let board = 'server';
+if (!PUBLIC) {
+  ok(await judge.waitForFunction(() => !document.getElementById('wwStart').disabled, null, { timeout: 40000 }).then(() => true, () => false), `${PAGES} players: the game can start`);
+  if (process.env.WW_BOARD) await judge.selectOption('#wwBoard', process.env.WW_BOARD);
+  board = await judge.locator('#wwBoard').inputValue();
+  if (process.env.WW_SHERIFF) await judge.setChecked('#wwSheriff', process.env.WW_SHERIFF === '1');
+  await judge.click('#wwStart');
+}
+for (const p of players) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 30000 });
+ok((await text(players[1])).includes(PUBLIC ? '法官由服务器担任' : '法官由程序自动担任'), `everyone is told who judges (board ${board})`);
 const cards = [];
 for (const p of players) {
   await p.waitForFunction(() => !document.getElementById('gameWord').hidden, null, { timeout: 10000 });
-  const box = await p.locator('#gameWord').boundingBox();
-  await p.mouse.move(box.x + 20, box.y + 10); await p.mouse.down();
-  cards.push(await p.locator('#gameWord').innerText());
-  await p.waitForTimeout(450);   // held, not tapped (a tap leaves it open)
-  await p.mouse.up();
+  // Held, not tapped (a tap leaves it open); again if the panel moved under
+  // the pointer as it was pressed.
+  let card = '';
+  for (let i = 0; i < 5 && !/你的身份：/.test(card); i++) {
+    const box = await p.locator('#gameWord').boundingBox();
+    await p.mouse.move(box.x + 20, box.y + 10); await p.mouse.down();
+    card = await p.locator('#gameWord').innerText();
+    await p.waitForTimeout(450);
+    await p.mouse.up();
+    if (!/你的身份：/.test(card)) await p.waitForTimeout(500);
+  }
+  cards.push(card);
 }
 const WOLVES = ['狼人', '狼王', '白狼王', '狼美人', '大灰狼', '隐狼', '石像鬼'];
 const roleOf = (i) => cards[i].match(/你的身份：(\S+)/)?.[1] ?? '?';
@@ -103,7 +123,7 @@ if (seer >= 0) ok(/🔒 🔮 你查验了/.test(await text(players[seer])), 'the
 const villager = me.findIndex((_, i) => roleOf(i) === '村民');
 if (villager >= 0) ok(!/🔒/.test(await text(players[villager])), 'a villager hears nothing private');
 if (process.env.WW_SHERIFF === '1' || /^b12/.test(board)) ok(/当选警长|没有警长/.test(end), 'the sheriff election ran');
-ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
+if (!PUBLIC) ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
 if (process.env.WW_DAY === '1') ok(dayDone && /⚔️|💥/.test(end), `a day action was used and announced (${dayDone})`);
 ok(!(await text(judge)).includes('无法解密'), 'no unreadable messages');
 if (fails) console.log((await text(judge)).split('\n').filter((l) => l.trim() && !/^\S+$/.test(l.trim())).slice(-40).join('\n'));

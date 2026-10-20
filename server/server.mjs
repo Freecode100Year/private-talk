@@ -27,6 +27,9 @@ import {
   PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from '../src/rules.js';
 
+import { Lobby, readBody, BODY_MAX } from '../src/lobby.js';
+import { WolfJudge } from '../src/judge.js';
+import { deriveRoom } from '../dist/crypto.js';
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
 import { VERSION } from './version.mjs';
 
@@ -119,6 +122,20 @@ const handler = async (req, res) => {
     res.writeHead(204, BYE_HEADERS).end();
     return;
   }
+  // The public tables (src/lobby.js).
+  if (url.pathname === '/lobby') {
+    const json = (status, obj) => res.writeHead(status, { ...PLAIN_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(obj));
+    if (req.method === 'GET') return json(200, { tables: lobby.list() });
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(405, { error: 'method' });
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (c) => { body += c; if (body.length > BODY_MAX) req.destroy(); });
+    req.on('end', async () => {
+      const r = await lobby.create(readBody(body), clientIP(req), async (pass) => (await deriveRoom(pass)).roomId);
+      json(r.error ? (r.error === 'too many' ? 429 : 400) : 200, r.error ? { error: r.error } : { id: r.id });
+    });
+    return;
+  }
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405, PLAIN_HEADERS).end(); return; }
   // For health checks: says only that the process serves and its version;
   // nothing about rooms or visitors.
@@ -170,11 +187,42 @@ setInterval(() => {
 
 // roomId -> { peers: Set<ws>, book }. A room exists while someone is in it.
 const rooms = new Map();
+// The public tables, in memory only.
+const lobby = new Lobby();
 
 function send(ws, obj) {
   if (ws.readyState !== ws.OPEN) return;
   if (ws.bufferedAmount > MAX_BUFFERED) { ws.terminate(); return; }
   ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj));
+}
+
+// The server's judge at a public werewolf table (src/judge.js): what it
+// sends goes to everyone (to 0) or to one player.
+function judgeOut(room, out) {
+  for (const { to, msg } of out) {
+    if (!to) broadcast(room, msg);
+    else for (const peer of room.peers) if (peer.state.n === to) send(peer, msg);
+  }
+  clearTimeout(room.judgeTimer);
+  const due = room.judge?.deadline;
+  if (due) room.judgeTimer = setTimeout(() => room.judge && judgeOut(room, room.judge.tick(Date.now())), Math.max(0, due - Date.now()) + 50);
+}
+function judgeMembers(room, roomId) {
+  const t = lobby.tables.get(roomId);
+  if (!t || t.game !== 'ww') return;
+  room.judge ??= new WolfJudge();
+  const here = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
+  if (!room.judge.on && here.length >= t.seats) {
+    clearTimeout(room.judgeStart);
+    // A moment for the last to arrive to settle in, then deal.
+    room.judgeStart = setTimeout(() => {
+      const now = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
+      if (!room.judge.on && now.length >= t.seats) { judgeOut(room, room.judge.start(now.slice(0, t.seats), null, Date.now())); lobby.playing(roomId, true); }
+    }, 3000);
+    return;
+  }
+  judgeOut(room, room.judge.members(here, Date.now()));
+  if (!room.judge.on) lobby.playing(roomId, false);
 }
 
 const hostIn = (room) => hostOf([...room.peers].map((p) => [p.state.n, p.state.seq]));
@@ -218,8 +266,10 @@ function enter(ws, roomId, ip, resume) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true, lobby: true });
   members(room);
+  lobby.people(roomId, room.peers.size);
+  judgeMembers(room, roomId);
 
   ws.on('pong', () => { ws.alive = true; });
   ws.on('message', (data, isBinary) => {
@@ -245,6 +295,8 @@ function enter(ws, roomId, ip, resume) {
       broadcast(room, { type: 'removed', n: r.remove, by: n });
       return members(room);
     }
+    if (r.ref) { if (room.judge) { judgeOut(room, room.judge.handle(n, r.ref, Date.now())); if (!room.judge.on) lobby.playing(roomId, false); } return; }
+    if (r.table) return room.judge ? undefined : lobby.playing(roomId, r.table.playing);
     if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
     if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });
     if (r.file) return broadcast(room, { type: 'file', from: n, ...r.file });
@@ -252,9 +304,11 @@ function enter(ws, roomId, ip, resume) {
   });
   ws.on('close', (code) => {
     if (!room.peers.delete(ws)) return; // replaced by a newer connection
-    if (room.peers.size === 0) { rooms.delete(roomId); return; } // the room is gone
+    lobby.people(roomId, room.peers.size);
+    if (room.peers.size === 0) { clearTimeout(room.judgeTimer); clearTimeout(room.judgeStart); rooms.delete(roomId); return; } // the room is gone
     room.book = depart(room.book, n, ws.state.resume, code === CLOSE_LEFT, Date.now(), ws.state.sent);
     members(room);
+    judgeMembers(room, roomId);
   });
   ws.on('error', () => ws.terminate());
 }

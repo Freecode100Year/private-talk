@@ -141,6 +141,9 @@ export function winner(alive, secret) {
   return '';
 }
 
+// The server's judge at a public table (src/judge.js) sends as member 0, a
+// number no page has; the page passes it only for the server's own frames.
+export const JUDGE = 0;
 const GID = /^[0-9a-f]{12}$/;
 const isNumber = (n) => Number.isInteger(n) && n >= 1 && n <= 25;
 // Whose turn it is to speak, or 0.
@@ -157,7 +160,7 @@ export function apply(s, g, from, now) {
     if (s && s.phase !== 'over') return { s, note: null };
     const players = Array.isArray(g.players) ? g.players : [];
     const b = BOARDS[g.board];
-    if (!GID.test(g.gid ?? '') || !b || b.n !== players.length || !players.every(isNumber) || !players.includes(from) || new Set(players).size !== players.length) return { s, note: null };
+    if (!GID.test(g.gid ?? '') || !b || b.n !== players.length || !players.every(isNumber) || !(players.includes(from) || from === JUDGE) || new Set(players).size !== players.length) return { s, note: null };
     const next = { type: 'ww', gid: g.gid, dealer: from, board: g.board, sheriffOn: !!g.sheriff, players: players.slice(), alive: players.slice(), day: 0, phase: 'start', step: '', actors: [], acted: [], speakers: [], turn: 0, spoke: false, voters: [], voted: [], candidates: [], sheriff: 0, mute: [], deadline: now };
     return { s: next, note: { k: 'ww-new', by: from, players: next.players, board: g.board, sheriff: !!g.sheriff } };
   }

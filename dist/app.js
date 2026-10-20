@@ -4,7 +4,9 @@ import {
 } from './state.js';
 import { deriveRoom, seal, open } from './crypto.js';
 import { Group } from './group.js';
-import { deal, apply as applyUndercover, count as countVotes, ending, speaker, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
+import { deal, apply as applyUndercover, speaker, dealer as passer, cardOf, readCard, commitVote, checkVote, dealerMove as undercoverMove, MIN_PLAYERS, MAX_PLAYERS } from './game.js';
+import * as Sra from './sra.js';
+import * as Tables from './tables.js';
 import * as Escape from './escape.js';
 import * as Pact from './trade.js';
 import * as Mission from './mission.js';
@@ -91,6 +93,7 @@ const isHost = () => you !== 0 && you === host;
 
 function show(stage) {
   closeSidebar(false);
+  if (stage === 'create') startLobby(); else stopLobby();
   $('createStage').classList.toggle('hidden', stage !== 'create');
   $('chatStage').classList.toggle('hidden', stage !== 'chat');
   document.body.classList.toggle('in-chat', stage === 'chat');
@@ -374,6 +377,8 @@ async function join(p) {
   if (!SECURE) return;
   const ticket = ++session;
   pass = p;
+  tableSaid = null;
+  revealedGid = null;
   // The passphrase leaves the form and the address bar at once.
   $('roomName').value = '';
   mask(true);
@@ -539,6 +544,8 @@ async function handle(data, sock, started, retry = false) {
     system(t(msg.locked ? 'sys.locked' : 'sys.unlocked', { who }));
   } else if (msg.type === 'denied') {
     system(t('sys.notHost', { b: host ? badge(host) : '' }));
+  } else if (msg.type === 'ref') {
+    judgeFrame(msg);
   } else if (msg.type === 'removed') {
     system(t('sys.removed', { b: badge(msg.n), who: msg.by === you ? t('you') : badge(msg.by) }));
   } else if (msg.type === 'msg') {
@@ -723,16 +730,59 @@ async function pumpGame() {
     }
   } finally { pumping = false; }
 }
+// 暗号潜伏 without a dealer who knows the cards (game.js, sra.js): this
+// page's key for the deal, its card once dealt, and its vote this round.
+let mySra = null;       // { gid, key, card: { side, word }, passed: Set(step keys), vote: { r, c, salt, h, opened } }
+let revealedGid = null;
 async function startGame() {
   if (!canStartGame()) return;
   const players = gameRoom().slice();
   const d = deal(players, document.documentElement.lang);
-  const cards = {};
-  for (const n of players) if (n !== you) cards[n] = await group.sealFor(n, d.cards.get(n), `card|${d.deal.gid}`);
-  dealer = { gid: d.deal.gid, secret: d.secret, ballots: new Map(), done: new Set() };
-  myWord = d.cards.get(you);
+  // The starter writes the cards, encrypts them all and shuffles.
+  const key = Sra.key();
+  const deck = Sra.shuffle(d.cards.map((c) => Sra.lock(Sra.encode(c), key))).map(Sra.toText);
+  dealer = { gid: d.gid, done: new Set() };
+  mySra = { gid: d.gid, key, card: null, passed: new Set(['deal|0']), vote: null };
+  myWord = '';
   myClues = null;
-  queueGame({ k: 'new', ...d.deal, cards });
+  revealedGid = null;
+  queueGame({ k: 'new', gid: d.gid, players: d.players, order: d.order, deck });
+}
+// This page's part: its turn in the deal, reading its card, showing its
+// vote, and its key when voted out or at the end.
+async function undercoverStep() {
+  if (!game || game.type || (game.phase === 'over' && !game.end) || !game.players.includes(you)) return;
+  const { gid } = game;
+  if (!mySra || mySra.gid !== gid) mySra = { gid, key: Sra.key(), card: null, passed: new Set(), vote: null };
+  const me = mySra;
+  if (passer(game) === you) {
+    const step = `${game.phase}|${game.step}`;
+    if (me.passed.has(step)) return;
+    me.passed.add(step);
+    const deck = Sra.readDeck(game.deck, game.players.length);
+    if (!deck) return;
+    await new Promise((r) => setTimeout(r, 0));
+    const mine = cardOf(game, you);
+    const out = game.phase === 'deal' ? Sra.shuffle(deck.map((c) => Sra.lock(c, me.key))) : deck.map((c, i) => (i === mine ? c : Sra.unlock(c, me.key.d)));
+    queueGame({ k: game.phase === 'deal' ? 'shuf' : 'strip', gid, deck: out.map(Sra.toText) });
+    return;
+  }
+  if (!me.card && !['deal', 'strip'].includes(game.phase)) {
+    const deck = Sra.readDeck(game.deck, game.players.length);
+    me.card = deck ? readCard(Sra.decode(Sra.unlock(deck[cardOf(game, you)], me.key.d))) : null;
+    myWord = me.card?.word ?? '';
+    if (me.card) { system(`🔒 ${t('game.yourWord', { w: me.card.word })}`); nudge(`spyword|${gid}`); }
+    renderGame();
+  }
+  if (game.phase === 'open' && me.vote?.r === game.round && game.ballots[you] === me.vote.h && !me.vote.opened) {
+    me.vote.opened = true;
+    queueGame({ k: 'open', gid, r: game.round, c: me.vote.c, salt: me.vote.salt });
+  }
+  const showKey = (game.phase === 'confess' && game.out === you) || (game.phase === 'final' && game.alive.includes(you) && !(you in game.revealed)) || (game.phase === 'over' && game.end && !(you in game.revealed));
+  if (showKey && me.shown !== `${game.phase}|${game.round}`) {
+    me.shown = `${game.phase}|${game.round}`;
+    queueGame({ k: 'key', gid, d: Sra.keyText(me.key.d) });
+  }
 }
 async function startEscape() {
   if (!canStartGame('esc')) return;
@@ -783,6 +833,7 @@ function startDice() {
   dealer = { gid: g.gid, done: new Set() };
   myWord = '';
   myClues = null;
+  revealedGid = null;
   myDice = null;
   queueGame(g);
 }
@@ -792,27 +843,39 @@ function startPact() {
   dealer = { gid: g.gid, done: new Set() };
   myWord = '';
   myClues = null;
+  revealedGid = null;
   myPact = null;
   queueGame(g);
 }
 // Takes in one game event from a message. Returns true for a description
 // (shown as a message too).
-async function gameEvent(g, from) {
+async function gameEvent(g, from, fromJudge = false) {
+  // Only the server's own frames may come from the judge (member 0).
+  if (from === Wolf.JUDGE && !fromJudge) return null;
   // One game at a time. The dealer of a running game tells the room about
   // it when someone joins, or when another game is started over it.
   if (g.k === 'busy' || g.k === 'free') { gameBusy(g, from); return null; }
   const isNew = g.k === 'new' || /-new$/.test(g.k);
   if (isNew && from !== you && dealer && game && game.gid === dealer.gid && game.phase !== 'over' && g.gid !== game.gid) sayBusy();
-  if (g.k === 'new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
-    try { myWord = await group.openFrom(from, g.cards?.[you], `card|${g.gid}`); } catch { myWord = ''; }
+  if (g.k === 'new' && (!game || game.phase === 'over')) {
+    if (from !== you) mySra = null;
+    myWord = '';
     myClues = null;
+    revealedGid = null;
+  }
+  // 暗号潜伏: a shown vote counts only if it matches its commitment; a shown
+  // key is read against the sender's card. Every page checks for itself.
+  if (game && !game.type && g.gid === game.gid) {
+    if (g.k === 'open') g = { ...g, ok: !!game.ballots?.[from] && await checkVote(game.gid, game.round, from, game.ballots[from], g.c, g.salt) };
+    if (g.k === 'key') {
+      const deck = Sra.readDeck(game.deck, game.players.length);
+      const d = Sra.keyFrom(g.d);
+      g = { ...g, card: deck && d && game.players.includes(from) ? readCard(Sra.decode(Sra.unlock(deck[cardOf(game, from)], d))) : null };
+    }
   }
   if (g.k === 'esc-new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
     try { myClues = Escape.readHand(await group.openFrom(from, g.cards?.[you], `esc|${g.gid}`)); } catch { myClues = null; }
     myWord = '';
-  }
-  if (g.k === 'ballot' && dealer && game && g.gid === dealer.gid && from !== you && game.phase === 'vote' && !game.voted.includes(from)) {
-    try { dealer.ballots.set(from, Number(await group.openFrom(from, g.b, `vote|${g.gid}|${g.r}`))); } catch {}
   }
   if (g.k === 'tr-new' && (!game || game.phase === 'over')) { myPact = null; myWord = ''; myClues = null; }
   if (g.k === 'ww-new' && (!game || game.phase === 'over')) {
@@ -822,7 +885,8 @@ async function gameEvent(g, from) {
       myRole = null;
       myLog = [];
       myDueled = false;
-      try { if (Array.isArray(g.players) && g.players.includes(you)) myRole = JSON.parse(await group.openFrom(from, g.cards?.[you], `wwcard|${g.gid}`)); } catch {}
+      if (fromJudge) { const c = judged.card; myRole = c?.gid === g.gid ? { role: c.role, ...(c.pack && { pack: c.pack }) } : null; }
+      else try { if (Array.isArray(g.players) && g.players.includes(you)) myRole = JSON.parse(await group.openFrom(from, g.cards?.[you], `wwcard|${g.gid}`)); } catch {}
     }
   }
   // 狼人杀: the judge reads the actions and ballots sealed for it (and acts
@@ -835,7 +899,9 @@ async function gameEvent(g, from) {
       if (a && g.step === `d${game.day}` && ['say', 'vote'].includes(game.phase)) wolfInterrupt(from, a);
       else if (a && g.step === game.step) dealer.acts.set(from, a);
     }
-    if (g.k === 'ww-go' && from !== you) {
+    if (g.k === 'ww-go' && fromJudge) {
+      myTell = { step: typeof g.step === 'string' ? g.step : '', data: judged.tells.get(`${g.gid}|${g.step ?? ''}`) ?? {}, shown: false };
+    } else if (g.k === 'ww-go' && from !== you) {
       let data = {};
       if (g.tell?.[you]) { try { data = JSON.parse(await group.openFrom(from, g.tell[you], `wwtell|${g.gid}|${g.step ?? ''}`)); } catch {} }
       myTell = { step: typeof g.step === 'string' ? g.step : '', data, shown: false };
@@ -890,7 +956,7 @@ async function gameEvent(g, from) {
   if (g.k === 'sm-pick' && game?.type === 'sm' && before?.missions && !before.missions[from] && game.missions[from]) pickedAt.set(from, chatLog.length);
   if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
   if (g.k === 'ww-go' && from === you && dealer?.gid === g.gid) { dealer.moves++; dealer.acts = new Map(); }
-  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); diceStep(); }
+  if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); diceStep(); undercoverStep(); }
   if (game?.phase === 'over' && dealer?.gid === game.gid && dealer.busySaid && !dealer.freed) { dealer.freed = true; queueGame({ k: 'free', gid: game.gid }); }
   if (note?.k === 'say' || note?.k === 'ww-say') return { tag: { cls: 'said', label: `🗣 ${t(game?.type === 'ww' ? (game.phase === 'last' ? 'ww.lastWords' : 'ww.speech') : 'game.said')}` } };
   return note ? shown : null;
@@ -901,10 +967,25 @@ function gameNote(note) {
   else if (note.k === 'skip') system(t('game.skipped', { b: badge(note.n) }));
   if ((note.k === 'say' || note.k === 'skip') && note.talk) system(t('game.talk'));
   if (note.k === 'vote') system(t('game.voteNow'));
+  if (note.k === 'dealt') system(t('game.dealt'));
+  if (note.k === 'ballot' && note.open) system(t('game.opening'));
   if (note.k === 'result') {
     const votes = Object.entries(note.votes).map(([v, c]) => `${badge(Number(v))}→${badge(Number(c))}`).join('，');
-    system((votes ? `${t('game.votes')}${votes}。` : '') + (note.out ? t('game.out', { b: badge(note.out) }) : t('game.tie')));
-    if (note.end) system(endText(note.end));
+    system((votes ? `${t('game.votes')}${votes}。` : '') + (note.out ? `${t('game.out', { b: badge(note.out) })} ${t('game.confess', { b: badge(note.out) })}` : t('game.tie')));
+  }
+  if (note.k === 'shown') {
+    system(note.card ? t(note.card.side === 'spy' ? 'game.wasSpy' : 'game.wasCiv', { b: badge(note.n), w: note.card.word }) : t('game.noKey', { b: badge(note.n) }));
+    if (note.final) system(t('game.finalShow'));
+  }
+  if (note.k === 'stuck') system(t('game.stuck', { b: badge(note.n) }));
+  // 暗号潜伏's end (other games say theirs in their own notes).
+  if (note.end && (note.k === 'shown' || note.k === 'end')) system(endText(note.end));
+  // Both words, once known (at the end or as everyone shows their card): said once.
+  const end = !game || !game.type ? note.end : null;
+  const spy = end && (end.spy || (game && game.end && game.end.spy) || 0);
+  if (end && end.words && end.words.civ && end.words.spy && spy && revealedGid !== (game && game.gid)) {
+    revealedGid = game && game.gid;
+    system(t('game.reveal', { b: badge(spy), spy: end.words.spy, civ: end.words.civ }));
   }
   if (note.k === 'abort') system(t('game.aborted'));
   if (note.k.startsWith('tr-')) pactNote(note);
@@ -971,7 +1052,7 @@ function tellNote(x) {
 function wolfNote(note) {
   const list = (ns) => ns.map(badge).join(' ');
   if (note.k === 'ww-new') {
-    system(t('ww.started', { b: badge(note.by), list: list(note.players), n: note.players.length, board: boardText(note.board) }) + ` ${t('ww.rules')}${note.sheriff ? ` ${t('ww.sheriffOn')}` : ''} ${t('ww.judge')}`);
+    system(t('ww.started', { b: note.by === Wolf.JUDGE ? '🌍' : badge(note.by), list: list(note.players), n: note.players.length, board: boardText(note.board) }) + ` ${t('ww.rules')}${note.sheriff ? ` ${t('ww.sheriffOn')}` : ''} ${t(note.by === Wolf.JUDGE ? 'ww.serverJudge' : 'ww.judge')}`);
     if (myRole) system(t('ww.hold'));
   }
   if (note.k === 'ww-skip') system(t('game.skipped', { b: badge(note.n) }));
@@ -1041,14 +1122,16 @@ function escEndText(end) {
 }
 function endText(end) {
   const why = end.why === 'left' ? `${t('game.spyLeft')} ` : '';
-  return `${why}${t(end.winner === 'spy' ? 'game.spyWins' : 'game.civWins')} ${t('game.reveal', { b: badge(end.spy), spy: end.words?.spy ?? '', civ: end.words?.civ ?? '' })}`;
+  return `${why}${t(end.winner === 'spy' ? 'game.spyWins' : 'game.civWins')}`;
 }
 function endGame() {
   game = null;
   myWord = '';
   myClues = null;
+  revealedGid = null;
   myPact = null;
   myDice = null;
+  mySra = null;
   myNotes.clear();
   myMission = null;
   chatLog = [];
@@ -1140,6 +1223,7 @@ async function wolfSendAct(a, summary, kind = '') {
   const step = day ? `d${game.day}` : game.step;
   const ballot = Wolf.VOTING.includes(game.phase) && !day;
   renderGame();
+  if (game.dealer === Wolf.JUDGE) return sendJudge(day ? { k: 'day', act: a } : { k: 'act', step, act: a });
   if (dealer?.gid === gid) {
     if (day) return wolfInterrupt(you, a);
     dealer.acts.set(you, a);
@@ -1147,6 +1231,21 @@ async function wolfSendAct(a, summary, kind = '') {
   }
   const b = await group.sealFor(game.dealer, JSON.stringify(a), `ww|${gid}|${step}`);
   queueGame({ k: ballot ? 'ww-ballot' : 'ww-act', gid, step, b });
+}
+// 狼人杀 at a public table: the server judges (src/judge.js). Its frames
+// come outside the room's encryption, over the connection: everyone's game
+// events, and this page's card and what the judge tells it. Only a public
+// werewolf table takes them; anywhere else they are ignored.
+const judged = { card: null, tells: new Map() };
+const serverJudged = () => publicTable?.game === 'ww';
+function judgeFrame(msg) {
+  if (!serverJudged()) return;
+  if (msg.card && typeof msg.card === 'object' && typeof msg.card.role === 'string') judged.card = msg.card;
+  if (msg.tell && typeof msg.tell === 'object') judged.tells.set(`${msg.tell.gid}|${msg.tell.step}`, msg.tell.data ?? {});
+  if (msg.g && typeof msg.g === 'object' && Number.isInteger(msg.from)) gameEvent(msg.g, msg.from, true);
+}
+function sendJudge(a) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ref', a }));
 }
 // The judge, on a day action (a knight's duel, a white wolf's blast).
 function wolfInterrupt(from, a) {
@@ -1273,30 +1372,21 @@ function dealerStep() {
     else if (Date.now() >= game.deadline) once(`time|${game.lock}`, Escape.judge(game, dealer.codes, true));
     return;
   }
-  if (!here.includes(dealer.secret.spy)) {
-    return once(`left|${game.round}`, { k: 'result', gid, out: 0, votes: {}, end: ending(game.alive, dealer.secret, 0, 'left') });
-  }
-  const late = Date.now() >= game.deadline;
-  if (game.phase === 'say') {
-    const n = speaker(game);
-    if (late || !here.includes(n)) once(`skip|${game.round}|${game.turn}`, { k: 'skip', gid, n });
-  } else if (game.phase === 'talk') {
-    if (late) once(`vote|${game.round}`, { k: 'vote', gid });
-  } else if (game.phase === 'vote') {
-    const waiting = game.alive.filter((n) => here.includes(n) && !dealer.ballots.has(n));
-    if (late || !waiting.length) once(`result|${game.round}`, { k: 'result', gid, ...countVotes(game, dealer.secret, dealer.ballots) });
-  }
+  // 暗号潜伏: the starter's page only calls time (and skips a speaker who left).
+  if (game.phase === 'say' && !here.includes(speaker(game))) return once(`skip|${game.round}|${game.turn}`, { k: 'skip', gid, n: speaker(game) });
+  const g = undercoverMove(game, Date.now());
+  if (g) once(`${g.k}|${game.phase}|${game.round}|${game.turn}|${game.step}`, g);
 }
 async function voteFor(n) {
-  if (!game || game.phase !== 'vote' || game.voted.includes(you) || !game.alive.includes(you)) return;
-  const g = { k: 'ballot', gid: game.gid, r: game.round };
-  if (dealer && dealer.gid === game.gid) dealer.ballots.set(you, n);
-  else g.b = await group.sealFor(game.dealer, String(n), `vote|${game.gid}|${game.round}`);
+  if (!game || game.type || game.phase !== 'vote' || game.ballots[you] || !game.alive.includes(you) || mySra?.vote?.r === game.round) return;
+  const { gid, round } = game;
   $('gameVotes').replaceChildren();
-  queueGame(g);
+  mySra.vote = { r: round, ...(await commitVote(gid, round, you, n)), opened: false };
+  queueGame({ k: 'ballot', gid, r: round, h: mySra.vote.h });
 }
 let panelGid = '';
 function renderGame() {
+  publicStep();
   const panel = $('gamePanel');
   $('gameStart').disabled = !canStartGame();
   $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
@@ -1344,15 +1434,19 @@ function renderGame() {
   let line = '';
   if (game.phase === 'say') line = speaker(game) === you ? t('game.yourTurn', { s: left }) : t('game.turn', { b: badge(speaker(game)), s: left });
   else if (game.phase === 'talk') line = t('game.talking', { s: left });
-  else if (game.phase === 'vote') line = t('game.voting', { s: left, n: game.voted.length, total: game.alive.length });
+  else if (game.phase === 'vote') line = t('game.voting', { s: left, n: Object.keys(game.ballots).length, total: game.alive.length });
+  else if (game.phase === 'deal' || game.phase === 'strip') line = t('game.dealing', { n: game.phase === 'deal' ? game.step + 1 : game.players.length + game.step + 1, total: game.players.length * 2 });
+  else if (game.phase === 'open') line = t('game.opening');
+  else if (game.phase === 'confess') line = t('game.confess', { b: badge(game.out) });
+  else if (game.phase === 'final') line = t('game.finalShow');
   else line = game.end ? endText(game.end) : t('game.aborted');
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => (game.alive.includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
   if (speaker(game) === you) nudge(`spy|${game.round}|${game.turn}`);
-  if (game.phase === 'vote' && game.alive.includes(you) && !game.voted.includes(you)) nudge(`spyvote|${game.round}`);
+  const canVote = game.phase === 'vote' && game.alive.includes(you) && !game.ballots[you] && mySra?.vote?.r !== game.round;
+  if (canVote) nudge(`spyvote|${game.round}`);
   $('gameWord').hidden = !playing || !myWord || game.phase === 'over';
   const votes = $('gameVotes');
-  const canVote = game.phase === 'vote' && game.alive.includes(you) && !game.voted.includes(you);
   if (!canVote) votes.replaceChildren();
   else if (!votes.childElementCount) {
     votes.replaceChildren(...game.alive.filter((n) => n !== you).map((n) => {
@@ -1750,8 +1844,138 @@ for (const card of document.querySelectorAll('[data-rules]')) card.addEventListe
 function shelfPlayers() {
   const rules = { spy: { MIN_PLAYERS, MAX_PLAYERS }, esc: Escape, tr: Pact, sm: Mission, ww: Wolf, ld: Dice };
   for (const e of document.querySelectorAll('[data-players]')) { const r = rules[e.dataset.players]; e.textContent = `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}${t('ww.people')}`; }
+  for (const e of document.querySelectorAll('[data-minutes]')) e.textContent = `⏱ ${t('lobby.minutes', { m: Tables.MINUTES[e.dataset.minutes] })}`;
+  // Who is waiting comes from the server's list; without one, a dash, never
+  // a made-up number.
+  for (const e of document.querySelectorAll('[data-wait]')) {
+    const g = e.dataset.wait;
+    const n = lobbyTables && Tables.GAMES[g] ? lobbyTables.filter((x) => x.game === g && !x.playing && x.taken < x.seats).reduce((a, x) => a + x.taken, 0) : null;
+    e.textContent = n === null ? t('lobby.unknown') : n ? t('lobby.waiting', { n }) : t('lobby.noWait');
+    e.classList.toggle('live', !!n);
+  }
 }
-shelfPlayers();
+
+// 公开桌: the list on the front page, quick play, and a public table's room.
+let lobbyTables = null;   // the server's list, or null (no lobby here)
+let lobbyTimer = 0;
+let lobbyAsked = false;
+async function refreshLobby() {
+  if (pass) return;
+  lobbyTables = await Tables.list();
+  lobbyAsked = true;
+  renderLobby();
+}
+function startLobby() {
+  clearInterval(lobbyTimer);
+  refreshLobby();
+  lobbyTimer = setInterval(refreshLobby, 10000);
+}
+function stopLobby() { clearInterval(lobbyTimer); lobbyTimer = 0; }
+const GAME_EMOJI = { ww: '🐺', spy: '🕵️', ld: '🎲', esc: '🔐', tr: '🤝', sm: '🎯' };
+const ago = (sec) => (sec < 60 ? t('lobby.now') : t('lobby.ago', { n: Math.round(sec / 60) }));
+function renderLobby() {
+  shelfPlayers();
+  const box = $('lobbyList');
+  const note = (key) => { const p = document.createElement('p'); p.className = 'lobby-empty'; p.textContent = t(key); return p; };
+  if (!lobbyAsked) return box.replaceChildren(note('lobby.loading'));
+  if (!lobbyTables) return box.replaceChildren(note('lobby.off'));
+  const open = lobbyTables.filter((x) => !x.playing);
+  if (!open.length) return box.replaceChildren(note('lobby.empty'));
+  box.replaceChildren(...open.slice(0, 12).map((x) => {
+    const row = document.createElement('div');
+    row.className = 'lobby-row';
+    const em = document.createElement('span');
+    em.className = 'em';
+    em.textContent = GAME_EMOJI[x.game];
+    const info = document.createElement('div');
+    info.className = 'info';
+    const name = document.createElement('b');
+    name.textContent = t(`game.name.${x.game}`);
+    const meta = document.createElement('span');
+    meta.textContent = `${t('lobby.row', { taken: x.taken, seats: x.seats })} · ${x.lang ? `${LANGS[x.lang] ?? x.lang} · ` : ''}${ago(x.age)}`;
+    const seats = document.createElement('div');
+    seats.className = 'seats';
+    for (let i = 0; i < x.seats; i++) { const d = document.createElement('i'); if (i < x.taken) d.className = 'on'; seats.append(d); }
+    info.append(name, meta, seats);
+    const sit = document.createElement('button');
+    sit.type = 'button';
+    sit.className = 'sit';
+    const full = x.taken >= x.seats;
+    sit.textContent = t(full ? 'lobby.full' : 'lobby.sit');
+    sit.disabled = full;
+    sit.addEventListener('click', () => join(x.pass));
+    row.append(em, info, sit);
+    return row;
+  }));
+}
+// Keys may still be arriving when the seats fill: look again now and then.
+setInterval(() => { if (pass && publicTable && !(game && game.phase !== 'over')) publicStep(); }, 2000);
+// Quick play: pick a game; sit at a table waiting for it, or open one.
+let quickGame = 'ld';
+function bestTable(game) {
+  return (lobbyTables ?? []).filter((x) => x.game === game && !x.playing && x.taken < x.seats).sort((a, b) => b.taken - a.taken)[0] ?? null;
+}
+function renderQuick() {
+  $('quickGames').replaceChildren(...Object.keys(Tables.GAMES).map((g) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = g === quickGame ? 'on' : '';
+    const n = lobbyTables ? lobbyTables.filter((x) => x.game === g && !x.playing && x.taken < x.seats).reduce((a, x) => a + x.taken, 0) : null;
+    const small = document.createElement('small');
+    small.textContent = `${Tables.GAMES[g][0]}–${Tables.GAMES[g][1]}${t('ww.people')} · ${n === null ? t('lobby.unknown') : n ? t('lobby.waiting', { n }) : t('lobby.noWait')}`;
+    b.append(`${GAME_EMOJI[g]} ${t(`game.name.${g}`)}`, small);
+    b.addEventListener('click', () => { quickGame = g; renderQuick(); });
+    return b;
+  }));
+  const [min, max, usual] = Tables.GAMES[quickGame];
+  const seats = $('quickSeats');
+  const keep = Number(seats.value);
+  seats.replaceChildren(...Array.from({ length: max - min + 1 }, (_, i) => new Option(String(min + i), String(min + i))));
+  seats.value = String(keep >= min && keep <= max && seats.dataset.game === quickGame ? keep : usual);
+  seats.dataset.game = quickGame;
+  const table = bestTable(quickGame);
+  $('quickSeats').closest('label').hidden = !!table;
+  $('quickGoLabel').textContent = table ? t('quick.join', { taken: table.taken, seats: table.seats }) : t('quick.new', { seats: seats.value });
+}
+$('quickSeats').addEventListener('change', renderQuick);
+$('quickPlay').addEventListener('click', async () => {
+  renderQuick();
+  $('quickDialog').showModal();
+  await refreshLobby();
+  if ($('quickDialog').open) renderQuick();
+});
+for (const id of ['quickX']) $(id).addEventListener('click', () => $('quickDialog').close());
+$('quickGo').addEventListener('click', async () => {
+  const table = bestTable(quickGame);
+  $('quickDialog').close();
+  if (table) return join(table.pass);
+  const p = Tables.newPass(quickGame, Number($('quickSeats').value));
+  const listed = await Tables.create(p, lang());
+  await join(p);
+  if (!listed) system(t('quick.failed'));
+});
+$('privateCta').addEventListener('click', () => { $('roomName').scrollIntoView({ block: 'center' }); $('roomName').focus({ preventScroll: true }); });
+// In a public table's room: say so, start when the seats are full, and tell
+// the server when a game is on (for the list).
+let publicTable = null;
+let tableSaid = null;
+function publicStep() {
+  publicTable = pass ? Tables.tableOf(pass) : null;
+  $('publicNote').hidden = !publicTable;
+  if (!publicTable) return;
+  $('publicNote').textContent = t('pub.note', { game: t(`game.name.${publicTable.game}`), seats: publicTable.seats });
+  const on = !!game && game.phase !== 'over';
+  if (isHost() && ws?.readyState === WebSocket.OPEN && tableSaid !== on) { tableSaid = on; ws.send(JSON.stringify({ type: 'table', playing: on })); }
+  // The host's page starts the game once everyone is here.
+  if (publicTable.game === 'ww') return; // the server deals and judges
+  if (!on && isHost() && gameRoom().length >= publicTable.seats && canStartGame(publicTable.game)) {
+    const key = `${publicTable.game}|${gameRoom().join()}|${game?.gid ?? ''}`;
+    if (publicStep.started === key) return;
+    publicStep.started = key;
+    system(t('pub.starting'));
+    ({ spy: startGame, ld: startDice, tr: startPact, sm: startMission })[publicTable.game]?.();
+  }
+}
 for (const id of ['rulesClose', 'rulesX']) $(id).addEventListener('click', () => $('rulesDialog').close());
 // The card shows only while it is held down.
 const showWord = (on) => {
@@ -2373,6 +2597,8 @@ $('messageForm').addEventListener('submit', async (event) => {
   const text = checkMessage($('messageInput').value);
   // On this page's turn in a game, the message is its description.
   const say = game?.type === 'ww' ? (Wolf.speaker(game) === you ? { k: 'ww-say', gid: game.gid } : undefined) : game && speaker(game) === you ? { k: 'say', gid: game.gid } : undefined;
+  // At a public werewolf table the server's judge is told the speech is made.
+  if (say?.k === 'ww-say' && game.dealer === Wolf.JUDGE) { if (await sendMessage(text, undefined, true)) sendJudge({ k: 'say' }); return; }
   await sendMessage(text, say, true);
 });
 // Phones drop connections in the background; reconnect as soon as the page
@@ -2462,5 +2688,5 @@ else {
   const typed = hashText(location.hash);
   history.replaceState(null, '', location.pathname);
   setMode('join', typed);
-  if (typed) { mask(false); joinFromField(); }
+  if (typed) { mask(false); joinFromField(); } else startLobby();
 }

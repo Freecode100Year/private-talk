@@ -193,6 +193,8 @@ export function awayNumbers(book, now = Date.now()) {
 //   { key: { iv, ct } }         a v3 key announcement to pass on (no spacing)
 //   { seen: { iv, ct } }        delivery receipts to pass on
 //   { file: { id, iv, ct } }    an encrypted picture to pass on
+//   { table: { playing } }      a public table's game started or ended
+//   { ref: a }                  a player's move for the judge of a public table
 //   null                        ignore
 export function checkFrame(raw, state, now = Date.now()) {
   const window = Math.floor(now / 10000);
@@ -216,6 +218,18 @@ export function checkFrame(raw, state, now = Date.now()) {
     if (now - (state.lockAt ?? 0) < LOCK_GAP) return null;
     state.lockAt = now;
     return msg.type === 'lock' ? { lock: msg.locked } : { remove: msg.n };
+  }
+  // A page at a public table says whether a game is on (src/lobby.js).
+  if (msg.type === 'table') {
+    if (typeof msg.playing !== 'boolean') return bad();
+    if (now - (state.tableAt ?? 0) < LOCK_GAP) return null;
+    state.tableAt = now;
+    return { table: { playing: msg.playing } };
+  }
+  // A player's move for the server's judge at a public table (src/judge.js).
+  if (msg.type === 'ref') {
+    if (!msg.a || typeof msg.a !== 'object' || Array.isArray(msg.a)) return bad();
+    return { ref: msg.a };
   }
   if (msg.type === 'file') {
     if (!raw.startsWith(FILE_START) || typeof msg.id !== 'string' || !FILE_ID.test(msg.id) || typeof msg.iv !== 'string' || !IV.test(msg.iv) || typeof msg.ct !== 'string' || !FILE_CT.test(msg.ct)) return bad();

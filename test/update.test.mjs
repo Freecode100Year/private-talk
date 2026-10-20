@@ -20,7 +20,7 @@ function makePackage(root, version) {
   mkdirSync(join(app, 'src'), { recursive: true });
   for (const d of ['dist', 'server']) cpSync(join(repo, d), join(app, d), { recursive: true });
   cpSync(join(repo, 'node_modules', 'ws'), join(app, 'node_modules', 'ws'), { recursive: true });
-  cpSync(join(repo, 'src', 'rules.js'), join(app, 'src', 'rules.js'));
+  for (const f of ['rules.js', 'lobby.js', 'judge.js']) cpSync(join(repo, 'src', f), join(app, 'src', f));
   const pkg = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
   writeFileSync(join(app, 'package.json'), JSON.stringify({ ...pkg, version }));
   writeFileSync(join(app, 'server', 'release-key.pem'), publicKey.export({ type: 'spki', format: 'pem' }));

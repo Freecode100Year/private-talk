@@ -1,5 +1,6 @@
-// 暗号潜伏 with four real pages: everyone gets a card (one different), the
-// clues go round, the vote is counted by the dealer and the spy is caught.
+// 暗号潜伏 with four real pages: the pages deal the cards among themselves
+// (nobody knows who the spy is), everyone gets a card (one different), the
+// clues go round, the votes are shown together and the spy is caught.
 import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://127.0.0.1:8099';
 const b = await chromium.launch();
@@ -21,6 +22,9 @@ ok(await A.waitForFunction(() => !document.getElementById('gameStart').disabled,
 await A.click('#gameStart');
 for (const p of pages) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 15000 });
 ok(true, 'everyone sees the game panel');
+ok(await A.waitForFunction(() => /牌发好了/.test(document.getElementById('messages').innerText), null, { timeout: 60000 }).then(() => true, () => false), 'the pages deal the cards among themselves');
+for (const p of pages) await p.waitForFunction(() => !document.getElementById('gameWord').hidden, null, { timeout: 15000 });
+ok(((await text(pages[2])).match(/🔒 你的词/g) ?? []).length === 1, 'each page learns its own word, privately, once');
 // Each holds the button to read their word.
 const words = [];
 for (const p of pages) {
@@ -72,8 +76,15 @@ for (let i = 0; i < 4; i++) {
   await target.click();
 }
 ok(await A.waitForFunction(() => /平民获胜/.test(document.getElementById('messages').innerText), null, { timeout: 30000 }).then(() => true, () => false), 'the spy is caught and the others win');
-const end = await text(pages[1]);
-ok(end.includes(`潜伏者是 ${spyBadge}`) && end.includes(words[spyIndex]), 'the spy and both words are revealed to everyone');
+let allRevealed = true;
+for (const p of pages) {
+  const got = await p.waitForFunction(([b, w]) => {
+    const t = document.getElementById('messages').innerText;
+    return t.split(`潜伏者是 ${b}`).length === 2 && t.includes(w);
+  }, [spyBadge, words[spyIndex]], { timeout: 30000 }).then(() => true, () => false);
+  if (!got) allRevealed = false;
+}
+ok(allRevealed, 'the spy and both words are revealed to everyone');
 ok(!(await text(A)).includes('无法解密'), 'no unreadable messages');
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');

@@ -302,3 +302,40 @@ body{background:linear-gradient(180deg,#2c1a86 0,#1d1458 520px,#150f42 100%) fix
 @media(max-width:1430px){.shelf-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:1431px){.shelf-grid{grid-template-columns:repeat(6,1fr)}}
 @media(max-width:600px){.shelf-grid{grid-template-columns:1fr 1fr}}
+/* 2.21: two ways in, the public tables waiting, the quick-play dialog. */
+.hero-ctas{display:flex;flex-wrap:wrap;margin:6px 0 18px}
+.hero-ctas>*{margin:0 12px 10px 0}
+.quick-cta,.private-cta{width:auto;min-height:58px;padding:0 24px;border-radius:999px;justify-content:center;text-align:center}
+.quick-cta span,.private-cta span{display:flex;flex-direction:column;line-height:1.25}
+.quick-cta b,.private-cta b{font-size:16px}
+.quick-cta small,.private-cta small{font-size:11px;font-weight:500;opacity:.85}
+.private-cta{background:#ffffff14;border:1px solid #ffffff33;color:#fff;cursor:pointer}
+.private-cta:hover{background:#ffffff22}
+.lobby-panel{max-width:1312px;margin:0 auto 26px;padding:18px 20px;border-radius:20px;background:#ffffff0d;border:1px solid #ffffff1f}
+.lobby-panel h2{font-size:18px;margin:0 0 4px;color:#fff}
+.lobby-panel>p{color:#c9bff2;font-size:12px;margin:0 0 10px}
+.lobby-row{display:flex;align-items:center;padding:10px 12px;border-radius:14px;background:#ffffff12;margin-top:8px}
+.lobby-row .em{font-size:26px;width:40px;flex:none}
+.lobby-row .info{flex:1;min-width:0}
+.lobby-row .info b{display:block;color:#fff}
+.lobby-row .info span{font-size:12px;color:#c9bff2}
+.lobby-row .seats{display:flex;margin-top:4px}
+.lobby-row .seats i{width:11px;height:11px;border-radius:50%;margin-right:3px;background:#ffffff30}
+.lobby-row .seats i.on{background:var(--mint)}
+.lobby-row .sit{min-height:40px;padding:0 18px;border-radius:999px;background:linear-gradient(180deg,var(--gold1),var(--gold2));color:var(--gold-ink);font-weight:700;border:0;box-shadow:0 3px 0 #c97d00;cursor:pointer;flex:none}
+.lobby-row .sit:disabled{opacity:.5;cursor:default}
+.lobby-empty{text-align:center;color:#c9bff2;padding:16px 8px;margin:0}
+.shelf-meta{display:flex;flex-wrap:wrap;font-style:normal}
+.shelf-meta span{font-size:11px;color:#d6ccff;margin:4px 8px 0 0}
+.shelf-meta span[data-wait].live{color:#063b30;background:var(--mint);border-radius:999px;padding:0 8px;font-weight:700}
+.quick-games{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.quick-games button{padding:10px 12px;border-radius:16px;background:#ffffff12;border:2px solid transparent;text-align:left;color:#fff;cursor:pointer;min-height:58px}
+.quick-games button.on{border-color:var(--gold1);background:#ffffff22}
+.quick-games button small{display:block;font-size:11px;color:#c9bff2}
+.quick-seats{display:flex;align-items:center;margin:0 0 12px;font-size:13px}
+.quick-seats select{margin-left:10px;min-height:40px;padding:4px 10px;border-radius:12px;background:#0a1826;color:#fff;border:1px solid #2e6a8c}
+.quick-note{font-size:12px;color:#ffd6e6;background:#ff4f9a22;border-left:3px solid var(--pink);padding:8px 10px;border-radius:8px}
+.public-note{margin:0;padding:8px 16px;font-size:12px;color:#ffe9a8;background:#ffb21a22;border-bottom:1px solid #ffb21a55}
+@media(max-width:1430px){.lobby-panel{margin-left:64px;margin-right:64px}}
+@media(max-width:1100px){.lobby-panel{margin-left:40px;margin-right:40px}}
+@media(max-width:600px){.lobby-panel{margin:0 22px 22px}.hero-ctas{display:grid;grid-template-columns:1fr}.hero-ctas>*{margin-right:0}.quick-cta,.private-cta{width:100%}}
