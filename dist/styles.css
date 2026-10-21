@@ -197,6 +197,7 @@ body.veiled .messages,body.veiled .composer,body.veiled .members{filter:blur(14p
 .sm-form input{width:min(140px,36vw);letter-spacing:0;font:inherit;font-size:14px}
 @media(max-width:600px){.game-panel{padding:10px 16px;font-size:14px}.game-actions .secondary-button,.ghost-button{min-height:44px;font-size:14px}}
 
+.compat-hidden{position:absolute;opacity:0.001;pointer-events:none;width:20px;height:20px;overflow:hidden;z-index:-1}
 .pic-button{width:35px;height:35px;display:grid;place-items:center;flex-shrink:0;border-radius:7px;background:transparent;color:#ffd152;border:1px solid #49309c}
 .pic-button svg{width:19px;height:19px}
 .bubble.picture{padding:4px;line-height:0}
@@ -374,4 +375,87 @@ body{background:linear-gradient(180deg,#2c1a86 0,#1d1458 520px,#150f42 100%) fix
   .chat-shell[data-tab="room"] #roomSidebar:not(.open){display:block!important;position:static!important;width:100%!important;max-height:none!important;overflow-y:auto!important;border:none!important;box-shadow:none!important;padding:16px!important;transform:none!important}
   .chat-shell[data-tab="room"] #roomSidebar:not(.open) .sidebar-game-section{display:none!important}
   .chat-shell[data-tab="room"] #roomSidebar:not(.open) .sidebar-room-section,.chat-shell[data-tab="room"] #roomSidebar:not(.open) .sidebar-room-actions{display:block!important}
+}
+
+
+/* Banner Card Component (shared by quick dialog and room game picker) */
+.banner-list{display:flex;flex-wrap:wrap;margin:-6px 0;width:100%}
+.banner-card{display:flex;align-items:center;text-align:left;border-radius:18px;border:1px solid rgba(255,255,255,0.18);padding:14px 16px;color:#fff;width:calc(50% - 12px);margin:6px;box-shadow:0 4px 16px rgba(0,0,0,0.35);transition:transform .15s ease,filter .15s ease,box-shadow .15s ease;cursor:pointer;position:relative;background:#22154b;min-height:82px;user-select:none;-webkit-user-select:none;box-sizing:border-box}
+.banner-card:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 8px 24px rgba(0,0,0,0.45)}
+.banner-card:active:not(:disabled){transform:scale(0.985);filter:brightness(1.15)}
+.banner-card:disabled{opacity:.55;filter:grayscale(0.55);cursor:not-allowed}
+
+/* Gradients for different games and werewolf tiers */
+.banner-ww-intro{background:linear-gradient(135deg,#a84210 0%,#5e2105 100%);border-color:#d96825}
+.banner-ww-standard{background:linear-gradient(135deg,#6c2eb9 0%,#341261 100%);border-color:#9b58ee}
+.banner-ww-advanced{background:linear-gradient(135deg,#b3263e 0%,#5d0f1e 100%);border-color:#e64560}
+.banner-ww-special{background:linear-gradient(135deg,#166c54 0%,#09372a 100%);border-color:#27a381}
+.banner-spy{background:linear-gradient(135deg,#443292 0%,#1e1352 100%);border-color:#6952cc}
+.banner-ld{background:linear-gradient(135deg,#a05a06 0%,#542d00 100%);border-color:#d4821a}
+.banner-tr{background:linear-gradient(135deg,#0e6d6d 0%,#053333 100%);border-color:#1aa6a6}
+.banner-sm{background:linear-gradient(135deg,#8c2459 0%,#440c29 100%);border-color:#bf3c7f}
+.banner-esc{background:linear-gradient(135deg,#1b4d82 0%,#0c2642 100%);border-color:#3172b8}
+
+/* Card inner layout */
+.banner-badge{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:14px;flex-shrink:0;background:rgba(255,255,255,0.12);box-shadow:inset 0 0 12px rgba(255,255,255,0.15),0 0 16px rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.25)}
+.banner-emoji{font-size:26px;line-height:1}
+.banner-main{flex:1;min-width:0}
+.banner-title-row{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.banner-title{font-size:16px;font-weight:750;color:#ffffff;margin-right:8px;letter-spacing:-.3px;line-height:1.2}
+.banner-players{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.18);color:#ffd152;margin-right:6px;white-space:nowrap}
+.banner-tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e02e49;color:#fff;margin-right:6px;white-space:nowrap}
+.banner-desc{font-size:12px;color:rgba(240,235,255,0.85);line-height:1.45;word-break:break-word}
+.banner-action{margin-left:10px;flex-shrink:0}
+.banner-action-text{display:inline-block;padding:6px 11px;border-radius:10px;font-size:12px;font-weight:600;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.25);color:#fff;white-space:nowrap}
+.banner-card:disabled .banner-action-text{background:rgba(0,0,0,0.2);color:#bbb;border-color:rgba(255,255,255,0.1)}
+
+/* Two-layer werewolf header in quick play & room */
+.banner-layer-header{display:flex;align-items:center;justify-content:space-between;width:100%;margin:0 6px 12px}
+.banner-back{font-size:13px;padding:6px 12px;border-radius:8px;background:#352075;border:1px solid #5a3ba8;color:#eee;cursor:pointer}
+.banner-back:hover{background:#482c9e;color:#fff}
+.banner-layer-title{font-size:16px;font-weight:700;color:#ffd152;margin-left:12px}
+
+/* Quick dialog flat layout */
+.quick-dialog{max-width:880px;width:95%}
+.quick-dialog .quick-games{display:block;margin:16px 0}
+
+/* Room sidebar game section banner cards */
+.sidebar-game-section .banner-card{width:100%;margin:6px 0}
+.sidebar-game-section .banner-list{margin:0}
+
+/* Proposal / Switch Vote Bar */
+.vote-bar{background:linear-gradient(135deg,#3c1d7a 0%,#200e46 100%);border:2px solid #ffd152;border-radius:14px;padding:12px 16px;margin:10px 0;display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 20px rgba(0,0,0,0.5);animation:fadeIn .2s ease;flex-wrap:wrap}
+.vote-text{font-size:14px;font-weight:700;color:#fff;margin-right:12px;line-height:1.4}
+.vote-actions{display:flex;align-items:center;margin:4px 0}
+.vote-actions button{margin-right:8px;padding:6px 16px;font-size:13px;font-weight:600;border-radius:8px}
+.vote-agree{background:var(--cyan);color:#180f36;font-weight:700}
+.vote-decline{background:#352075;border:1px solid #5a3ba8;color:#eee}
+.vote-tally{font-size:12px;color:#ffd152;margin-left:auto;white-space:nowrap}
+
+/* Variable-player Public Table Ready Bar */
+.ready-bar{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;align-items:center}
+.ready-btn{padding:8px 18px;font-size:13px;font-weight:700;border-radius:8px;margin-right:12px;cursor:pointer}
+.ready-btn.ready-done{background:#27a381;color:#fff}
+.ready-status-text{font-size:13px;color:#ffd152;font-weight:600}
+
+/* Responsive adjustments for mobile and 360px phones */
+@media(max-width:600px){
+  .banner-card{width:100%;margin:5px 0}
+  .banner-badge{width:42px;height:42px;margin-right:10px}
+  .banner-emoji{font-size:22px}
+  .banner-title{font-size:15px}
+  .banner-action-text{padding:5px 9px;font-size:11px}
+  .vote-bar{flex-direction:column;align-items:flex-start}
+  .vote-actions{margin-top:8px;width:100%}
+  .vote-actions button{flex:1}
+  .vote-tally{margin-left:0;margin-top:6px}
+}
+@media(max-width:360px){
+  .banner-card{padding:10px 12px}
+  .banner-badge{width:36px;height:36px;margin-right:8px}
+  .banner-emoji{font-size:18px}
+  .banner-title{font-size:14px}
+  .banner-desc{font-size:11px}
+  .banner-players{font-size:10px;padding:1px 5px}
+  .banner-action-text{font-size:10px;padding:4px 8px}
 }

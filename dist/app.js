@@ -13,9 +13,15 @@ import * as Mission from './mission.js';
 import * as Picture from './picture.js';
 import * as Wolf from './werewolf.js';
 import * as Dice from './dice.js';
+import { MODES, modeOf, isPublicMode, modesFor, publicModes, defaultModeFor, boardRoleSummary, WW_TIERS } from './modes.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 import { coordinator, seatsOf } from './coord.js';
+
+const modeName = (id) => t(`mode.name.${id}`);
+const modeDesc = (id) => t(`mode.desc.${id}`);
+const wwTierName = (tier) => t(`ww.tier.${tier}`);
+const wwTierDesc = (tier) => t(`ww.tierDesc.${tier}`);
 
 // Android 7–10 ships WebView/Chrome older than 86, which lacks replaceChildren.
 if (!Element.prototype.replaceChildren) {
@@ -387,6 +393,7 @@ async function join(p) {
   if (!SECURE) return;
   const ticket = ++session;
   pass = p;
+  publicModeOverride = null;
   tableSaid = null;
   revealedGid = null;
   // The passphrase leaves the form and the address bar at once.
@@ -914,11 +921,13 @@ async function startEscape() {
   myWord = '';
   queueGame({ k: 'esc-new', ...d.deal, cards });
 }
-async function startWerewolf() {
+async function startWerewolf(board, sheriff) {
   if (!canStartGame('ww')) return;
   gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const players = gameRoom().slice();
-  const d = Wolf.deal(players, $('wwBoard').value, $('wwSheriff').checked);
+  const b = board || $('wwBoard')?.value || Wolf.boardsFor(players.length)[0] || 'b6';
+  const s = sheriff !== undefined ? sheriff : ($('wwSheriff')?.checked !== undefined ? $('wwSheriff').checked : (Wolf.BOARDS[b]?.sheriff !== undefined ? Wolf.BOARDS[b].sheriff : players.length >= 12));
+  const d = Wolf.deal(players, b, s);
   if (!d) return;
   const cards = {};
   for (const n of d.start.players) if (n !== you) cards[n] = await group.sealFor(n, JSON.stringify(d.cards.get(n)), `wwcard|${d.start.gid}`);
@@ -948,10 +957,11 @@ function startMission() {
   dealer = { gid: g.gid, done: new Set() };
   queueGame(g);
 }
-function startDice() {
+function startDice(wild) {
   if (!canStartGame('ld')) return;
   gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
-  const g = Dice.newGame(gameRoom(), $('ldWild').checked);
+  const isWild = wild !== undefined ? wild : ($('ldWild')?.checked || false);
+  const g = Dice.newGame(gameRoom(), isWild);
   dealer = { gid: g.gid, done: new Set() };
   myWord = '';
   myClues = null;
@@ -970,6 +980,28 @@ function startPact() {
   myPact = null;
   queueGame(g);
 }
+
+function startMode(modeId) {
+  const m = modeOf(modeId);
+  if (!m) return;
+  if (m.game === 'ww') {
+    const selectedBoard = $('wwBoard')?.value;
+    const b = (selectedBoard && Wolf.BOARDS[selectedBoard]?.cards.length === m.players[0]) ? selectedBoard : m.settings?.board;
+    const s = $('wwSheriff')?.checked !== undefined ? $('wwSheriff').checked : m.settings?.sheriff;
+    startWerewolf(b, s);
+  } else if (m.game === 'ld') {
+    const wild = $('ldWild')?.checked !== undefined ? $('ldWild').checked : m.settings?.wild;
+    startDice(!!wild);
+  } else if (m.game === 'tr') {
+    startPact();
+  } else if (m.game === 'sm') {
+    startMission();
+  } else if (m.game === 'esc') {
+    startEscape();
+  } else if (m.game === 'spy') {
+    startGame();
+  }
+}
 // Takes in one game event from a message. Returns true for a description
 // (shown as a message too).
 async function gameEvent(g, from, fromJudge = false) {
@@ -978,6 +1010,21 @@ async function gameEvent(g, from, fromJudge = false) {
   // One game at a time. The dealer of a running game tells the room about
   // it when someone joins, or when another game is started over it.
   if (g.k === 'busy' || g.k === 'free') { gameBusy(g, from); return null; }
+  if (g.k === 'ready') {
+    if (g.ready) readyPlayers.add(from);
+    else readyPlayers.delete(from);
+    renderReadyBar();
+    publicStep();
+    return null;
+  }
+  if (g.k === 'vote-switch') {
+    handleVoteProposal(g, from);
+    return null;
+  }
+  if (g.k === 'vote-switch-cast') {
+    handleVoteCast(g, from);
+    return null;
+  }
   const isNew = g.k === 'new' || /-new$/.test(g.k);
   if (isNew) {
     gameOverAt = 0;
@@ -1253,7 +1300,183 @@ function endText(end) {
   const why = end.why === 'left' ? `${t('game.spyLeft')} ` : '';
   return `${why}${t(end.winner === 'spy' ? 'game.spyWins' : 'game.civWins')}`;
 }
+
+// Variable player public table ready status
+const readyPlayers = new Set();
+let countdownDue = 0;
+
+// In-room switch game / early end voting (80% threshold, 30s timeout, 60s cooldown)
+const lastProposeAt = new Map();
+let currentVote = null;
+let voteTimer = null;
+
+function proposeSwitchGame(modeId) {
+  if (currentVote && currentVote.expires > Date.now()) return; // a vote is already on (shown in the vote bar)
+  const last = lastProposeAt.get(you) || 0;
+  if (Date.now() - last < 60000) {
+    system(t('vote.cooldown'));
+    return;
+  }
+  lastProposeAt.set(you, Date.now());
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
+  queueGame({ k: 'vote-switch', id, from: you, mode: modeId, target: 'switch' });
+  handleVoteProposal({ id, mode: modeId, target: 'switch' }, you);
+}
+
+function proposeEndGame() {
+  if (currentVote && currentVote.expires > Date.now()) return; // a vote is already on (shown in the vote bar)
+  const last = lastProposeAt.get(you) || 0;
+  if (Date.now() - last < 60000) {
+    system(t('vote.cooldown'));
+    return;
+  }
+  lastProposeAt.set(you, Date.now());
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
+  queueGame({ k: 'vote-switch', id, from: you, mode: null, target: 'end' });
+  handleVoteProposal({ id, mode: null, target: 'end' }, you);
+}
+
+function handleVoteProposal(g, from) {
+  // One vote at a time; each player may propose once a minute; only known modes
+  if (currentVote && currentVote.expires > Date.now() && currentVote.from !== from) return;
+  if (from !== you && Date.now() - (lastProposeAt.get(from) || 0) < 60000) return;
+  if (g.target !== 'end' && !(g.target === 'switch' && modeOf(g.mode))) return;
+  lastProposeAt.set(from, Date.now());
+  clearTimeout(voteTimer);
+  currentVote = {
+    id: g.id,
+    from,
+    mode: g.mode,
+    target: g.target,
+    expires: Date.now() + 30000,
+    agrees: new Set([from]),
+    declines: new Set()
+  };
+  renderVoteBar();
+  voteTimer = setTimeout(() => {
+    if (currentVote && currentVote.id === g.id) {
+      system(t(currentVote.target === 'switch' ? 'vote.failed' : 'vote.failedEnd'));
+      lastProposeAt.set(currentVote.from, Date.now());
+      currentVote = null;
+      renderVoteBar();
+    }
+  }, 30000);
+}
+
+function handleVoteCast(g, from) {
+  if (!currentVote || currentVote.id !== g.id) return;
+  if (g.agree) {
+    currentVote.agrees.add(from);
+    currentVote.declines.delete(from);
+  } else {
+    currentVote.declines.add(from);
+    currentVote.agrees.delete(from);
+  }
+  const here = gameRoom();
+  const need = Math.ceil(here.length * 0.8);
+  renderVoteBar();
+
+  // Only those still in the room count
+  if (here.filter((p) => currentVote.agrees.has(p)).length >= need) {
+    clearTimeout(voteTimer);
+    const vote = currentVote;
+    currentVote = null;
+    renderVoteBar();
+    system(t(vote.target === 'switch' ? 'vote.agreed' : 'vote.agreedEnd'));
+    if (dealer && game) queueGame({ k: 'abort', gid: game.gid });
+    if (vote.target === 'switch' && publicTable) {
+      publicModeOverride = vote.mode;
+      publicTable.mode = vote.mode;
+      const newM = modeOf(vote.mode);
+      if (newM) {
+        publicTable.game = newM.game;
+        publicTable.seats = newM.players[1];
+      }
+      tableModeSaid = '';
+      tableSaid = true;
+      publicStep.at = 0;
+    }
+    endGame();
+
+    if (vote.target === 'switch') {
+      if (!publicTable && you === vote.from) {
+        startMode(vote.mode);
+      }
+    }
+    return;
+  }
+
+  const unvoted = here.filter((p) => !currentVote.agrees.has(p) && !currentVote.declines.has(p)).length;
+  if (here.filter((p) => currentVote.agrees.has(p)).length + unvoted < need) {
+    clearTimeout(voteTimer);
+    const vote = currentVote;
+    currentVote = null;
+    renderVoteBar();
+    system(t(vote.target === 'switch' ? 'vote.failed' : 'vote.failedEnd'));
+  }
+}
+
+function renderVoteBar() {
+  const bar = $('voteBar');
+  if (!bar) return;
+  if (!currentVote) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  const here = gameRoom();
+  const need = Math.ceil(here.length * 0.8);
+  const sec = Math.max(0, Math.ceil((currentVote.expires - Date.now()) / 1000));
+  const modeLabel = currentVote.mode ? (modeOf(currentVote.mode) ? modeName(currentVote.mode) : currentVote.mode) : '';
+  const text = currentVote.target === 'switch'
+    ? t('vote.proposeSwitch', { b: badge(currentVote.from), mode: modeLabel })
+    : t('vote.proposeEnd', { b: badge(currentVote.from) });
+  $('voteText').textContent = text;
+  $('voteTally').textContent = t('vote.tally', { agree: currentVote.agrees.size, total: here.length, need, sec });
+  const hasVoted = currentVote.agrees.has(you) || currentVote.declines.has(you);
+  $('voteAgree').disabled = hasVoted;
+  $('voteDecline').disabled = hasVoted;
+}
+
+function renderReadyBar() {
+  const bar = $('readyBar');
+  if (!bar) return;
+  if (!publicTable || (game && game.phase !== 'over')) {
+    bar.hidden = true;
+    return;
+  }
+  const mode = modeOf(publicTable.mode);
+  if (!mode || mode.players[0] === mode.players[1]) {
+    bar.hidden = true;
+    return;
+  }
+  const here = gameRoom();
+  const min = mode.players[0];
+  bar.hidden = false;
+  const btn = $('readyButton');
+  if (btn) {
+    const isReady = readyPlayers.has(you);
+    btn.textContent = t(isReady ? 'ready.done' : 'ready.button');
+    btn.className = `primary-button ready-btn${isReady ? ' ready-done' : ''}`;
+    btn.disabled = here.length < min;
+  }
+  const status = $('readyStatusText');
+  if (status) {
+    if (here.length < min) {
+      status.textContent = t('ready.needMore', { n: min - here.length });
+    } else {
+      const sec = Math.max(0, Math.ceil((countdownDue - Date.now()) / 1000));
+      status.textContent = t('ready.status', { ready: readyPlayers.size, total: here.length, sec });
+    }
+  }
+}
+
 function endGame() {
+  readyPlayers.clear();
+  countdownDue = 0;
+  currentVote = null;
+  renderVoteBar();
+  renderReadyBar();
   game = null;
   myWord = '';
   myClues = null;
@@ -1560,41 +1783,340 @@ async function voteFor(n) {
   mySra.vote = { r: round, ...(await commitVote(gid, round, you, n)), opened: false };
   queueGame({ k: 'ballot', gid, r: round, h: mySra.vote.h });
 }
+function createBannerCard(m, options = {}) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  const groupClass = m.game === 'ww' ? `banner-ww-${m.group || 'standard'}` : `banner-${m.game}`;
+  card.className = `banner-card ${groupClass}`;
+  card.dataset.mode = m.id;
+
+  const badgeEl = document.createElement('div');
+  badgeEl.className = 'banner-badge';
+  const em = document.createElement('span');
+  em.className = 'banner-emoji';
+  em.textContent = GAME_EMOJI[m.game] || '🎲';
+  badgeEl.appendChild(em);
+
+  const main = document.createElement('div');
+  main.className = 'banner-main';
+
+  const titleRow = document.createElement('div');
+  titleRow.className = 'banner-title-row';
+
+  const title = document.createElement('span');
+  title.className = 'banner-title';
+  title.textContent = modeName(m.id);
+  titleRow.appendChild(title);
+
+  const plTag = document.createElement('span');
+  plTag.className = 'banner-players';
+  plTag.textContent = `${m.players[0] === m.players[1] ? m.players[0] : `${m.players[0]}–${m.players[1]}`} ${t('ww.people')}`;
+  titleRow.appendChild(plTag);
+
+  if (options.isQuick && lobbyTables) {
+    const waitingTable = lobbyTables.find((x) => (x.mode === m.id || (!x.mode && x.game === m.game && x.seats === m.players[1])) && !x.playing && x.taken < x.seats);
+    const waitTag = document.createElement('span');
+    waitTag.className = 'banner-tag';
+    if (waitingTable && waitingTable.taken > 0) {
+      waitTag.textContent = t('mode.waiting', { n: waitingTable.taken });
+    } else {
+      waitTag.textContent = t('lobby.noWait');
+    }
+    titleRow.appendChild(waitTag);
+  }
+
+  const desc = document.createElement('div');
+  desc.className = 'banner-desc';
+  desc.textContent = m.game === 'ww' ? boardRoleSummary(m.settings.board, roleName, t('ww.people')) : modeDesc(m.id);
+  main.append(titleRow, desc);
+
+  const action = document.createElement('div');
+  action.className = 'banner-action';
+  const actionText = document.createElement('span');
+  actionText.className = 'banner-action-text';
+
+  if (options.isQuick) {
+    const table = (lobbyTables || []).find((x) => (x.mode === m.id || (!x.mode && x.game === m.game && x.seats === m.players[1])) && !x.playing && x.taken < x.seats);
+    actionText.textContent = table ? t('mode.action.join', { taken: table.taken, seats: table.seats }) : t('mode.action.new');
+  } else {
+    actionText.textContent = options.actionText || t('mode.action.start');
+  }
+  action.appendChild(actionText);
+
+  card.append(badgeEl, main, action);
+
+  if (options.disabled) card.disabled = true;
+  if (options.onClick) card.addEventListener('click', options.onClick);
+
+  return card;
+}
+
+let roomWwTier = null;
+function renderRoomModes() {
+  const box = $('roomModesList');
+  if (!box) return;
+  box.replaceChildren();
+
+  const here = gameRoom();
+  const n = here.length;
+  const on = !!game && game.phase !== 'over';
+  const isBusy = !!busyGame;
+
+  if (roomWwTier !== null) {
+    const header = document.createElement('div');
+    header.className = 'banner-layer-header';
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'banner-back';
+    backBtn.textContent = t('ww.backTiers');
+    backBtn.addEventListener('click', () => { roomWwTier = null; renderRoomModes(); });
+    const title = document.createElement('span');
+    title.className = 'banner-layer-title';
+    title.textContent = t('ww.pickBoard', { n: roomWwTier });
+    header.append(backBtn, title);
+    box.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'banner-list';
+    const tierModes = modesFor('ww').filter((m) => m.players[0] === roomWwTier);
+    for (const m of tierModes) {
+      let canStart = false;
+      let disabled = true;
+      let actText = '';
+      if (!on && !isBusy) {
+        canStart = canStartGame('ww') && n === m.players[0];
+        disabled = !canStart;
+        if (canStart) actText = t('mode.action.start');
+        else if (n < m.players[0]) actText = t('mode.needMore', { n: m.players[0] - n });
+        else actText = t('mode.tooMany');
+      } else if (on) {
+        const canSwitch = !isBusy && (n === m.players[0]);
+        disabled = !canSwitch;
+        if (n < m.players[0]) actText = t('mode.needMore', { n: m.players[0] - n });
+        else if (n > m.players[0]) actText = t('mode.tooMany');
+        else actText = t('mode.action.propose');
+      } else {
+        disabled = true;
+        actText = t('game.hint.busy');
+      }
+
+      const card = createBannerCard(m, {
+        disabled,
+        actionText: actText,
+        onClick: () => {
+          if (!on && !isBusy) {
+            closeSidebar(false);
+            if ($('wwBoard')) $('wwBoard').value = m.settings.board;
+            if ($('wwSheriff')) $('wwSheriff').checked = !!m.settings.sheriff;
+            startWerewolf(m.settings.board, m.settings.sheriff);
+          } else if (on && !isBusy) {
+            proposeSwitchGame(m.id);
+          }
+        }
+      });
+      list.appendChild(card);
+    }
+    box.appendChild(list);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'banner-list';
+
+  const items = [];
+  for (const m of MODES.filter((x) => x.game !== 'ww')) {
+    items.push({ type: 'mode', mode: m });
+  }
+
+  if (n >= 6 && n <= 12) {
+    for (const m of modesFor('ww').filter((x) => x.players[0] === n)) {
+      items.push({ type: 'mode', mode: m });
+    }
+    for (const tier of WW_TIERS) {
+      if (tier !== n) items.push({ type: 'ww-tier', tier });
+    }
+  } else {
+    for (const tier of WW_TIERS) {
+      items.push({ type: 'ww-tier', tier });
+    }
+  }
+
+  function rankItem(item) {
+    if (item.type === 'mode') {
+      const m = item.mode;
+      if (n >= m.players[0] && n <= m.players[1]) return 0;
+      if (n < m.players[0]) return 10 + (m.players[0] - n);
+      return 100 + (n - m.players[1]);
+    } else {
+      const tier = item.tier;
+      if (n === tier) return 0;
+      if (n < tier) return 10 + (tier - n);
+      return 100 + (n - tier);
+    }
+  }
+
+  items.sort((a, b) => rankItem(a) - rankItem(b));
+
+  for (const item of items) {
+    if (item.type === 'mode') {
+      const m = item.mode;
+      let canStart = false;
+      let disabled = true;
+      let actText = '';
+      if (!on && !isBusy) {
+        canStart = canStartGame(m.game) && n >= m.players[0] && n <= m.players[1];
+        disabled = !canStart;
+        if (canStart) actText = t('mode.action.start');
+        else if (n < m.players[0]) actText = t('mode.needMore', { n: m.players[0] - n });
+        else actText = t('mode.tooMany');
+      } else if (on) {
+        const canSwitch = !isBusy && n >= m.players[0] && n <= m.players[1];
+        disabled = !canSwitch;
+        if (n < m.players[0]) actText = t('mode.needMore', { n: m.players[0] - n });
+        else if (n > m.players[1]) actText = t('mode.tooMany');
+        else actText = t('mode.action.propose');
+      } else {
+        disabled = true;
+        actText = t('game.hint.busy');
+      }
+
+      const card = createBannerCard(m, {
+        disabled,
+        actionText: actText,
+        onClick: () => {
+          if (!on && !isBusy) {
+            closeSidebar(false);
+            if (m.game === 'ww') {
+              if ($('wwBoard')) $('wwBoard').value = m.settings.board;
+              if ($('wwSheriff')) $('wwSheriff').checked = !!m.settings.sheriff;
+            }
+            startMode(m.id);
+          } else if (on && !isBusy) {
+            proposeSwitchGame(m.id);
+          }
+        }
+      });
+
+      if (m.id === 'spy') card.id = 'gameStart';
+      if (m.id === 'esc') card.id = 'escStart';
+      if (m.id === 'tr') card.id = 'trStart';
+      if (m.id === 'sm') card.id = 'smStart';
+      if (m.id === 'ld') card.id = 'ldStart';
+      if (m.game === 'ww') {
+        const sel = $('wwBoard')?.value;
+        const matchesSel = sel ? m.settings?.board === sel : true;
+        if (matchesSel && !list.querySelector('#wwStart')) card.id = 'wwStart';
+      }
+
+      list.appendChild(card);
+    } else {
+      const tier = item.tier;
+      const tierModes = modesFor('ww').filter((m) => m.players[0] === tier);
+      const card = document.createElement('button');
+      card.type = 'button';
+      const groupClass = tier <= 8 ? 'banner-ww-intro' : tier < 12 ? 'banner-ww-standard' : 'banner-ww-advanced';
+      card.className = `banner-card ${groupClass}`;
+      if (!list.querySelector('#wwStart') && (n === tier || tier === 6)) card.id = 'wwStart';
+
+      const badgeEl = document.createElement('div');
+      badgeEl.className = 'banner-badge';
+      const em = document.createElement('span');
+      em.className = 'banner-emoji';
+      em.textContent = '🐺🌕';
+      badgeEl.appendChild(em);
+
+      const main = document.createElement('div');
+      main.className = 'banner-main';
+      const titleRow = document.createElement('div');
+      titleRow.className = 'banner-title-row';
+      const title = document.createElement('span');
+      title.className = 'banner-title';
+      title.textContent = wwTierName(tier);
+      const plTag = document.createElement('span');
+      plTag.className = 'banner-players';
+      plTag.textContent = `${tier} ${t('ww.people')}`;
+      titleRow.append(title, plTag);
+
+      const desc = document.createElement('div');
+      desc.className = 'banner-desc';
+      desc.textContent = wwTierDesc(tier);
+      main.append(titleRow, desc);
+
+      const action = document.createElement('div');
+      action.className = 'banner-action';
+      const actionText = document.createElement('span');
+      actionText.className = 'banner-action-text';
+
+      if (isBusy) {
+        card.disabled = true;
+        actionText.textContent = t('game.hint.busy');
+      } else if (n < tier) {
+        card.disabled = true;
+        actionText.textContent = t('mode.needMore', { n: tier - n });
+      } else if (n > tier) {
+        card.disabled = true;
+        actionText.textContent = t('mode.tooMany');
+      } else {
+        card.disabled = !on ? !canStartGame('ww') : isBusy;
+        actionText.textContent = on ? t('mode.action.propose') : t('mode.action.start');
+      }
+
+      action.appendChild(actionText);
+      card.append(badgeEl, main, action);
+
+      card.addEventListener('click', () => {
+        if (tierModes.length === 1 && !on && !isBusy && n === tier) {
+          closeSidebar(false);
+          startMode(tierModes[0].id);
+        } else {
+          roomWwTier = tier;
+          renderRoomModes();
+        }
+      });
+
+      list.appendChild(card);
+    }
+  }
+
+  if (!list.querySelector('#wwStart')) {
+    const firstWw = list.querySelector('.banner-card[data-mode^="ww"]') || list.querySelector('.banner-card[class*="banner-ww"]');
+    if (firstWw) firstWw.id = 'wwStart';
+  }
+
+  box.appendChild(list);
+}
+
 let panelGid = '';
 function renderGame() {
   publicStep();
   const panel = $('gamePanel');
   const shell = document.querySelector('.chat-shell');
   if (shell) shell.classList.toggle('no-game', !game);
-  $('gameStart').disabled = !canStartGame();
-  $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
+  if ($('gameStart')) { $('gameStart').disabled = !canStartGame(); $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS }); }
   panel.hidden = !game;
-  $('escStart').disabled = !canStartGame('esc');
-  $('trStart').disabled = !canStartGame('tr');
-  $('trStart').title = t('game.startHint', { min: Pact.MIN_PLAYERS, max: Pact.MAX_PLAYERS });
-  $('smStart').disabled = !canStartGame('sm');
-  $('smStart').title = t('game.startHint', { min: Mission.MIN_PLAYERS, max: Mission.MAX_PLAYERS });
-  $('wwStart').disabled = !canStartGame('ww');
-  $('ldStart').disabled = !canStartGame('ld');
+  if ($('escStart')) { $('escStart').disabled = !canStartGame('esc'); $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS }); }
+  if ($('trStart')) { $('trStart').disabled = !canStartGame('tr'); $('trStart').title = t('game.startHint', { min: Pact.MIN_PLAYERS, max: Pact.MAX_PLAYERS }); }
+  if ($('smStart')) { $('smStart').disabled = !canStartGame('sm'); $('smStart').title = t('game.startHint', { min: Mission.MIN_PLAYERS, max: Mission.MAX_PLAYERS }); }
+  if ($('wwStart')) { $('wwStart').disabled = !canStartGame('ww'); $('wwStart').title = t('ww.startHint', { min: Wolf.MIN_PLAYERS, max: Wolf.MAX_PLAYERS }); }
+  if ($('ldStart')) { $('ldStart').disabled = !canStartGame('ld'); }
   // The boards for the number of people here.
   const boards = Wolf.boardsFor(gameRoom().length);
   const pickBoard = $('wwBoard');
-  if (pickBoard.dataset.list !== `${boards.join()}|${lang()}`) {
+  if (pickBoard && pickBoard.dataset.list !== `${boards.join()}|${lang()}`) {
     const keep = pickBoard.value;
     pickBoard.replaceChildren(...boards.map((id) => { const o = document.createElement('option'); o.value = id; o.textContent = `${Wolf.BOARDS[id].n}${t('ww.people')} · ${boardText(id)}`; return o; }));
     pickBoard.dataset.list = `${boards.join()}|${lang()}`;
     if (boards.includes(keep)) pickBoard.value = keep;
-    $('wwSheriff').checked = !!Wolf.BOARDS[pickBoard.value]?.sheriff;
+    if ($('wwSheriff')) $('wwSheriff').checked = !!Wolf.BOARDS[pickBoard.value]?.sheriff;
   }
-  pickBoard.disabled = !boards.length;
-  $('wwStart').title = t('ww.startHint', { min: Wolf.MIN_PLAYERS, max: Wolf.MAX_PLAYERS });
-  $('escStart').title = t('game.startHint', { min: Escape.MIN_PLAYERS, max: Escape.MAX_PLAYERS });
+  if (pickBoard) pickBoard.disabled = !boards.length;
   // Why the start buttons are grey: a phone shows no tooltips.
   const range = (r) => `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}`;
   const hint = !(online && group && relayV3) ? 'game.hint.wait' : (game && game.phase !== 'over') || busyGame ? 'game.hint.busy' : !group.quantumSafe(gameRoom()) ? 'game.hint.keys' : '';
   $('gameHint').textContent = hint ? t(hint) : t('game.hint.count', { n: gameRoom().length, spy: `${MIN_PLAYERS}–${MAX_PLAYERS}`, esc: range(Escape), tr: range(Pact), sm: range(Mission), ww: range(Wolf), ld: range(Dice) });
 
   renderSeats();
+  renderRoomModes();
 
   const btnAgain = $('gameAgain');
   if (btnAgain) {
@@ -1611,6 +2133,15 @@ function renderGame() {
       const countOk = gameRoom().length >= min && gameRoom().length <= max;
       btnAgain.title = canAgain ? '' : (hint ? t(hint) : (!countOk ? (kind === 'ww' ? t('ww.startHint', { min, max }) : t('game.startHint', { min, max })) : ''));
     }
+  }
+
+  const btnSwitch = $('gameSwitch');
+  if (btnSwitch) {
+    btnSwitch.hidden = !game || game.phase !== 'over' || publicTable;
+  }
+  const btnVoteEnd = $('gameVoteEnd');
+  if (btnVoteEnd) {
+    btnVoteEnd.hidden = !game || game.phase === 'over' || !game.players?.includes(you);
   }
 
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
@@ -2008,17 +2539,20 @@ $('escForm').addEventListener('submit', (e) => { e.preventDefault(); tryCode(); 
 // Keep the focus (and on phones the keyboard) in the code box: taking it
 // away would move the panel under the finger before the tap ends.
 $('escTry').addEventListener('pointerdown', (e) => e.preventDefault());
-$('escStart').addEventListener('click', () => { startEscape(); });
-$('trStart').addEventListener('click', () => { startPact(); });
-$('smStart').addEventListener('click', () => { startMission(); });
-$('wwStart').addEventListener('click', () => { startWerewolf(); });
-$('ldStart').addEventListener('click', () => { startDice(); });
-$('wwBoard').addEventListener('change', () => { $('wwSheriff').checked = !!Wolf.BOARDS[$('wwBoard').value]?.sheriff; });
-$('smForm').addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
-$('smGuess').addEventListener('pointerdown', (e) => e.preventDefault());
-$('trForm').addEventListener('submit', (e) => { e.preventDefault(); passNote(); });
-$('trSend').addEventListener('pointerdown', (e) => e.preventDefault());
-$('gameStart').addEventListener('click', () => { startGame(); });
+$('escStart')?.addEventListener('click', () => { startEscape(); });
+$('trStart')?.addEventListener('click', () => { startPact(); });
+$('smStart')?.addEventListener('click', () => { startMission(); });
+$('wwStart')?.addEventListener('click', () => { startWerewolf(); });
+$('ldStart')?.addEventListener('click', () => { startDice(); });
+$('wwBoard')?.addEventListener('change', () => {
+  if ($('wwSheriff')) $('wwSheriff').checked = !!Wolf.BOARDS[$('wwBoard').value]?.sheriff;
+  renderRoomModes();
+});
+$('smForm')?.addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
+$('smGuess')?.addEventListener('pointerdown', (e) => e.preventDefault());
+$('trForm')?.addEventListener('submit', (e) => { e.preventDefault(); passNote(); });
+$('trSend')?.addEventListener('pointerdown', (e) => e.preventDefault());
+$('gameStart')?.addEventListener('click', () => { startGame(); });
 // Ending a game takes a second tap within a few seconds.
 $('gameEnd').addEventListener('click', () => {
   const b = $('gameEnd');
@@ -2048,6 +2582,38 @@ $('gameAgain')?.addEventListener('click', () => {
     if (game.sheriffOn !== undefined) $('wwSheriff').checked = !!game.sheriffOn;
     startWerewolf();
   }
+});
+$('gameSwitch')?.addEventListener('click', () => {
+  openSidebar();
+  $('roomModesList')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+$('gameVoteEnd')?.addEventListener('click', () => {
+  proposeEndGame();
+});
+$('voteAgree')?.addEventListener('click', () => {
+  if (!currentVote) return;
+  currentVote.agrees.add(you);
+  currentVote.declines.delete(you);
+  queueGame({ k: 'vote-switch-cast', id: currentVote.id, agree: true });
+  handleVoteCast({ id: currentVote.id, agree: true }, you);
+});
+$('voteDecline')?.addEventListener('click', () => {
+  if (!currentVote) return;
+  currentVote.declines.add(you);
+  currentVote.agrees.delete(you);
+  queueGame({ k: 'vote-switch-cast', id: currentVote.id, agree: false });
+  handleVoteCast({ id: currentVote.id, agree: false }, you);
+});
+$('readyButton')?.addEventListener('click', () => {
+  if (readyPlayers.has(you)) {
+    readyPlayers.delete(you);
+    queueGame({ k: 'ready', ready: false });
+  } else {
+    readyPlayers.add(you);
+    queueGame({ k: 'ready', ready: true });
+  }
+  renderReadyBar();
+  publicStep();
 });
 $('quickEmojis')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.quick-emoji-btn');
@@ -2159,78 +2725,268 @@ function renderLobby() {
   }));
 }
 // Keys may still be arriving when the seats fill: look again now and then.
-setInterval(() => { if (pass && publicTable) publicStep(); }, 2000);
-// Quick play: pick a game; sit at a table waiting for it, or open one.
+setInterval(() => {
+  if (pass && publicTable) {
+    if (countdownDue) renderReadyBar();
+    publicStep();
+  }
+}, 1000);
+
+// Quick play: pick a mode; sit at a table waiting for it, or open one.
 let quickGame = 'ld';
+let quickWwTier = null;
+
 function bestTable(game) {
-  return (lobbyTables ?? []).filter((x) => x.game === game && !x.playing && x.taken < x.seats).sort((a, b) => b.taken - a.taken)[0] ?? null;
+  return (lobbyTables || []).filter((x) => x.game === game && !x.playing && x.taken < x.seats).sort((a, b) => b.taken - a.taken)[0] || null;
 }
+
+function bestTableForMode(modeId) {
+  if (!lobbyTables) return null;
+  const m = modeOf(modeId);
+  if (!m) return null;
+  const candidates = lobbyTables.filter((x) =>
+    (x.mode === modeId || (!x.mode && x.game === m.game && x.seats === m.players[1])) &&
+    !x.playing && x.taken < x.seats
+  );
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.taken - a.taken);
+  return candidates[0];
+}
+
+async function selectQuickMode(modeId) {
+  $('quickDialog').close();
+  const table = bestTableForMode(modeId);
+  if (table) return join(table.pass);
+  const p = Tables.newPass(modeId);
+  const room = await deriveRoom(p);
+  const listed = await Tables.create(p, lang(), room);
+  await join(p);
+  if (!listed) system(t('quick.failed'));
+}
+
 function renderQuick() {
-  $('quickGames').replaceChildren(...Object.keys(Tables.GAMES).map((g) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = g === quickGame ? 'on' : '';
-    const n = lobbyTables ? lobbyTables.filter((x) => x.game === g && !x.playing && x.taken < x.seats).reduce((a, x) => a + x.taken, 0) : null;
-    const small = document.createElement('small');
-    small.textContent = `${Tables.GAMES[g][0]}–${Tables.GAMES[g][1]}${t('ww.people')} · ${n === null ? t('lobby.unknown') : n ? t('lobby.waiting', { n }) : t('lobby.noWait')}`;
-    b.append(`${GAME_EMOJI[g]} ${t(`game.name.${g}`)}`, small);
-    b.addEventListener('click', () => { quickGame = g; renderQuick(); });
-    return b;
-  }));
-  const [min, max, usual] = Tables.GAMES[quickGame];
-  const seats = $('quickSeats');
-  const keep = Number(seats.value);
-  seats.replaceChildren(...Array.from({ length: max - min + 1 }, (_, i) => new Option(String(min + i), String(min + i))));
-  seats.value = String(keep >= min && keep <= max && seats.dataset.game === quickGame ? keep : usual);
-  seats.dataset.game = quickGame;
-  const table = bestTable(quickGame);
-  $('quickSeats').closest('label').hidden = !!table;
-  $('quickGoLabel').textContent = table ? t('quick.join', { taken: table.taken, seats: table.seats }) : t('quick.new', { seats: seats.value });
+  const box = $('quickGames');
+  if (!box) return;
+  box.replaceChildren();
+
+  if (quickWwTier !== null) {
+    const header = document.createElement('div');
+    header.className = 'banner-layer-header';
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'banner-back';
+    back.textContent = t('ww.backTiers');
+    back.addEventListener('click', () => { quickWwTier = null; renderQuick(); });
+    const title = document.createElement('span');
+    title.className = 'banner-layer-title';
+    title.textContent = t('ww.pickBoard', { n: quickWwTier });
+    header.append(back, title);
+
+    const list = document.createElement('div');
+    list.className = 'banner-list';
+    const tierModes = modesFor('ww').filter((m) => m.players[0] === quickWwTier && m.public);
+    for (const m of tierModes) {
+      const card = createBannerCard(m, {
+        isQuick: true,
+        onClick: () => selectQuickMode(m.id)
+      });
+      list.appendChild(card);
+    }
+    box.append(header, list);
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'banner-list';
+
+  // Flat list of public modes (party games first)
+  const nonWw = publicModes().filter((m) => m.game !== 'ww');
+  for (const m of nonWw) {
+    const card = createBannerCard(m, {
+      isQuick: true,
+      onClick: () => selectQuickMode(m.id)
+    });
+    list.appendChild(card);
+  }
+
+  // Werewolf tiers: 6, 7, 8, 9, 10, 11, 12
+  for (const tier of WW_TIERS) {
+    const tierBoards = modesFor('ww').filter((m) => m.players[0] === tier && m.public);
+    const card = document.createElement('button');
+    card.type = 'button';
+    const groupClass = tier <= 8 ? 'banner-ww-intro' : tier < 12 ? 'banner-ww-standard' : 'banner-ww-advanced';
+    card.className = `banner-card ${groupClass}`;
+    card.dataset.wwTier = String(tier);
+
+    const badgeEl = document.createElement('div');
+    badgeEl.className = 'banner-badge';
+    const em = document.createElement('span');
+    em.className = 'banner-emoji';
+    em.textContent = '🐺🌕';
+    badgeEl.appendChild(em);
+
+    const main = document.createElement('div');
+    main.className = 'banner-main';
+    const titleRow = document.createElement('div');
+    titleRow.className = 'banner-title-row';
+
+    const title = document.createElement('span');
+    title.className = 'banner-title';
+    title.textContent = wwTierName(tier);
+    titleRow.appendChild(title);
+
+    const plTag = document.createElement('span');
+    plTag.className = 'banner-players';
+    plTag.textContent = `${tier} ${t('ww.people')}`;
+    titleRow.appendChild(plTag);
+
+    if (lobbyTables) {
+      const waitingCount = lobbyTables
+        .filter((x) => x.game === 'ww' && x.seats === tier && !x.playing && x.taken < x.seats)
+        .reduce((a, x) => a + x.taken, 0);
+      const waitTag = document.createElement('span');
+      waitTag.className = 'banner-tag';
+      waitTag.textContent = waitingCount > 0 ? t('mode.waiting', { n: waitingCount }) : t('lobby.noWait');
+      titleRow.appendChild(waitTag);
+    }
+
+    const desc = document.createElement('div');
+    desc.className = 'banner-desc';
+    desc.textContent = wwTierDesc(tier);
+    main.append(titleRow, desc);
+
+    const action = document.createElement('div');
+    action.className = 'banner-action';
+    const actionText = document.createElement('span');
+    actionText.className = 'banner-action-text';
+
+    const waitingTable = (lobbyTables || []).find((x) => x.game === 'ww' && x.seats === tier && !x.playing && x.taken < x.seats);
+    actionText.textContent = waitingTable ? t('mode.action.join', { taken: waitingTable.taken, seats: waitingTable.seats }) : t('mode.action.new');
+    action.appendChild(actionText);
+
+    card.append(badgeEl, main, action);
+
+    card.addEventListener('click', () => {
+      if (tierBoards.length === 1) {
+        selectQuickMode(tierBoards[0].id);
+      } else {
+        quickWwTier = tier;
+        renderQuick();
+      }
+    });
+
+    list.appendChild(card);
+  }
+
+  if (!list.querySelector('#wwStart')) {
+    const firstWw = list.querySelector('.banner-card[data-mode^="ww"]') || list.querySelector('.banner-card[class*="banner-ww"]');
+    if (firstWw) firstWw.id = 'wwStart';
+  }
+
+  box.appendChild(list);
 }
-$('quickSeats').addEventListener('change', renderQuick);
-$('quickPlay').addEventListener('click', async () => {
+
+$('quickSeats')?.addEventListener('change', renderQuick);
+$('quickPlay')?.addEventListener('click', async () => {
+  quickWwTier = null;
   renderQuick();
   $('quickDialog').showModal();
   await refreshLobby();
   if ($('quickDialog').open) renderQuick();
 });
-for (const id of ['quickX']) $(id).addEventListener('click', () => $('quickDialog').close());
-$('quickGo').addEventListener('click', async () => {
+for (const id of ['quickX']) $(id)?.addEventListener('click', () => $('quickDialog').close());
+$('quickGo')?.addEventListener('click', async () => {
   const table = bestTable(quickGame);
   $('quickDialog').close();
   if (table) return join(table.pass);
-  const p = Tables.newPass(quickGame, Number($('quickSeats').value));
+  const p = Tables.newPass(quickGame, Number($('quickSeats').value || 2));
   const room = await deriveRoom(p);
   const listed = await Tables.create(p, lang(), room);
   await join(p);
   if (!listed) system(t('quick.failed'));
 });
-$('privateCta').addEventListener('click', () => { $('roomName').scrollIntoView({ block: 'center' }); $('roomName').focus({ preventScroll: true }); });
+$('privateCta')?.addEventListener('click', () => { $('roomName').scrollIntoView({ block: 'center' }); $('roomName').focus({ preventScroll: true }); });
+
 // In a public table's room: say so, start when the seats are full, and tell
 // the server when a game is on (for the list).
 let publicTable = null;
+let publicModeOverride = null;
 let tableSaid = null;
+let tableModeSaid = '';
+let lastPublicPlayerCount = 0;
+
 function publicStep() {
   publicTable = pass ? Tables.tableOf(pass) : null;
   $('publicNote').hidden = !publicTable;
-  if (!publicTable) return;
-  $('publicNote').textContent = t('pub.note', { game: t(`game.name.${publicTable.game}`), seats: publicTable.seats });
-  const on = !!game && game.phase !== 'over';
-  // The server takes one of these per person every 2 s (LOCK_GAP) and drops
-  // the rest, so a change that comes sooner waits for the next step.
-  if (isHost() && ws?.readyState === WebSocket.OPEN && (tableSaid !== on || publicStep.ws !== ws) && Date.now() - (publicStep.at ?? 0) > 2200) {
-    tableSaid = on; publicStep.ws = ws; publicStep.at = Date.now();
-    ws.send(JSON.stringify({ type: 'table', playing: on }));
+  if (!publicTable) {
+    renderReadyBar();
+    return;
   }
-  // The host's page starts the game once everyone is here.
-  if (publicTable.game === 'ww') return; // the server deals and judges
-  if (!on && isHost() && gameRoom().length >= publicTable.seats && canStartGame(publicTable.game)) {
-    if (gameOverAt && Date.now() - gameOverAt < 15000) return;
-    const key = `${publicTable.game}|${gameRoom().join()}|${game?.gid ?? ''}`;
+  if (publicModeOverride) {
+    const ov = modeOf(publicModeOverride);
+    if (ov) {
+      publicTable.mode = publicModeOverride;
+      publicTable.game = ov.game;
+      publicTable.seats = ov.players[1];
+    }
+  }
+  const m = modeOf(publicTable.mode);
+  const modeTitle = m ? modeName(m.id) : t(`game.name.${publicTable.game}`);
+  $('publicNote').textContent = t('pub.note', { game: modeTitle, seats: publicTable.seats });
+  const on = !!game && game.phase !== 'over';
+
+  // Broadcast table frame to server lobby when status or mode changes
+  if (isHost() && ws?.readyState === WebSocket.OPEN && (tableSaid !== on || tableModeSaid !== publicTable.mode || publicStep.ws !== ws) && Date.now() - (publicStep.at || 0) > 2200) {
+    tableSaid = on; tableModeSaid = publicTable.mode; publicStep.ws = ws; publicStep.at = Date.now();
+    ws.send(JSON.stringify({ type: 'table', playing: on, mode: publicTable.mode }));
+  }
+
+  // Werewolf on public table is judged and dealt by server
+  if (publicTable.game === 'ww') {
+    renderReadyBar();
+    return;
+  }
+
+  if (!m) return;
+  const min = m.players[0];
+  const max = m.players[1];
+  const here = gameRoom();
+
+  for (const p of readyPlayers) {
+    if (!here.includes(p)) readyPlayers.delete(p);
+  }
+
+  if (min < max) {
+    if (here.length < min) {
+      countdownDue = 0;
+      lastPublicPlayerCount = here.length;
+    } else {
+      if (!countdownDue || here.length !== lastPublicPlayerCount) {
+        countdownDue = Date.now() + 45000;
+        lastPublicPlayerCount = here.length;
+      }
+    }
+  } else {
+    countdownDue = 0;
+  }
+
+  renderReadyBar();
+
+  const allReady = here.length >= min && here.every((p) => readyPlayers.has(p));
+  const isFull = here.length >= max;
+  const timerExpired = countdownDue && Date.now() >= countdownDue;
+  const shouldStart = (min === max ? isFull : (allReady || isFull || timerExpired)) && here.length >= min;
+
+  if (!on && isHost() && shouldStart && canStartGame(m.game)) {
+    if (gameOverAt && Date.now() - gameOverAt < 15000 && !allReady && !isFull) return;
+    const key = `${m.id}|${here.join()}|${game?.gid || ''}`;
     if (publicStep.started === key) return;
     publicStep.started = key;
+    readyPlayers.clear();
+    countdownDue = 0;
+    renderReadyBar();
     system(t('pub.starting'));
-    ({ spy: startGame, ld: startDice, tr: startPact, sm: startMission })[publicTable.game]?.();
+    startMode(m.id);
   }
 }
 for (const id of ['rulesClose', 'rulesX']) $(id).addEventListener('click', () => $('rulesDialog').close());

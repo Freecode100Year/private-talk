@@ -7,14 +7,19 @@ const verify = async (body) => (body?.pass ? `room-${body.pass}` : null);
 const P = (g, n, r = 'abcdefghjkmnpqrs') => `pub${g}${n}${r}`;
 
 test('a public passphrase says the game and the seats; anything else is a private room', () => {
-  assert.deepEqual(tableOf(P('ld', 4)), { game: 'ld', seats: 4 });
+  assert.deepEqual(tableOf(P('ld', 4)), { mode: 'ld', game: 'ld', seats: 4 });
   assert.equal(tableOf(P('spy', 3)), null, 'too few for the game');
   assert.equal(tableOf(P('ld', 9)), null, 'too many');
   assert.equal(tableOf('correct horse battery staple'), null);
   assert.equal(tableOf(P('ld', 4, 'ABC')), null);
   const p = newPass('sm', 5);
-  assert.deepEqual(tableOf(p), { game: 'sm', seats: 5 });
+  assert.deepEqual(tableOf(p), { mode: 'sm', game: 'sm', seats: 8 });
   assert.deepEqual(pageTableOf(p), tableOf(p), 'page and server agree');
+
+  // New format: pub<modeId>-<rand16>
+  const pNew = 'pubww9guard-abcdef1234567890';
+  assert.deepEqual(tableOf(pNew), { mode: 'ww9guard', game: 'ww', seats: 9 });
+  assert.deepEqual(pageTableOf(pNew), tableOf(pNew), 'page and server agree on new format');
 });
 
 test('tables are listed, counted from their rooms, and gone when empty', async () => {

@@ -1,3 +1,5 @@
+import { isPublicMode } from '../dist/modes.js';
+
 // Rules shared by both relays: the Cloudflare Worker (src/worker.js) and the
 // Docker server (server/server.mjs). Each relay keeps its own room state and
 // calls these functions, so the two behave the same.
@@ -219,12 +221,14 @@ export function checkFrame(raw, state, now = Date.now()) {
     state.lockAt = now;
     return msg.type === 'lock' ? { lock: msg.locked } : { remove: msg.n };
   }
-  // A page at a public table says whether a game is on (src/lobby.js).
+  // A page at a public table says whether a game is on (src/lobby.js) or switches mode.
   if (msg.type === 'table') {
-    if (typeof msg.playing !== 'boolean') return bad();
+    if (msg.playing !== undefined && typeof msg.playing !== 'boolean') return bad();
+    if (msg.mode !== undefined && (typeof msg.mode !== 'string' || !isPublicMode(msg.mode))) return bad();
+    if (msg.playing === undefined && msg.mode === undefined) return bad();
     if (now - (state.tableAt ?? 0) < LOCK_GAP) return null;
     state.tableAt = now;
-    return { table: { playing: msg.playing } };
+    return { table: { playing: msg.playing, mode: msg.mode } };
   }
   // A player's move for the server's judge at a public table (src/judge.js).
   if (msg.type === 'ref') {

@@ -56,8 +56,10 @@ Taken by `browser-tests/screens.mjs`, which plays the games with real browsers (
 | <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
 | **Undercover** | **Cipher Escape** | **Pact Exchange (a note)** | **Secret Mission** |
 | <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |
-| **A picture (EXIF removed)** | **The room on a computer** | | |
-| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | | |
+| **A picture (EXIF removed)** | **The room on a computer** | **Quick play modes** | **Pick werewolf board** |
+| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | <img src="docs/screenshots/modes-lobby.webp" width="200"> | <img src="docs/screenshots/werewolf-boards.webp" width="200"> |
+| **In-room game modes** | | | |
+| <img src="docs/screenshots/room-modes.webp" width="200"> | | | |
 
 ## Run your own
 

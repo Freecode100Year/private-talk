@@ -60,8 +60,10 @@
 | <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
 | **暗号潜伏** | **密电逃脱** | **密约交易所（纸条）** | **秘密任务** |
 | <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |
-| **发图片（已去掉 EXIF）** | **电脑版房间** | | |
-| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | | |
+| **发图片（已去掉 EXIF）** | **电脑版房间** | **首页快速选玩法** | **狼人杀选板子** |
+| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | <img src="docs/screenshots/modes-lobby.webp" width="200"> | <img src="docs/screenshots/werewolf-boards.webp" width="200"> |
+| **房间选游戏区** | | | |
+| <img src="docs/screenshots/room-modes.webp" width="200"> | | | |
 
 ## 部署
 

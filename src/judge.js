@@ -34,10 +34,11 @@ export class WolfJudge {
 
   // A new game for the players here on the board (the first for their
   // number if none is given).
-  start(players, board, now) {
+  start(players, board, now, sheriff = undefined) {
     if (this.on) return [];
     const id = board && Wolf.BOARDS[board]?.n === players.length ? board : Wolf.boardsFor(players.length)[0];
-    const d = id && Wolf.deal(players, id);
+    const s = sheriff !== undefined ? sheriff : !!Wolf.BOARDS[id]?.sheriff;
+    const d = id && Wolf.deal(players, id, s);
     if (!d) return [];
     const game = Wolf.apply(null, d.start, JUDGE, now).s;
     if (!game) return [];

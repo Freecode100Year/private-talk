@@ -2,7 +2,7 @@
 // playing with strangers. Shared by the Cloudflare Worker and the Node server.
 //
 // A public table is an ordinary room whose passphrase says what it is:
-// "pub" + game + seats + 16 random letters or digits (PUBLIC below). The page
+// "pub" + mode + "-" + 16 random letters or digits (NEW_PUBLIC below). The page
 // that opens one derives the room address and access credential, then asks the
 // server to list it. The server verifies the access credential (accessMatches);
 // Cloudflare Workers WebCrypto caps PBKDF2 at 100,000 iterations and cannot run
@@ -24,7 +24,12 @@
 // limited by counts only (no filtering of any kind): a few new tables per
 // address per ten minutes, and a cap on the whole list.
 
-export const PUBLIC = /^pub(spy|ld|tr|sm|ww)(\d{1,2})([a-z0-9]{16})$/;
+import { modeOf, defaultModeFor } from '../dist/modes.js';
+
+export const NEW_PUBLIC = /^pub([a-z0-9]{1,12})-([a-z0-9]{16})$/;
+export const OLD_PUBLIC = /^pub(spy|ld|tr|sm|ww)(\d{1,2})([a-z0-9]{16})$/;
+export const PUBLIC = /^pub(?:([a-z0-9]{1,12})-([a-z0-9]{16})|(spy|ld|tr|sm|ww)(\d{1,2})([a-z0-9]{16}))$/;
+
 // Players for each game that can be played at a public table.
 export const GAMES = { spy: [4, 8], ld: [2, 8], tr: [2, 8], sm: [3, 8], ww: [6, 12] };
 // Werewolf at a public table is judged by the server (src/judge.js).
@@ -35,18 +40,34 @@ export const MAX_TABLES = 300;
 export const EMPTY_MS = 2 * 60000;        // a table nobody has come to goes after this
 export const BODY_MAX = 512;              // bytes of a request
 
-// { game, seats } of a public passphrase, or null.
+// { mode, game, seats } of a public passphrase, or null.
 export function tableOf(pass) {
-  const m = PUBLIC.exec(typeof pass === 'string' ? pass : '');
-  if (!m) return null;
-  const seats = Number(m[2]);
-  const [min, max] = GAMES[m[1]];
-  return seats >= min && seats <= max ? { game: m[1], seats } : null;
+  if (typeof pass !== 'string') return null;
+  const mNew = NEW_PUBLIC.exec(pass);
+  if (mNew) {
+    const mode = modeOf(mNew[1]);
+    if (!mode || !mode.public) return null;
+    return { mode: mode.id, game: mode.game, seats: mode.players[1] };
+  }
+  const mOld = OLD_PUBLIC.exec(pass);
+  if (mOld) {
+    const game = mOld[1];
+    const seats = Number(mOld[2]);
+    const mode = defaultModeFor(game, seats);
+    if (!mode || !mode.public) return null;
+    if (game === 'ww') {
+      if (mode.players[0] !== seats) return null;
+    } else {
+      if (seats < mode.players[0] || seats > mode.players[1]) return null;
+    }
+    return { mode: mode.id, game: mode.game, seats };
+  }
+  return null;
 }
 
 export class Lobby {
   constructor() {
-    this.tables = new Map();   // roomId → { id, pass, game, seats, lang, at, taken, playing, seen }
+    this.tables = new Map();   // roomId → { id, pass, mode, game, seats, lang, at, taken, playing, seen }
     this.creates = new Map();  // address → [times]
   }
 
@@ -56,7 +77,7 @@ export class Lobby {
   async create(body, ip, verify, now = Date.now()) {
     const t = tableOf(body?.pass);
     if (!t) return { error: 'bad table' };
-    const recent = (this.creates.get(ip) ?? []).filter((x) => now - x < CREATE_WINDOW);
+    const recent = (this.creates.get(ip) || []).filter((x) => now - x < CREATE_WINDOW);
     if (recent.length >= CREATES) return { error: 'too many' };
     this.sweep(now);
     if (this.tables.size >= MAX_TABLES) return { error: 'full' };
@@ -67,7 +88,7 @@ export class Lobby {
     const old = this.tables.get(roomId);
     if (old) return { id: old.id };
     const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('');
-    this.tables.set(roomId, { id, pass: body.pass, ...t, lang: LANGS.includes(body.lang) ? body.lang : '', at: now, taken: 0, playing: false, seen: now });
+    this.tables.set(roomId, { id, pass: body.pass, mode: t.mode, game: t.game, seats: t.seats, lang: LANGS.includes(body.lang) ? body.lang : '', at: now, taken: 0, playing: false, seen: now });
     return { id, roomId };
   }
 
@@ -79,8 +100,9 @@ export class Lobby {
   people(roomId, taken, now = Date.now(), info = null) {
     let t = this.tables.get(roomId);
     if (!t && info && taken && tableOf(info.pass) && this.tables.size < MAX_TABLES) {
-      t = { id: info.id, pass: info.pass, ...tableOf(info.pass), lang: LANGS.includes(info.lang) ? info.lang : '', at: info.at ?? now, taken: 0, playing: false, seen: now };
+      t = { id: info.id, pass: info.pass, ...tableOf(info.pass), lang: LANGS.includes(info.lang) ? info.lang : '', at: info.at || now, taken: 0, playing: false, seen: now };
       this.tables.set(roomId, t);
+      if (info.mode) this.setMode(roomId, info.mode); // switched in the room before the lobby restarted
     }
     if (!t) return;
     if (!taken) { this.tables.delete(roomId); return; }
@@ -89,13 +111,23 @@ export class Lobby {
   }
   info(roomId) {
     const t = this.tables.get(roomId);
-    return t ? { id: t.id, pass: t.pass, lang: t.lang, at: t.at } : null;
+    return t ? { id: t.id, pass: t.pass, lang: t.lang, at: t.at, mode: t.mode } : null;
   }
 
   // A page at the table says whether a game is on.
   playing(roomId, on) {
     const t = this.tables.get(roomId);
     if (t) t.playing = !!on;
+  }
+
+  setMode(roomId, newModeId) {
+    const t = this.tables.get(roomId);
+    const m = modeOf(newModeId);
+    if (t && m && m.public) {
+      t.mode = m.id;
+      t.game = m.game;
+      t.seats = m.players[1];
+    }
   }
 
   sweep(now = Date.now()) {
@@ -107,7 +139,7 @@ export class Lobby {
   list(now = Date.now()) {
     this.sweep(now);
     return [...this.tables.values()]
-      .map((t) => ({ id: t.id, pass: t.pass, game: t.game, seats: t.seats, taken: t.taken, playing: t.playing, lang: t.lang, age: Math.round((now - t.at) / 1000) }))
+      .map((t) => ({ id: t.id, pass: t.pass, mode: t.mode, game: t.game, seats: t.seats, taken: t.taken, playing: t.playing, lang: t.lang, age: Math.round((now - t.at) / 1000) }))
       .sort((a, b) => (a.playing - b.playing) || ((a.taken >= a.seats) - (b.taken >= b.seats)) || (b.taken - a.taken) || (a.age - b.age));
   }
 }

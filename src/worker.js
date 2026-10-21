@@ -16,6 +16,7 @@ import {
 } from './rules.js';
 import { Lobby as Tables, readBody, tableOf } from './lobby.js';
 import { WolfJudge } from './judge.js';
+import { modeOf } from '../dist/modes.js';
 
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
 // The page asks for the pt2 subprotocol; a 101 answer must name it or the
@@ -144,7 +145,37 @@ export class Room extends DurableObject {
     }
     if (r.table) {
       const t = await this.ctx.storage.get('table');
-      if (t) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: r.table.playing }) }).catch(() => {});
+      if (t) {
+        // A judged werewolf game in progress is not switched away by one page
+        if (r.table.mode && !(await this.judge())?.on) {
+          const m = modeOf(r.table.mode);
+          if (m && m.public) {
+            t.info = t.info || {};
+            t.info.mode = m.id;
+            t.info.game = m.game;
+            t.info.seats = m.players[1];
+            await this.ctx.storage.put('table', t);
+            if (m.game === 'ww') {
+              this.wolfSeats = m.players[1];
+              this.wolfBoard = m.settings?.board || null;
+              this.wolfSheriff = m.settings?.sheriff;
+              this.wolf = new WolfJudge();
+              this.wolfStart = 0;
+              await this.ctx.storage.delete('judge');
+            } else {
+              this.wolf = null;
+              this.wolfBoard = null;
+              await this.ctx.storage.delete('judge');
+              await this.ctx.storage.deleteAlarm();
+            }
+            await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/mode', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, mode: m.id }) }).catch(() => {});
+            if (this.wolf) await this.judgeMembers(this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y));
+          }
+        }
+        if (r.table.playing !== undefined) {
+          await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: r.table.playing }) }).catch(() => {});
+        }
+      }
       return;
     }
     if (r.key) return this.broadcast({ type: 'key', from: a.n, ...r.key });
@@ -198,9 +229,13 @@ export class Room extends DurableObject {
   async judge() {
     if (this.wolf !== undefined) return this.wolf;
     const t = await this.ctx.storage.get('table');
-    const game = t && tableOf(t.info?.pass)?.game === 'ww' ? tableOf(t.info.pass) : null;
+    // The table's mode: switched in the room (t.info.mode) or the one its passphrase names
+    const m = t && modeOf(t.info?.mode || tableOf(t.info?.pass)?.mode);
+    const game = m && m.game === 'ww' ? m : null;
     this.wolf = game ? new WolfJudge(await this.ctx.storage.get('judge') ?? null) : null;
-    this.wolfSeats = game?.seats ?? 0;
+    this.wolfSeats = game ? game.players[1] : 0;
+    this.wolfBoard = game?.settings?.board || null;
+    this.wolfSheriff = game?.settings?.sheriff;
     return this.wolf;
   }
   async judgeOut(out) {
@@ -250,7 +285,7 @@ export class Room extends DurableObject {
     if (!j) return;
     const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
     if (!j.on) {
-      if (list.length >= this.wolfSeats) await this.judgeOut(j.start(list.slice(0, this.wolfSeats), null, Date.now()));
+      if (list.length >= this.wolfSeats) await this.judgeOut(j.start(list.slice(0, this.wolfSeats), this.wolfBoard || null, Date.now(), this.wolfSheriff));
       return;
     }
     await this.judgeOut(j.tick(Date.now()));
@@ -305,6 +340,7 @@ export class Lobby extends DurableObject {
     if (!body || typeof body.roomId !== 'string') return json(400, {});
     if (path === '/people') this.lobby.people(body.roomId, Number(body.taken) || 0, Date.now(), body.info);
     if (path === '/playing') this.lobby.playing(body.roomId, body.on);
+    if (path === '/mode') this.lobby.setMode(body.roomId, body.mode);
     return json(200, {});
   }
 }

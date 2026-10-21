@@ -23,6 +23,7 @@ const coded = (code, message) => Object.assign(new Error(message), { code });
 export function checkPassphrase(input) {
   const pass = input.normalize('NFKC').trim();
   if (!pass) throw coded('empty', '请输入房间暗号');
+  if (/^pub[a-z0-9]{2,12}-[a-z0-9]{16}$/.test(pass)) return pass;
   if (!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}\u200C\u200D]*$/u.test(pass)) throw coded('chars', '房间暗号只能用文字和数字（任何语言都行），不能用符号或空格');
   if (Array.from(pass).length > MAX_PASSPHRASE) throw coded('long', `房间暗号最多 ${MAX_PASSPHRASE} 个字`);
   return pass;

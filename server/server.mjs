@@ -29,6 +29,7 @@ import {
 
 import { Lobby, readBody, BODY_MAX } from '../src/lobby.js';
 import { WolfJudge } from '../src/judge.js';
+import { modeOf } from '../dist/modes.js';
 import { deriveRoom } from '../dist/crypto.js';
 import { loadConfigFile, checkConfig, ConfigError } from './config.mjs';
 import { VERSION } from './version.mjs';
@@ -212,7 +213,10 @@ function scheduleJudgeStart(room, roomId, delay) {
     if (!t) return;
     const now = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
     if (!room.judge.on && now.length >= t.seats) {
-      judgeOut(room, room.judge.start(now.slice(0, t.seats), null, Date.now()), roomId);
+      const m = modeOf(t.mode);
+      const board = m?.settings?.board || null;
+      const sheriff = m?.settings?.sheriff;
+      judgeOut(room, room.judge.start(now.slice(0, t.seats), board, Date.now(), sheriff), roomId);
       lobby.playing(roomId, true);
     }
   }, delay);
@@ -323,7 +327,23 @@ function enter(ws, roomId, ip, resume) {
       return members(room);
     }
     if (r.ref) { if (room.judge) { judgeOut(room, room.judge.handle(n, r.ref, Date.now()), roomId); if (!room.judge.on) lobby.playing(roomId, false); } return; }
-    if (r.table) return room.judge ? undefined : lobby.playing(roomId, r.table.playing);
+    if (r.table) {
+      // A judged werewolf game in progress is not switched away by one page
+      if (r.table.mode && !room.judge?.on) {
+        lobby.setMode(roomId, r.table.mode);
+        const t = lobby.tables.get(roomId);
+        clearTimeout(room.judgeStart);
+        room.judgeStart = null;
+        clearTimeout(room.judgeTimer);
+        room.judgeTimer = null;
+        room.judge = t?.game === 'ww' ? new WolfJudge() : null;
+        if (room.judge) judgeMembers(room, roomId);
+      }
+      if (r.table.playing !== undefined) {
+        if (!room.judge) lobby.playing(roomId, r.table.playing);
+      }
+      return;
+    }
     if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
     if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });
     if (r.file) return broadcast(room, { type: 'file', from: n, ...r.file });

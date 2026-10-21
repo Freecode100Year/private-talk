@@ -159,14 +159,10 @@
             <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
           </div>
           <div class="sidebar-game-section" id="sidebarGameSection">
-            <button class="secondary-button game-start" id="gameStart" type="button" disabled><span data-t="game.start">🕵️ 开一局暗号潜伏</span></button>
-            <button class="secondary-button game-start" id="escStart" type="button" disabled><span data-t="esc.start">🔐 开一局密电逃脱</span></button>
-            <button class="secondary-button game-start" id="trStart" type="button" disabled><span data-t="tr.start">🤝 开一局密约交易所</span></button>
-            <button class="secondary-button game-start" id="smStart" type="button" disabled><span data-t="sm.start">🎯 开一局秘密任务</span></button>
-            <div class="ww-setup"><select id="wwBoard" aria-label="板子" data-t-aria="ww.board"></select><label class="allow-old"><input type="checkbox" id="wwSheriff" /><span data-t="ww.sheriffOpt">警长竞选</span></label></div>
-            <button class="secondary-button game-start" id="wwStart" type="button" disabled><span data-t="ww.start">🐺 开一局狼人杀</span></button>
-            <label class="allow-old ld-setup"><input type="checkbox" id="ldWild" /><span data-t="ld.wildOpt">1 点万能（Perudo 规则）</span></label>
-            <button class="secondary-button game-start" id="ldStart" type="button" disabled><span data-t="ld.start">🎲 开一局骗子骰</span></button>
+            <div class="room-modes-list" id="roomModesList"></div>
+            <select id="wwBoard" aria-label="板子" data-t-aria="ww.board" class="compat-hidden"></select>
+            <input type="checkbox" id="wwSheriff" class="compat-hidden" />
+            <input type="checkbox" id="ldWild" class="compat-hidden" />
             <p class="sidebar-note game-hint" id="gameHint"></p>
             <button class="secondary-button game-start" id="rulesButton" type="button"><span data-t="rules.button">📖 游戏规则</span></button>
           </div>
@@ -207,6 +203,18 @@
             </div>
           </header>
           <p class="public-note" id="publicNote" hidden></p>
+          <div class="ready-bar" id="readyBar" hidden>
+            <button class="primary-button ready-btn" id="readyButton" type="button" data-t="ready.button">准备</button>
+            <span class="ready-status-text" id="readyStatusText"></span>
+          </div>
+          <div class="vote-bar" id="voteBar" hidden>
+            <span class="vote-text" id="voteText"></span>
+            <div class="vote-actions">
+              <button class="primary-button vote-btn vote-agree" id="voteAgree" type="button" data-t="vote.agree">同意</button>
+              <button class="secondary-button vote-btn vote-decline" id="voteDecline" type="button" data-t="vote.decline">拒绝</button>
+            </div>
+            <span class="vote-tally" id="voteTally"></span>
+          </div>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <section class="game-panel" id="gamePanel" hidden aria-live="polite">
             <div class="game-seats" id="gameSeats" aria-label="座位"></div>
@@ -222,6 +230,8 @@
             </div>
             <div class="game-actions">
               <button class="secondary-button" id="gameAgain" type="button" hidden data-t="game.again">再来一局</button>
+              <button class="secondary-button" id="gameSwitch" type="button" hidden data-t="game.switch">换个游戏</button>
+              <button class="ghost-button" id="gameVoteEnd" type="button" hidden data-t="vote.endBtn">提议结束本局</button>
               <button class="secondary-button game-word" id="gameWord" type="button" data-t="game.holdButton">按住看我的词</button>
               <span class="game-votes" id="gameVotes"></span>
               <form class="esc-form" id="escForm" hidden autocomplete="off"><input id="escCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" spellcheck="false" aria-label="密码" data-t-aria="esc.codeAria" /><button class="secondary-button" id="escTry" type="submit" data-t="esc.try">开锁</button></form>
@@ -295,9 +305,8 @@
       <h2 id="quickTitle" data-t="quick.title">🎲 快速找一桌</h2>
       <p class="muted" data-t="quick.pick">想玩什么？有人在等的会让你直接坐下。</p>
       <div class="quick-games" id="quickGames"></div>
-      <label class="quick-seats"><span data-t="quick.seats">几人桌</span> <select id="quickSeats"></select></label>
+      <div hidden><select id="quickSeats"></select><button id="quickGo"><span id="quickGoLabel"></span></button></div>
       <p class="quick-note" data-t="quick.note">公开桌：任何人都能进来，服务器也能看到这里的聊天和牌局；不要在公开桌说私密的事。人坐满就自动开局。</p>
-      <button class="primary-button" id="quickGo" type="button"><span id="quickGoLabel" data-t="quick.go">坐下</span><svg><use href="#i-arrow"/></svg></button>
     </dialog>
     <dialog class="rules-dialog" id="rulesDialog" aria-labelledby="rulesTitle">
       <div class="dialog-top"><span class="overline">HOW TO PLAY</span><button class="icon-button" type="button" id="rulesX" aria-label="关闭" data-t-aria="rules.close"><svg><use href="#i-close"/></svg></button></div>
