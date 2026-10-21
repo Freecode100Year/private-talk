@@ -15,6 +15,7 @@ import * as Wolf from './werewolf.js';
 import * as Dice from './dice.js';
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
+import { coordinator, seatsOf } from './coord.js';
 
 // Android 7–10 ships WebView/Chrome older than 86, which lacks replaceChildren.
 if (!Element.prototype.replaceChildren) {
@@ -97,6 +98,7 @@ function show(stage) {
   $('createStage').classList.toggle('hidden', stage !== 'create');
   $('chatStage').classList.toggle('hidden', stage !== 'chat');
   document.body.classList.toggle('in-chat', stage === 'chat');
+  if (stage === 'chat') switchMobileTab('chat');
   window.scrollTo(0, 0);
 }
 
@@ -246,12 +248,20 @@ function members(list, nowAway = [], nowHost = host) {
   const entry = (n, gone) => {
     const div = document.createElement('li');
     div.className = gone ? 'member away' : 'member';
+    div.dataset.n = String(n);
     const avatar = document.createElement('span');
     avatar.className = `avatar c${n}`;
     avatar.textContent = face(n);
     avatar.classList.toggle('me', n === you);
     avatar.classList.toggle('host', !gone && n === host);
     if (!gone && n === host) avatar.title = t('host');
+    const act = activeEmoji.get(n);
+    if (act && act.until > Date.now()) {
+      const bubble = document.createElement('span');
+      bubble.className = 'emoji-bubble';
+      bubble.textContent = act.emoji;
+      avatar.appendChild(bubble);
+    }
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = gone ? t('member.away', { b: badge(n) }) : t('member.name', { n });
@@ -595,9 +605,16 @@ async function handle(data, sock, started, retry = false) {
     if (got.f) {
       await showPicture(msg, got.f);
       if (!current()) return;
+    } else if (got.q !== undefined && QUICK_EMOJIS[got.q]) {
+      showQuickReaction(msg.from, got.q);
     } else {
       bubble(msg.from, msg.at, got.text, msg.h);
       missionChat(msg.from, got.id, got.text);
+      if (mobileTab !== 'chat') {
+        chatUnread++;
+        const badgeEl = $('chatTabUnread');
+        if (badgeEl) { badgeEl.hidden = false; badgeEl.textContent = String(chatUnread); }
+      }
     }
     if (msg.from !== you && msg.h !== undefined) queueSeen(msg.from, msg.h);
   } else if (msg.type === 'file') {
@@ -678,6 +695,106 @@ let lastGameSend = 0;   // when this page last sent a game event
 // during it): { gid, kind, players, dealer }. Only one game runs in a room.
 let busyGame = null;
 const gameRoom = () => present ?? [];
+const QUICK_EMOJIS = ['👍', '😂', '😮', '😡', '🤔', '👏'];
+const activeEmoji = new Map();
+let dealerMissingAt = 0;
+let gameOverAt = 0;
+let mobileTab = 'chat';
+let chatUnread = 0;
+let lastQuickEmojiAt = 0;
+
+function switchMobileTab(tab) {
+  mobileTab = tab;
+  const shell = document.querySelector('.chat-shell');
+  if (shell) shell.dataset.tab = tab;
+  document.querySelectorAll('.mobile-tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  if (tab === 'chat') {
+    chatUnread = 0;
+    const badgeEl = $('chatTabUnread');
+    if (badgeEl) { badgeEl.hidden = true; badgeEl.textContent = '0'; }
+  }
+}
+
+function showQuickReaction(from, q) {
+  if (!Number.isInteger(q) || q < 0 || q > 5) return;
+  const emoji = QUICK_EMOJIS[q];
+  if (!emoji) return;
+  const div = document.createElement('div');
+  div.className = 'system-message quick-reaction';
+  div.textContent = `#${from} ${emoji}`;
+  append(div, atBottom());
+
+  activeEmoji.set(from, { emoji, until: Date.now() + 3000 });
+
+  const memberAv = document.querySelector(`#memberList [data-n="${from}"] .avatar`);
+  if (memberAv) {
+    const bubble = document.createElement('span');
+    bubble.className = 'emoji-bubble';
+    bubble.textContent = emoji;
+    memberAv.appendChild(bubble);
+    setTimeout(() => { bubble.remove(); }, 3000);
+  }
+
+  const seat = document.querySelector(`#gameSeats [data-n="${from}"]`);
+  if (seat) {
+    const bubble = document.createElement('span');
+    bubble.className = 'emoji-bubble';
+    bubble.textContent = emoji;
+    seat.appendChild(bubble);
+    setTimeout(() => { bubble.remove(); }, 3000);
+  }
+}
+
+async function sendQuickReaction(q) {
+  if (!Number.isInteger(q) || q < 0 || q > 5) return;
+  const now = Date.now();
+  if (now - lastQuickEmojiAt < 3000) return;
+  lastQuickEmojiAt = now;
+  const timeout = now + 6000;
+  while ((pending || Date.now() < cooldownUntil) && online && Date.now() < timeout) {
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  // The emoji itself is the text, for pages older than 2.21.
+  const sent = await sendMessage(QUICK_EMOJIS[q], undefined, false, undefined, q);
+  if (sent) lastQuickEmojiAt = Date.now();
+  else lastQuickEmojiAt = 0;
+}
+
+function renderSeats() {
+  const container = $('gameSeats');
+  if (!container) return;
+  if (!game || !game.players || !game.players.length) {
+    container.replaceChildren();
+    return;
+  }
+  const seats = seatsOf(game);
+  const here = gameRoom();
+  const now = Date.now();
+  const els = seats.players.map((n) => {
+    const seat = document.createElement('div');
+    seat.className = 'seat';
+    seat.dataset.n = String(n);
+    const av = document.createElement('span');
+    const isMe = n === you;
+    const isTurn = n === seats.turn;
+    const isOut = seats.out.includes(n);
+    const isAway = !here.includes(n);
+    av.className = `avatar c${n}${isMe ? ' me' : ''}${isTurn ? ' turn' : ''}${isOut ? ' out' : ''}${isAway ? ' away' : ''}`;
+    av.textContent = face(n);
+    seat.appendChild(av);
+    const act = activeEmoji.get(n);
+    if (act && act.until > now) {
+      const bubble = document.createElement('span');
+      bubble.className = 'emoji-bubble';
+      bubble.textContent = act.emoji;
+      seat.appendChild(bubble);
+    }
+    return seat;
+  });
+  container.replaceChildren(...els);
+}
 // Which game an event belongs to: 'spy' (暗号潜伏), 'esc', 'tr', 'sm', 'ww' or 'ld'.
 const kindOf = (g, s = game) => {
   const prefix = /^(esc|tr|sm|ww|ld)-/.exec(g.k);
@@ -687,7 +804,7 @@ function applyGame(s, g, from, now) {
   if (typeof g?.k !== 'string') return { s, note: null };
   const kind = kindOf(g, s);
   const rules = { esc: Escape.apply, tr: Pact.apply, sm: Mission.apply, ww: Wolf.apply, ld: Dice.apply }[kind] ?? applyUndercover;
-  return rules(s, g, from, now);
+  return rules(s, g, from, now, gameRoom());
 }
 const WIRE = { spy: 'game.wire', esc: 'esc.wire', tr: 'tr.wire', sm: 'sm.wire', ww: 'ww.wire', ld: 'ld.wire' };
 // 狼人杀: this page's card ({ role, wolves? }), what the judge told it this
@@ -736,6 +853,7 @@ let mySra = null;       // { gid, key, card: { side, word }, passed: Set(step ke
 let revealedGid = null;
 async function startGame() {
   if (!canStartGame()) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const players = gameRoom().slice();
   const d = deal(players, document.documentElement.lang);
   // The starter writes the cards, encrypts them all and shuffles.
@@ -786,6 +904,7 @@ async function undercoverStep() {
 }
 async function startEscape() {
   if (!canStartGame('esc')) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const players = gameRoom().slice();
   const d = Escape.deal(players);
   const cards = {};
@@ -797,6 +916,7 @@ async function startEscape() {
 }
 async function startWerewolf() {
   if (!canStartGame('ww')) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const players = gameRoom().slice();
   const d = Wolf.deal(players, $('wwBoard').value, $('wwSheriff').checked);
   if (!d) return;
@@ -823,12 +943,14 @@ async function wolfSend(r) {
 }
 function startMission() {
   if (!canStartGame('sm')) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const g = Mission.newGame(gameRoom());
   dealer = { gid: g.gid, done: new Set() };
   queueGame(g);
 }
 function startDice() {
   if (!canStartGame('ld')) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const g = Dice.newGame(gameRoom(), $('ldWild').checked);
   dealer = { gid: g.gid, done: new Set() };
   myWord = '';
@@ -839,6 +961,7 @@ function startDice() {
 }
 function startPact() {
   if (!canStartGame('tr')) return;
+  gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const g = Pact.newGame(gameRoom());
   dealer = { gid: g.gid, done: new Set() };
   myWord = '';
@@ -856,7 +979,12 @@ async function gameEvent(g, from, fromJudge = false) {
   // it when someone joins, or when another game is started over it.
   if (g.k === 'busy' || g.k === 'free') { gameBusy(g, from); return null; }
   const isNew = g.k === 'new' || /-new$/.test(g.k);
-  if (isNew && from !== you && dealer && game && game.gid === dealer.gid && game.phase !== 'over' && g.gid !== game.gid) sayBusy();
+  if (isNew) {
+    gameOverAt = 0;
+    dealerMissingAt = 0;
+    if (window.innerWidth <= 600) switchMobileTab('game');
+  }
+  if (isNew && from !== you && isMyTurnToCoordinate() && game && game.gid === dealer?.gid && game.phase !== 'over' && g.gid !== game.gid) sayBusy();
   if (g.k === 'new' && (!game || game.phase === 'over')) {
     if (from !== you) mySra = null;
     myWord = '';
@@ -957,7 +1085,8 @@ async function gameEvent(g, from, fromJudge = false) {
   if (note && !(note.k === 'tr-note' && (note.n === you || note.to === you))) gameNote(note);
   if (g.k === 'ww-go' && from === you && dealer?.gid === g.gid) { dealer.moves++; dealer.acts = new Map(); }
   if (before !== game) { renderGame(); dealerStep(); pactStep(); missionStep(); wolfStep(); diceStep(); undercoverStep(); }
-  if (game?.phase === 'over' && dealer?.gid === game.gid && dealer.busySaid && !dealer.freed) { dealer.freed = true; queueGame({ k: 'free', gid: game.gid }); }
+  if (game?.phase === 'over' && !gameOverAt) gameOverAt = Date.now();
+  if (game?.phase === 'over' && isMyTurnToCoordinate(true) && !dealer?.freed) { if (dealer) dealer.freed = true; queueGame({ k: 'free', gid: game.gid }); }
   if (note?.k === 'say' || note?.k === 'ww-say') return { tag: { cls: 'said', label: `🗣 ${t(game?.type === 'ww' ? (game.phase === 'last' ? 'ww.lastWords' : 'ww.speech') : 'game.said')}` } };
   return note ? shown : null;
 }
@@ -1148,10 +1277,53 @@ function endGame() {
   if ($('gamePanel')) renderGame();
 }
 const GAME_NAMES = { spy: 'game.name.spy', esc: 'game.name.esc', tr: 'game.name.tr', sm: 'game.name.sm', ww: 'game.name.ww', ld: 'game.name.ld' };
-// This page deals a running game: tell the room it is on.
+function isMyTurnToCoordinate(allowOver = false) {
+  if (!game || (!allowOver && game.phase === 'over')) return false;
+  const here = gameRoom();
+  if (here.includes(game.dealer)) return you === game.dealer;
+  if (!dealerMissingAt) dealerMissingAt = Date.now();
+  if (Date.now() - dealerMissingAt < 8000) return false;
+  const hasSecrets = game.type === 'esc' || (game.type === 'ww' && game.dealer !== Wolf.JUDGE);
+  if (hasSecrets) return false;
+  return you === coordinator(game, here);
+}
+function checkDealerStatus(now = Date.now()) {
+  if (!game || game.phase === 'over') {
+    dealerMissingAt = 0;
+    return;
+  }
+  if (game.type === 'ww' && game.dealer === Wolf.JUDGE) {
+    dealerMissingAt = 0;
+    return;
+  }
+  const here = gameRoom();
+  if (here.includes(game.dealer)) {
+    dealerMissingAt = 0;
+    return;
+  }
+  if (!dealerMissingAt) dealerMissingAt = now;
+  if (now - dealerMissingAt >= 8000) {
+    const hasSecrets = game.type === 'esc' || (game.type === 'ww' && game.dealer !== Wolf.JUDGE);
+    if (hasSecrets) {
+      game = { ...game, phase: 'over', end: null, leftSecret: true };
+      busyGame = null;
+      dealerMissingAt = 0;
+      system(t('game.dealerLeftSecret'));
+      renderGame();
+      return;
+    }
+    const coord = coordinator(game, here);
+    if (coord && coord === you) {
+      if (!dealer || dealer.gid !== game.gid) {
+        dealer = { gid: game.gid, done: new Set() };
+      }
+    }
+  }
+}
+// This page coordinates a running game: tell the room it is on.
 function sayBusy() {
-  if (!dealer || !game || game.gid !== dealer.gid || game.phase === 'over') return;
-  dealer.busySaid = true;
+  if (!isMyTurnToCoordinate() || !game || game.phase === 'over') return;
+  if (dealer) dealer.busySaid = true;
   queueGame({ k: 'busy', gid: game.gid, kind: game.type ?? 'spy', players: game.players });
 }
 function gameBusy(g, from) {
@@ -1165,7 +1337,7 @@ function gameBusy(g, from) {
   const players = Array.isArray(g.players) ? g.players.filter(Number.isInteger) : [];
   // A game this page started over it (it had not heard of the other one):
   // called off.
-  if (dealer && game && game.gid === dealer.gid && game.phase !== 'over') {
+  if (isMyTurnToCoordinate() && game && game.gid === dealer?.gid && game.phase !== 'over') {
     queueGame({ k: 'abort', gid: game.gid });
     system(t('game.busyAbort', { name }));
   }
@@ -1175,16 +1347,18 @@ function gameBusy(g, from) {
 }
 // The room changed: a dealer who left ends the game; the dealer moves it on.
 function gameMembers() {
-  if (busyGame && !gameRoom().includes(busyGame.dealer)) busyGame = null;
+  checkDealerStatus();
+  if (busyGame) {
+    const active = (busyGame.players || []).filter((n) => gameRoom().includes(n));
+    if (!active.length && !gameRoom().includes(busyGame.dealer)) busyGame = null;
+    else if (!gameRoom().includes(busyGame.dealer)) busyGame.dealer = Math.min(...active);
+  }
   // Someone new while this page deals: they hear of the game.
-  if (dealer && game && game.gid === dealer.gid && game.phase !== 'over') {
+  if (isMyTurnToCoordinate() && game && game.phase !== 'over') {
+    if (!dealer) dealer = { gid: game.gid, done: new Set() };
     if (!dealer.told) dealer.told = new Set();
     const fresh = gameRoom().filter((n) => !game.players.includes(n) && !dealer.told.has(n));
     if (fresh.length) { fresh.forEach((n) => dealer.told.add(n)); sayBusy(); }
-  }
-  if (game && game.phase !== 'over' && !gameRoom().includes(game.dealer)) {
-    game = { ...game, phase: 'over', end: null };
-    system(t('game.dealerLeft'));
   }
   renderGame();
   dealerStep();
@@ -1332,7 +1506,9 @@ async function passNote() {
 // What only the dealer's page does: skip someone whose turn ran out (or who
 // left), call the vote after the talk, count once all votes are in.
 function dealerStep() {
-  if (!dealer || !game || game.gid !== dealer.gid || game.phase === 'over') return;
+  checkDealerStatus();
+  if (!isMyTurnToCoordinate(false) || !game || game.phase === 'over') return;
+  if (!dealer || dealer.gid !== game.gid) dealer = { gid: game.gid, done: new Set() };
   const here = gameRoom();
   const once = (key, g) => { if (!dealer.done.has(key)) { dealer.done.add(key); queueGame(g); } };
   const gid = game.gid;
@@ -1388,6 +1564,8 @@ let panelGid = '';
 function renderGame() {
   publicStep();
   const panel = $('gamePanel');
+  const shell = document.querySelector('.chat-shell');
+  if (shell) shell.classList.toggle('no-game', !game);
   $('gameStart').disabled = !canStartGame();
   $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS });
   panel.hidden = !game;
@@ -1415,6 +1593,26 @@ function renderGame() {
   const range = (r) => `${r.MIN_PLAYERS}–${r.MAX_PLAYERS}`;
   const hint = !(online && group && relayV3) ? 'game.hint.wait' : (game && game.phase !== 'over') || busyGame ? 'game.hint.busy' : !group.quantumSafe(gameRoom()) ? 'game.hint.keys' : '';
   $('gameHint').textContent = hint ? t(hint) : t('game.hint.count', { n: gameRoom().length, spy: `${MIN_PLAYERS}–${MAX_PLAYERS}`, esc: range(Escape), tr: range(Pact), sm: range(Mission), ww: range(Wolf), ld: range(Dice) });
+
+  renderSeats();
+
+  const btnAgain = $('gameAgain');
+  if (btnAgain) {
+    if (!game || game.phase !== 'over' || publicTable) {
+      btnAgain.hidden = true;
+    } else {
+      btnAgain.hidden = false;
+      const kind = game.type || 'spy';
+      const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf, ld: Dice }[kind];
+      const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
+      let canAgain = canStartGame(kind);
+      if (kind === 'ww' && !Wolf.boardsFor(gameRoom().length).length) canAgain = false;
+      btnAgain.disabled = !canAgain;
+      const countOk = gameRoom().length >= min && gameRoom().length <= max;
+      btnAgain.title = canAgain ? '' : (hint ? t(hint) : (!countOk ? (kind === 'ww' ? t('ww.startHint', { min, max }) : t('game.startHint', { min, max })) : ''));
+    }
+  }
+
   if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
   // A game that starts closes the drawer (on a phone it covers the panel).
   if (game.gid !== panelGid) { panelGid = game.gid; closeSidebar(false); }
@@ -1439,7 +1637,11 @@ function renderGame() {
   else if (game.phase === 'open') line = t('game.opening');
   else if (game.phase === 'confess') line = t('game.confess', { b: badge(game.out) });
   else if (game.phase === 'final') line = t('game.finalShow');
-  else line = game.end ? endText(game.end) : t('game.aborted');
+  else line = game.leftSecret ? t('game.dealerLeftSecret') : game.end ? endText(game.end) : t('game.aborted');
+  if (publicTable && game.phase === 'over' && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => (game.alive.includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
   if (speaker(game) === you) nudge(`spy|${game.round}|${game.turn}`);
@@ -1463,15 +1665,19 @@ function renderGame() {
   $('gameClose').hidden = game.phase !== 'over';
   $('messageInput').placeholder = speaker(game) === you ? t('game.describe') : t('input.placeholder');
   clearInterval(gameTick);
-  gameTick = game.phase === 'over' ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+  gameTick = game.phase === 'over' && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
 function renderEscape() {
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
   const playing = game.players.includes(you);
   const over = game.phase === 'over';
   $('gameTitle').textContent = t('esc.title', { i: Math.min(game.lock + 1, Escape.LOCKS.length), n: Escape.LOCKS.length });
-  let line = over ? (game.end ? escEndText(game.end) : t('game.aborted')) : t('esc.line', { len: Escape.LOCKS[game.lock], m: Math.floor(left / 60), s: String(left % 60).padStart(2, '0'), a: game.alarms, max: Escape.ALARMS });
+  let line = over ? (game.leftSecret ? t('game.dealerLeftSecret') : game.end ? escEndText(game.end) : t('game.aborted')) : t('esc.line', { len: Escape.LOCKS[game.lock], m: Math.floor(left / 60), s: String(left % 60).padStart(2, '0'), a: game.alarms, max: Escape.ALARMS });
   if (!over && game.trying) line += ` ${t('esc.trying', { b: badge(game.trying.n), code: game.trying.code })}`;
+  if (publicTable && over && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => (gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`)).join(' ');
   $('gameWord').hidden = over || (!myClues && !Object.keys(game.dropped).length);
@@ -1490,7 +1696,7 @@ function renderEscape() {
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
-  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+  gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
 function renderWerewolf() {
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
@@ -1504,7 +1710,7 @@ function renderWerewolf() {
   // The line: what this page is to do now, else what everyone is waiting for.
   let line;
   const stage = c && myAct?.step === game.step && !myAct.sent ? c.stages[myAct.stage] : c?.send === 'day' ? c.stages[0] : null;
-  if (over) line = wolfEndText(game.end);
+  if (over) line = game.leftSecret ? t('game.dealerLeftSecret') : wolfEndText(game.end);
   else if (sp) line = sp === you ? t(game.phase === 'last' ? 'ww.yourLast' : 'ww.yourSpeak', { s: left }) : t(game.phase === 'last' ? 'ww.turnLast' : 'ww.turn', { b: badge(sp), s: left });
   else if (stage && c.send !== 'day') line = `${t(stage.prompt)} (${left}s)`;
   else if (myAct?.step === game.step && myAct.sent && myAct.done) line = t('ww.done', { what: myAct.done, s: left });
@@ -1512,6 +1718,10 @@ function renderWerewolf() {
   if (!over && Wolf.ACTING.includes(game.phase)) line += ` · ${t('ww.acted', { n: game.acted.length, total: game.actors.length })}`;
   if (!over && Wolf.VOTING.includes(game.phase)) line += ` · ${t('ww.acted', { n: game.voted.length, total: game.voters.length })}`;
   if (!over && !alive && game.players.includes(you)) line = `${t('ww.youDead')} ${line}`;
+  if (publicTable && over && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => `${game.alive.includes(n) ? badge(n) : `${badge(n)}✖`}${n === game.sheriff ? '🎖' : ''}${game.mute.includes(n) ? '🤪' : ''}`).join(' ');
   $('gameWord').hidden = over || !myRole;
@@ -1550,7 +1760,7 @@ function renderWerewolf() {
   $('messageInput').placeholder = sp === you ? t('ww.speakHint') : t('input.placeholder');
   if (sp === you) nudge(`say|${game.phase}|${game.day}|${game.turn}`);
   clearInterval(gameTick);
-  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); wolfStep(); }, 1000);
+  gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); wolfStep(); }, 1000);
 }
 // A button pressed: the stage's pick; after the last stage the action goes.
 function wolfPick(c, stage, o, label) {
@@ -1576,7 +1786,12 @@ function renderMission() {
   const over = game.phase === 'over';
   const playing = game.players.includes(you);
   $('gameTitle').textContent = t('sm.title', { m: Math.floor(left / 60), s: String(left % 60).padStart(2, '0') });
-  $('gameLine').textContent = over ? (game.end ? missionEndText(game.end) : t('game.aborted')) : playing ? t('sm.line', { d: game.done[you] }) : t('sm.watching');
+  let line = over ? (game.leftSecret ? t('game.dealerLeftSecret') : game.end ? missionEndText(game.end) : t('game.aborted')) : playing ? t('sm.line', { d: game.done[you] }) : t('sm.watching');
+  if (publicTable && over && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
+  $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => `${gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`}${game.score[n]}`).join(' ');
   $('gameWord').hidden = over || !playing;
   if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('sm.holdButton');
@@ -1596,7 +1811,7 @@ function renderMission() {
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
-  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+  gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
 function renderPact() {
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
@@ -1605,12 +1820,16 @@ function renderPact() {
   const locked = !!game.locks[you] || myPact?.r === game.round;
   $('gameTitle').textContent = t('tr.title', { r: game.round, n: Pact.ROUNDS });
   let line;
-  if (over) line = game.end ? pactEndText(game.end) : t('game.aborted');
+  if (over) line = game.leftSecret ? t('game.dealerLeftSecret') : game.end ? pactEndText(game.end) : t('game.aborted');
   else if (game.phase === 'open') line = t('tr.opening');
   else if (!game.players.includes(you)) line = t('tr.watching', { s: left });
   else if (!partner) line = t('tr.resting', { s: left });
   else line = t('tr.line', { b: badge(partner), s: left }) + (locked && myPact ? ` ${t('tr.locked', { c: choiceWord(myPact.c) })}` : '');
   if (!over && game.phase === 'talk') line += ` · ${t('tr.decided', { n: Object.keys(game.locks).length, total: game.pairs.length * 2 })}`;
+  if (publicTable && over && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => `${gameRoom().includes(n) ? badge(n) : `${badge(n)}✖`}${game.score[n]}`).join(' ');
   $('gameWord').hidden = true;
@@ -1638,7 +1857,7 @@ function renderPact() {
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
-  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+  gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
 // 骗子骰.
 // Faces as digits: the die-face characters are missing from many phones' fonts.
@@ -1703,12 +1922,16 @@ function renderDice() {
   const playing = game.inRound?.includes(you);
   $('gameTitle').textContent = t('ld.title', { r: Math.max(1, game.round) });
   let line;
-  if (over) line = game.end ? diceEndText(game.end) : t('game.aborted');
+  if (over) line = game.leftSecret ? t('game.dealerLeftSecret') : game.end ? diceEndText(game.end) : t('game.aborted');
   else if (game.phase === 'roll' || game.phase === 'mix') line = t('ld.rolling');
   else if (game.phase === 'show') line = t('ld.showing');
   else line = (game.turn === you ? t('ld.yourTurn', { s: left }) : t('ld.turn', { b: badge(game.turn), s: left })) + (game.bid ? ` · ${t('ld.current', { b: badge(game.bid.n), bid: bidText(game.bid) })}` : '');
   if (!over && game.phase !== 'roll' && game.phase !== 'mix') line += ` · ${t('ld.onTable', { n: diceTotal() })}`;
   if (!over && !playing && game.players.includes(you)) line = `${t(game.dice[you] > 0 ? 'ld.sitOut' : 'ld.outLine')} ${line}`;
+  if (publicTable && over && gameRoom().length >= publicTable.seats && gameOverAt) {
+    const waitSec = Math.max(0, Math.ceil((15000 - (Date.now() - gameOverAt)) / 1000));
+    if (waitSec > 0) line += ' · ' + t('pub.countdown', { s: waitSec });
+  }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => `${game.gone.includes(n) || !game.dice[n] ? `${badge(n)}✖` : badge(n)}🎲${game.dice[n]}${!over && n === game.turn && game.phase === 'bid' ? '◀' : ''}`).join(' ');
   $('gameWord').hidden = over || !playing;
@@ -1739,7 +1962,7 @@ function renderDice() {
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = t('input.placeholder');
   clearInterval(gameTick);
-  gameTick = over ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
+  gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
 function diceEndText(end) {
   return end.winner ? t('ld.end', { b: badge(end.winner) }) : t('game.aborted');
@@ -1810,6 +2033,33 @@ $('gameEnd').addEventListener('click', () => {
   if (dealer && game) queueGame({ k: 'abort', gid: game.gid });
 });
 $('gameClose').addEventListener('click', () => { endGame(); });
+$('gameAgain')?.addEventListener('click', () => {
+  if (!game || game.phase !== 'over' || $('gameAgain').disabled) return;
+  const kind = game.type || 'spy';
+  if (kind === 'spy') startGame();
+  else if (kind === 'esc') startEscape();
+  else if (kind === 'tr') startPact();
+  else if (kind === 'sm') startMission();
+  else if (kind === 'ld') {
+    if (game.wild !== undefined) $('ldWild').checked = !!game.wild;
+    startDice();
+  } else if (kind === 'ww') {
+    if (game.board && Wolf.boardsFor(gameRoom().length).includes(game.board)) $('wwBoard').value = game.board;
+    if (game.sheriffOn !== undefined) $('wwSheriff').checked = !!game.sheriffOn;
+    startWerewolf();
+  }
+});
+$('quickEmojis')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.quick-emoji-btn');
+  if (!btn) return;
+  sendQuickReaction(Number(btn.dataset.q));
+});
+$('quickEmojis')?.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.quick-emoji-btn')) e.preventDefault();
+});
+document.querySelectorAll('.mobile-tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => switchMobileTab(btn.dataset.tab));
+});
 
 // The rules: of each game, and of each werewolf board (its cards, a note
 // on how it plays and what each of its roles does).
@@ -1975,6 +2225,7 @@ function publicStep() {
   // The host's page starts the game once everyone is here.
   if (publicTable.game === 'ww') return; // the server deals and judges
   if (!on && isHost() && gameRoom().length >= publicTable.seats && canStartGame(publicTable.game)) {
+    if (gameOverAt && Date.now() - gameOverAt < 15000) return;
     const key = `${publicTable.game}|${gameRoom().join()}|${game?.gid ?? ''}`;
     if (publicStep.started === key) return;
     publicStep.started = key;
@@ -2567,12 +2818,12 @@ $('messageInput').addEventListener('compositionend', () => { composing = false; 
 // Seals and sends one message: text from the input box (fromInput), or a
 // game event (g) or a picture's key (f) with a short text for older pages.
 // Returns whether it went.
-async function sendMessage(text, g, fromInput, f) {
+async function sendMessage(text, g, fromInput, f, q) {
   const sock = ws;
-  if (!text || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return false;
+  if ((!text && q === undefined) || !sock || sock.readyState !== WebSocket.OPEN || Date.now() < cooldownUntil || pending) return false;
   const started = { session, version: inputVersion };
   const refund = spend();
-  const sealed = envelope(you, text, Date.now(), g, f);
+  const sealed = envelope(you, text, Date.now(), g, f, q);
   let frame;
   try {
     frame = JSON.stringify({ type: 'msg', ...(await sealOut(sealed)) });

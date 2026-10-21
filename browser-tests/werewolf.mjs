@@ -128,6 +128,15 @@ if (process.env.WW_SHERIFF === '1' || /^b12/.test(board)) ok(/当选警长|没�
 if (!PUBLIC) ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
 if (process.env.WW_DAY === '1') ok(dayDone && /⚔️|💥/.test(end), `a day action was used and announced (${dayDone})`);
 ok(!(await text(judge)).includes('无法解密'), 'no unreadable messages');
+if (PUBLIC) {
+  console.log('Waiting for next game to start automatically (15s)...');
+  await judge.waitForFunction(() => {
+    const text = document.getElementById('messages').innerText;
+    const matches = text.match(/法官由服务器担任/g) ?? [];
+    return matches.length >= 2;
+  }, null, { timeout: 25000 });
+  ok(true, 'second game starts automatically after 15s at public table');
+}
 if (fails) console.log((await text(judge)).split('\n').filter((l) => l.trim() && !/^\S+$/.test(l.trim())).slice(-40).join('\n'));
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');

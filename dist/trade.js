@@ -19,6 +19,8 @@
 // page pairs the first round and steps in only when time runs out or a
 // player leaves. Nothing is kept afterwards.
 
+import { coordinator } from './coord.js';
+
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 export const ROUNDS = 5;
@@ -135,7 +137,7 @@ function settle(s, now, note) {
 // type 'tr'; their events have kinds starting with 'tr-', and 'abort'. A
 // 'tr-show' event must come with ok: whether it matched the commitment
 // (check() above, done by the page before calling this).
-export function apply(s, g, from, now) {
+export function apply(s, g, from, now, here = null) {
   if (!g || typeof g !== 'object' || typeof g.k !== 'string') return { s, note: null };
   if (g.k === 'tr-new') {
     if (s && s.phase !== 'over') return { s, note: null };
@@ -147,7 +149,7 @@ export function apply(s, g, from, now) {
     return { s: next, note: { k: 'tr-new', by: from, players: next.players } };
   }
   if (!s || s.type !== 'tr' || s.phase === 'over' || g.gid !== s.gid) return { s, note: null };
-  const fromDealer = from === s.dealer;
+  const fromDealer = from === coordinator(s, here);
   const thisRound = g.r === s.round;
   if (g.k === 'tr-lock' && thisRound && s.phase === 'talk' && partnerOf(s, from) && !s.locks[from] && HASH.test(g.h ?? '')) {
     return settle({ ...s, locks: { ...s.locks, [from]: g.h } }, now, { k: 'tr-lock', n: from });

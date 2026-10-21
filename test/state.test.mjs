@@ -121,6 +121,13 @@ test('audit F01/F08: envelope fields and text limits are enforced on receipt', a
   assert.equal(checkEnvelope(make({ t: 'soon' }), relayed, newSeen(), now), null, 'time not a number');
   assert.equal(checkEnvelope('null', relayed, newSeen(), now), null);
   assert.equal(checkEnvelope('[1]', relayed, newSeen(), now), null);
+  // Quick emoji (q: 0–5) allows empty or emoji text
+  assert.equal(checkEnvelope(make({ text: '', q: 0 }), relayed, newSeen(), now)?.q, 0);
+  assert.equal(checkEnvelope(make({ text: '👍', q: 0 }), relayed, newSeen(), now)?.q, 0);
+  assert.equal(checkEnvelope(make({ text: '', q: 5 }), relayed, newSeen(), now)?.q, 5);
+  assert.equal(checkEnvelope(make({ text: '', q: 6 }), relayed, newSeen(), now), null, 'q out of range');
+  assert.equal(checkEnvelope(make({ text: '', q: -1 }), relayed, newSeen(), now), null, 'negative q');
+  assert.equal(checkEnvelope(make({ text: '', q: '0' }), relayed, newSeen(), now), null, 'q not an integer');
 });
 
 test('seen ids expire, so memory stays bounded', async () => {

@@ -19,6 +19,8 @@
 //
 // Nothing is kept: the game is gone with the room, or when the starter leaves.
 
+import { coordinator } from './coord.js';
+
 export const MIN_PLAYERS = 4;
 export const MAX_PLAYERS = 8;
 export const SAY_MS = 45000;   // time for one description
@@ -164,7 +166,7 @@ function decide(s, now) {
 // (note null). `now` is when the message arrived here. The page checks what
 // it can before: for 'open', ok (the vote matches its commitment); for
 // 'key', card (the sender's card read with the key shown, or null).
-export function apply(s, g, from, now) {
+export function apply(s, g, from, now, here = null) {
   if (!g || typeof g !== 'object' || typeof g.k !== 'string') return { s, note: null };
   if (g.k === 'new') {
     if (s && s.phase !== 'over') return { s, note: null };
@@ -186,7 +188,7 @@ export function apply(s, g, from, now) {
     return { s: next, note: { k: 'words', end: next.end } };
   }
   if (!s || s.phase === 'over' || g.gid !== s.gid) return { s, note: null };
-  const fromDealer = from === s.dealer;
+  const fromDealer = from === coordinator(s, here);
   if ((g.k === 'shuf' && s.phase === 'deal') || (g.k === 'strip' && s.phase === 'strip')) {
     if (from !== dealer(s) || !isDeck(g.deck, s.players.length)) return { s, note: null };
     const step = s.step + 1;

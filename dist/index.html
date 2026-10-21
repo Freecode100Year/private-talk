@@ -132,43 +132,61 @@
     </main>
 
     <main id="chatStage" class="hidden">
-      <div class="chat-shell">
+      <div class="chat-shell no-game" data-tab="chat">
+        <nav class="mobile-room-tabs" id="mobileRoomTabs" aria-label="房间分页">
+          <button class="mobile-tab-btn active" id="tabChat" type="button" data-tab="chat">
+            <span data-t="tab.chat">聊天</span>
+            <span class="tab-badge" id="chatTabUnread" hidden>0</span>
+          </button>
+          <button class="mobile-tab-btn" id="tabGame" type="button" data-tab="game">
+            <span data-t="tab.game">游戏</span>
+          </button>
+          <button class="mobile-tab-btn" id="tabRoom" type="button" data-tab="room">
+            <span data-t="tab.room">房间</span>
+          </button>
+        </nav>
         <aside class="room-sidebar" id="roomSidebar" aria-label="房间成员与操作" data-t-aria="side.aria">
           <div class="sidebar-top"><span class="overline">CURRENT ROOM</span><button class="icon-button mobile-close" id="closeSidebar" type="button" aria-label="关闭房间信息" data-t-aria="side.close"><svg><use href="#i-close"/></svg></button></div>
-          <h2 id="chatRoomName"></h2>
-          <div class="room-status"><span class="live-dot"></span><span id="roomState">房间开放中</span></div>
-          <div class="sidebar-divider"></div>
-          <div class="members-heading"><span data-t="online">在线成员</span><b id="memberCount">0 / 25</b></div>
-          <ul class="members" id="memberList"></ul>
-          <p class="sidebar-note" id="lockState"></p>
-          <p class="sidebar-note" id="safetyNote" hidden></p>
-          <button class="secondary-button verify-button" id="verifyButton" type="button" hidden><span data-t="verify.button">我已核对安全码</span></button>
-          <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
-          <button class="secondary-button game-start" id="gameStart" type="button" disabled><span data-t="game.start">🕵️ 开一局暗号潜伏</span></button>
-          <button class="secondary-button game-start" id="escStart" type="button" disabled><span data-t="esc.start">🔐 开一局密电逃脱</span></button>
-          <button class="secondary-button game-start" id="trStart" type="button" disabled><span data-t="tr.start">🤝 开一局密约交易所</span></button>
-          <button class="secondary-button game-start" id="smStart" type="button" disabled><span data-t="sm.start">🎯 开一局秘密任务</span></button>
-          <div class="ww-setup"><select id="wwBoard" aria-label="板子" data-t-aria="ww.board"></select><label class="allow-old"><input type="checkbox" id="wwSheriff" /><span data-t="ww.sheriffOpt">警长竞选</span></label></div>
-          <button class="secondary-button game-start" id="wwStart" type="button" disabled><span data-t="ww.start">🐺 开一局狼人杀</span></button>
-          <label class="allow-old ld-setup"><input type="checkbox" id="ldWild" /><span data-t="ld.wildOpt">1 点万能（Perudo 规则）</span></label>
-          <button class="secondary-button game-start" id="ldStart" type="button" disabled><span data-t="ld.start">🎲 开一局骗子骰</span></button>
-          <p class="sidebar-note game-hint" id="gameHint"></p>
-          <button class="secondary-button game-start" id="rulesButton" type="button"><span data-t="rules.button">📖 游戏规则</span></button>
-          <div class="sidebar-actions">
-            <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
-            <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
-            <button class="secondary-button" id="lockButton" type="button" disabled><svg><use href="#i-lock"/></svg><span>锁定房间</span></button>
+          <div class="sidebar-room-section" id="sidebarRoomSection">
+            <h2 id="chatRoomName"></h2>
+            <div class="room-status"><span class="live-dot"></span><span id="roomState">房间开放中</span></div>
+            <div class="sidebar-divider"></div>
+            <div class="members-heading"><span data-t="online">在线成员</span><b id="memberCount">0 / 25</b></div>
+            <ul class="members" id="memberList"></ul>
+            <p class="sidebar-note" id="lockState"></p>
+            <p class="sidebar-note" id="safetyNote" hidden></p>
+            <button class="secondary-button verify-button" id="verifyButton" type="button" hidden><span data-t="verify.button">我已核对安全码</span></button>
+            <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
           </div>
-          <details class="tips">
-            <summary data-t="tips.title">安全提示</summary>
-            <ul>
-              <li data-t="tips.1"></li>
-              <li data-t="tips.2"></li>
-              <li data-t="tips.3"></li>
-              <li data-t="tips.4"></li>
-              <li data-t="tips.5"></li>
-            </ul>
-          </details>
+          <div class="sidebar-game-section" id="sidebarGameSection">
+            <button class="secondary-button game-start" id="gameStart" type="button" disabled><span data-t="game.start">🕵️ 开一局暗号潜伏</span></button>
+            <button class="secondary-button game-start" id="escStart" type="button" disabled><span data-t="esc.start">🔐 开一局密电逃脱</span></button>
+            <button class="secondary-button game-start" id="trStart" type="button" disabled><span data-t="tr.start">🤝 开一局密约交易所</span></button>
+            <button class="secondary-button game-start" id="smStart" type="button" disabled><span data-t="sm.start">🎯 开一局秘密任务</span></button>
+            <div class="ww-setup"><select id="wwBoard" aria-label="板子" data-t-aria="ww.board"></select><label class="allow-old"><input type="checkbox" id="wwSheriff" /><span data-t="ww.sheriffOpt">警长竞选</span></label></div>
+            <button class="secondary-button game-start" id="wwStart" type="button" disabled><span data-t="ww.start">🐺 开一局狼人杀</span></button>
+            <label class="allow-old ld-setup"><input type="checkbox" id="ldWild" /><span data-t="ld.wildOpt">1 点万能（Perudo 规则）</span></label>
+            <button class="secondary-button game-start" id="ldStart" type="button" disabled><span data-t="ld.start">🎲 开一局骗子骰</span></button>
+            <p class="sidebar-note game-hint" id="gameHint"></p>
+            <button class="secondary-button game-start" id="rulesButton" type="button"><span data-t="rules.button">📖 游戏规则</span></button>
+          </div>
+          <div class="sidebar-room-actions">
+            <div class="sidebar-actions">
+              <button class="secondary-button" id="copyButton" type="button"><svg><use href="#i-copy"/></svg><span data-t="copy">复制房间链接</span></button>
+              <button class="secondary-button" id="qrButton" type="button"><svg><use href="#i-qr"/></svg><span data-t="qr">房间二维码</span></button>
+              <button class="secondary-button" id="lockButton" type="button" disabled><svg><use href="#i-lock"/></svg><span>锁定房间</span></button>
+            </div>
+            <details class="tips">
+              <summary data-t="tips.title">安全提示</summary>
+              <ul>
+                <li data-t="tips.1"></li>
+                <li data-t="tips.2"></li>
+                <li data-t="tips.3"></li>
+                <li data-t="tips.4"></li>
+                <li data-t="tips.5"></li>
+              </ul>
+            </details>
+          </div>
           <div class="sidebar-bottom">
             <div class="mini-shield"><svg><use href="#i-shield"/></svg><span data-t="tag.e2ee">端对端加密</span></div>
             <p data-t-html="side.check">请核对在线人数。<br />知道暗号的人都能进入房间。</p>
@@ -191,9 +209,19 @@
           <p class="public-note" id="publicNote" hidden></p>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <section class="game-panel" id="gamePanel" hidden aria-live="polite">
+            <div class="game-seats" id="gameSeats" aria-label="座位"></div>
             <div class="game-head"><strong id="gameTitle"></strong><span id="gamePlayers"></span></div>
             <p id="gameLine"></p>
+            <div class="quick-emojis" id="quickEmojis" aria-label="快捷表情">
+              <button class="quick-emoji-btn" type="button" data-q="0" aria-label="👍">👍</button>
+              <button class="quick-emoji-btn" type="button" data-q="1" aria-label="😂">😂</button>
+              <button class="quick-emoji-btn" type="button" data-q="2" aria-label="😮">😮</button>
+              <button class="quick-emoji-btn" type="button" data-q="3" aria-label="😡">😡</button>
+              <button class="quick-emoji-btn" type="button" data-q="4" aria-label="🤔">🤔</button>
+              <button class="quick-emoji-btn" type="button" data-q="5" aria-label="👏">👏</button>
+            </div>
             <div class="game-actions">
+              <button class="secondary-button" id="gameAgain" type="button" hidden data-t="game.again">再来一局</button>
               <button class="secondary-button game-word" id="gameWord" type="button" data-t="game.holdButton">按住看我的词</button>
               <span class="game-votes" id="gameVotes"></span>
               <form class="esc-form" id="escForm" hidden autocomplete="off"><input id="escCode" inputmode="numeric" pattern="[0-9]*" maxlength="5" spellcheck="false" aria-label="密码" data-t-aria="esc.codeAria" /><button class="secondary-button" id="escTry" type="submit" data-t="esc.try">开锁</button></form>

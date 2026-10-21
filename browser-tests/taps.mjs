@@ -83,8 +83,10 @@ while (!ended && Date.now() - start < 12 * 60000) {
       all: [...document.querySelectorAll('#gameVotes button')].map((b) => !b.disabled)
     }));
     if (/(轮到你发言|请发表遗言)/.test(st.line)) {
+      if (await p.locator('#tabChat').isVisible()) await tap(p, '#tabChat');
       await p.fill('#messageInput', `我是好人 ${i}`);
       await tap(p, '#sendButton');
+      if (await p.locator('#tabGame').isVisible()) await tap(p, '#tabGame');
       continue;
     }
     if (!st.n) continue;

@@ -204,14 +204,34 @@ function send(ws, obj) {
 
 // The server's judge at a public werewolf table (src/judge.js): what it
 // sends goes to everyone (to 0) or to one player.
-function judgeOut(room, out) {
+function scheduleJudgeStart(room, roomId, delay) {
+  clearTimeout(room.judgeStart);
+  room.judgeStart = setTimeout(() => {
+    room.judgeStart = null;
+    const t = lobby.tables.get(roomId);
+    if (!t) return;
+    const now = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
+    if (!room.judge.on && now.length >= t.seats) {
+      judgeOut(room, room.judge.start(now.slice(0, t.seats), null, Date.now()), roomId);
+      lobby.playing(roomId, true);
+    }
+  }, delay);
+}
+
+function judgeOut(room, out, roomId = '') {
   for (const { to, msg } of out) {
     if (!to) broadcast(room, msg);
     else for (const peer of room.peers) if (peer.state.n === to) send(peer, msg);
   }
   clearTimeout(room.judgeTimer);
   const due = room.judge?.deadline;
-  if (due) room.judgeTimer = setTimeout(() => room.judge && judgeOut(room, room.judge.tick(Date.now())), Math.max(0, due - Date.now()) + 50);
+  if (due) {
+    room.judgeTimer = setTimeout(() => room.judge && judgeOut(room, room.judge.tick(Date.now()), roomId), Math.max(0, due - Date.now()) + 50);
+  } else if (roomId && room.judge && !room.judge.on && room.judge.game?.phase === 'over' && !room.judgeStart) {
+    const t = lobby.tables.get(roomId);
+    const here = [...room.peers].map((p) => p.state.n);
+    if (t && here.length >= t.seats) scheduleJudgeStart(room, roomId, 15000);
+  }
 }
 function judgeMembers(room, roomId) {
   const t = lobby.tables.get(roomId);
@@ -219,15 +239,16 @@ function judgeMembers(room, roomId) {
   room.judge ??= new WolfJudge();
   const here = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
   if (!room.judge.on && here.length >= t.seats) {
-    clearTimeout(room.judgeStart);
-    // A moment for the last to arrive to settle in, then deal.
-    room.judgeStart = setTimeout(() => {
-      const now = [...room.peers].map((p) => p.state.n).sort((a, b) => a - b);
-      if (!room.judge.on && now.length >= t.seats) { judgeOut(room, room.judge.start(now.slice(0, t.seats), null, Date.now())); lobby.playing(roomId, true); }
-    }, 3000);
+    if (room.judgeStart) return;
+    const delay = room.judge.game?.phase === 'over' ? 15000 : 3000;
+    scheduleJudgeStart(room, roomId, delay);
     return;
   }
-  judgeOut(room, room.judge.members(here, Date.now()));
+  if (!room.judge.on && here.length < t.seats && room.judgeStart) {
+    clearTimeout(room.judgeStart);
+    room.judgeStart = null;
+  }
+  judgeOut(room, room.judge.members(here, Date.now()), roomId);
   if (!room.judge.on) lobby.playing(roomId, false);
 }
 
@@ -301,7 +322,7 @@ function enter(ws, roomId, ip, resume) {
       broadcast(room, { type: 'removed', n: r.remove, by: n });
       return members(room);
     }
-    if (r.ref) { if (room.judge) { judgeOut(room, room.judge.handle(n, r.ref, Date.now())); if (!room.judge.on) lobby.playing(roomId, false); } return; }
+    if (r.ref) { if (room.judge) { judgeOut(room, room.judge.handle(n, r.ref, Date.now()), roomId); if (!room.judge.on) lobby.playing(roomId, false); } return; }
     if (r.table) return room.judge ? undefined : lobby.playing(roomId, r.table.playing);
     if (r.key) return broadcast(room, { type: 'key', from: n, ...r.key });
     if (r.seen) return broadcast(room, { type: 'seen', from: n, ...r.seen });

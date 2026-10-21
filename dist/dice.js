@@ -20,6 +20,8 @@
 // The dealer's page only calls time and marks players who left. Nothing is
 // kept afterwards.
 
+import { coordinator } from './coord.js';
+
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 export const DICE = 5;
@@ -146,7 +148,7 @@ function result(s, now) {
 // The page checks shown secrets before calling this and passes, for
 // 'ld-mix', ok (the nonce matches its commitment) and, for 'ld-show', faces
 // (the dice from the seed, or null when it does not match).
-export function apply(s, g, from, now) {
+export function apply(s, g, from, now, here = null) {
   if (!g || typeof g !== 'object' || typeof g.k !== 'string') return { s, note: null };
   if (g.k === 'ld-new') {
     if (s && s.phase !== 'over') return { s, note: null };
@@ -156,7 +158,7 @@ export function apply(s, g, from, now) {
     return { s: newRound(base, from, now), note: { k: 'ld-new', by: from, players: base.players, wild: base.wild } };
   }
   if (!s || s.type !== 'ld' || s.phase === 'over' || g.gid !== s.gid) return { s, note: null };
-  const fromDealer = from === s.dealer;
+  const fromDealer = from === coordinator(s, here);
   const thisRound = g.r === s.round;
   if (g.k === 'ld-roll' && thisRound && s.phase === 'roll' && s.inRound.includes(from) && !s.rolls[from] && HEX32.test(g.h ?? '') && HEX32.test(g.c ?? '')) {
     return settle({ ...s, rolls: { ...s.rolls, [from]: { h: g.h, c: g.c } } }, now);

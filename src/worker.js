@@ -213,21 +213,39 @@ export class Room extends DurableObject {
     if (this.wolf.on) {
       await this.ctx.storage.put('judge', this.wolf.toJSON());
       await this.ctx.storage.setAlarm(this.wolf.deadline + 50);
-    } else await this.ctx.storage.delete('judge');
+    } else {
+      if (this.wolf?.game?.phase === 'over') {
+        await this.ctx.storage.put('judge', this.wolf.toJSON());
+        const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
+        if (list.length >= this.wolfSeats) {
+          this.wolfStart = Date.now() + 15000;
+          await this.ctx.storage.setAlarm(this.wolfStart);
+        }
+      } else {
+        await this.ctx.storage.delete('judge');
+      }
+    }
     if (t && out.length) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: this.wolf.on }) }).catch(() => {});
   }
   async judgeMembers(list) {
     const j = await this.judge();
     if (!j) return;
     if (!j.on && list.length >= this.wolfSeats) {
-      // A moment for the last to arrive to settle in, then deal.
-      this.wolfStart = Date.now() + 3000;
-      await this.ctx.storage.setAlarm(this.wolfStart);
+      if (!this.wolfStart) {
+        const delay = j.game?.phase === 'over' ? 15000 : 3000;
+        this.wolfStart = Date.now() + delay;
+        await this.ctx.storage.setAlarm(this.wolfStart);
+      }
       return;
+    }
+    if (!j.on && list.length < this.wolfSeats && this.wolfStart) {
+      this.wolfStart = 0;
+      await this.ctx.storage.deleteAlarm();
     }
     await this.judgeOut(j.members(list, Date.now()));
   }
   async alarm() {
+    this.wolfStart = 0;
     const j = await this.judge();
     if (!j) return;
     const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);

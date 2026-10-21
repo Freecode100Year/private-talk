@@ -15,6 +15,8 @@
 // out when the mission is shown later, at the latest when the game ends.
 // Nothing is kept afterwards.
 
+import { coordinator } from './coord.js';
+
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 8;
 export const GAME_MS = 8 * 60000;
@@ -85,7 +87,7 @@ const isNumber = (n) => Number.isInteger(n) && n >= 1 && n <= 25;
 //     came after the commitment and says the word;
 //   sm-ans (yes) and sm-show: the commitment matches (for sm-ans, with the
 //     guessed word).
-export function apply(s, g, from, now) {
+export function apply(s, g, from, now, here = null) {
   if (!g || typeof g !== 'object' || typeof g.k !== 'string') return { s, note: null };
   if (g.k === 'sm-new') {
     if (s && s.phase !== 'over') return { s, note: null };
@@ -96,7 +98,7 @@ export function apply(s, g, from, now) {
     return { s: next, note: { k: 'sm-new', by: from, players: next.players } };
   }
   if (!s || s.type !== 'sm' || g.gid !== s.gid) return { s, note: null };
-  const fromDealer = from === s.dealer;
+  const fromDealer = from === coordinator(s, here);
   const playing = s.players.includes(from);
   const mine = s.missions[from];
   const add = (score, n, p) => ({ ...score, [n]: score[n] + p });

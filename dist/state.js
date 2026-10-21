@@ -102,9 +102,11 @@ export const MAX_SKEW = 10 * 60 * 1000;
 const ID = /^[0-9a-f]{16}$/;
 
 // g: a game event (game.js) riding along; text is then what older pages show.
-export function envelope(from, text, now = Date.now(), g, f) {
+// q: quick reaction emoji (0–5, since 2.21).
+export function envelope(from, text, now = Date.now(), g, f, q) {
   const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
-  return JSON.stringify({ from, id, t: now, text, ...(g && { g }), ...(f && { f }) });
+  const hasQ = Number.isInteger(q) && q >= 0 && q <= 5;
+  return JSON.stringify({ from, id, t: now, text, ...(g && { g }), ...(f && { f }), ...(hasQ && { q }) });
 }
 
 // seen remembers message ids (not their text) for as long as a message could
@@ -113,8 +115,8 @@ export function newSeen() {
   return new Map();
 }
 
-// checkEnvelope returns { text, id, g, f } or null (g: a game event, f: a
-// picture's key (picture.js), if any). now is the receiving device's
+// checkEnvelope returns { text, id, g, f, q } or null (g: a game event, f: a
+// picture's key (picture.js), q: quick reaction emoji 0–5, if any). now is the receiving device's
 // clock, or the server's when this device's is known to be wrong.
 export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   let e;
@@ -123,13 +125,19 @@ export function checkEnvelope(plain, relayed, seen, now = Date.now()) {
   if (!Number.isInteger(e.from) || e.from < 1 || e.from > MAX_MEMBERS || e.from !== relayed.from) return null;
   if (!Number.isFinite(e.t) || !Number.isFinite(relayed.at)) return null;
   if (Math.abs(now - e.t) > MAX_SKEW || Math.abs(relayed.at - e.t) > MAX_SKEW) return null;
-  if (checkMessage(e.text) !== e.text) return null;
+  const hasQ = Number.isInteger(e.q) && e.q >= 0 && e.q <= 5;
+  if (hasQ) {
+    if (e.text !== '' && checkMessage(e.text) !== e.text) return null;
+  } else {
+    if (checkMessage(e.text) !== e.text) return null;
+  }
   for (const [id, t] of seen) if (Math.abs(now - t) > 2 * MAX_SKEW) seen.delete(id);
   if (seen.has(e.id)) return null;
   seen.set(e.id, e.t);
   const g = e.g && typeof e.g === 'object' && !Array.isArray(e.g) ? e.g : undefined;
   const f = e.f && typeof e.f === 'object' && !Array.isArray(e.f) ? e.f : undefined;
-  return { text: e.text, id: e.id, g, f };
+  const q = hasQ ? e.q : undefined;
+  return { text: e.text, id: e.id, g, f, q };
 }
 
 // checkKeys is checkEnvelope for v3 key announcements (group.js), and with
