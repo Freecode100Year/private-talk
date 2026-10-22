@@ -142,7 +142,9 @@ while (!ended && Date.now() - start < 12 * 60000) {
       }
     }
 
-    await p.waitForTimeout(750);
+    // Up to 4 s for the page to show the action took (CI machines are slow).
+    await p.waitForFunction(({ n, l }) => document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length !== n
+      || document.getElementById('gameLine').textContent.slice(0, 10) !== l, { n: st.actCount, l: st.line.slice(0, 10) }, { timeout: 4000 }).catch(() => {});
     const after = await p.evaluate(() => ({
       actCount: document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length,
       line: document.getElementById('gameLine').textContent
