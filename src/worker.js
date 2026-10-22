@@ -146,6 +146,8 @@ export class Room extends DurableObject {
     if (r.table) {
       const t = await this.ctx.storage.get('table');
       if (t) {
+        // The lobby keeps its list in memory: if it restarted, this lists the table again
+        await this.table(this.peers().length);
         // A judged werewolf game in progress is not switched away by one page
         if (r.table.mode && !(await this.judge())?.on) {
           const m = modeOf(r.table.mode);
