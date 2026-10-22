@@ -2935,8 +2935,9 @@ function publicStep() {
   $('publicNote').textContent = t('pub.note', { game: modeTitle, seats: publicTable.seats });
   const on = !!game && game.phase !== 'over';
 
-  // Broadcast table frame to server lobby when status or mode changes
-  if (isHost() && ws?.readyState === WebSocket.OPEN && (tableSaid !== on || tableModeSaid !== publicTable.mode || publicStep.ws !== ws) && Date.now() - (publicStep.at || 0) > 2200) {
+  // Tell the server's lobby when the status or mode changes, and again every 15 s
+  // (the server drops a frame that comes within 2 s of the last one)
+  if (isHost() && ws?.readyState === WebSocket.OPEN && (tableSaid !== on || tableModeSaid !== publicTable.mode || publicStep.ws !== ws || Date.now() - (publicStep.at || 0) > 15000) && Date.now() - (publicStep.at || 0) > 2200) {
     tableSaid = on; tableModeSaid = publicTable.mode; publicStep.ws = ws; publicStep.at = Date.now();
     ws.send(JSON.stringify({ type: 'table', playing: on, mode: publicTable.mode }));
   }

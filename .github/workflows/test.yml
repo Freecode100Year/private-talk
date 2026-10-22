@@ -75,7 +75,11 @@ jobs:
           for i in $(seq 1 20); do curl -fs http://127.0.0.1:8099/ >/dev/null && break; sleep 0.5; done
           # The public werewolf table first: the lobby test uses up the address's new tables.
           echo "== werewolf at a public table (the server judges)"; WW_PUBLIC=1 node browser-tests/werewolf.mjs http://127.0.0.1:8099
-          for t in v3 verify faults full25 mixed receipts game escape trade mission pictures werewolf phone onegame taps dice core lobby switch; do echo "== $t"; node browser-tests/$t.mjs http://127.0.0.1:8099; done
+          for t in v3 verify faults full25 mixed receipts game escape trade mission pictures werewolf phone onegame taps dice core lobby; do echo "== $t"; node browser-tests/$t.mjs http://127.0.0.1:8099; done
+          # A second server: the address has used up its new public tables on the first.
+          PORT=8096 node server/server.mjs &
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8096/ >/dev/null && break; sleep 0.5; done
+          echo "== switch"; node browser-tests/switch.mjs http://127.0.0.1:8096
 
   # The Cloudflare version in its own runtime (workerd, via wrangler dev; no
   # account needed): two clients chat through the Worker and Durable Object.
