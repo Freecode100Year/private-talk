@@ -17,6 +17,7 @@ import { MODES, modeOf, isPublicMode, modesFor, publicModes, defaultModeFor, boa
 import { t, apply, lang, setLang, LANGS } from './i18n.js';
 import { qrSvg } from './qr.js';
 import { coordinator, seatsOf } from './coord.js';
+import { roleIconSvg, ROLE_EMOJIS } from './icons.js';
 
 const modeName = (id) => t(`mode.name.${id}`);
 const modeDesc = (id) => t(`mode.desc.${id}`);
@@ -200,9 +201,39 @@ function system(text) {
   append(div, atBottom());
 }
 
+// Werewolf table state
+let wwViewMode = 'table';
+let lastStageTitle = '';
+let lastVoteResults = null;
+let lastDawnDead = [];
+const seatSpeechBubbles = new Map();
+let pendingWolfPick = null;
+let lastPassNotice = null;
+
+function isPassAction(txt) {
+  const s = String(txt || '').trim();
+  return s === t('ww.pass') || s === '过' || s === '结束发言' || s === '结束发言（过）' || s === 'Pass' || s === '结束发言(过)';
+}
+
 // tag: a game label for the message, { cls, label }, or null. pic: a
 // picture to show instead of the text, { url, w, h }.
 function bubble(from, at, text, h, tag = null, pic = null) {
+  if (game?.type === 'ww' && typeof text === 'string' && game.players?.includes(from)) {
+    if (isPassAction(text)) {
+      lastPassNotice = { n: from, until: Date.now() + 3500 };
+      renderWerewolf();
+    } else {
+      seatSpeechBubbles.set(from, { text, until: Date.now() + 6000 });
+      renderWerewolfSeats();
+      setTimeout(() => {
+        const b = seatSpeechBubbles.get(from);
+        if (b && b.until <= Date.now()) {
+          seatSpeechBubbles.delete(from);
+          renderWerewolfSeats();
+        }
+      }, 6100);
+    }
+  }
   const mine = from === you;
   const row = document.createElement('article');
   row.className = `message ${mine ? 'outgoing self' : 'incoming'} c${from}`;
@@ -225,7 +256,11 @@ function bubble(from, at, text, h, tag = null, pic = null) {
   }
   const p = document.createElement('p');
   p.className = 'bubble';
-  p.textContent = text;
+  if (game?.type === 'ww' && typeof text === 'string' && game.players?.includes(from) && isPassAction(text)) {
+    p.textContent = `${from} 号结束发言`;
+  } else {
+    p.textContent = text;
+  }
   if (pic) {
     const img = document.createElement('img');
     img.src = pic.url;
@@ -772,6 +807,11 @@ async function sendQuickReaction(q) {
 function renderSeats() {
   const container = $('gameSeats');
   if (!container) return;
+  if (game?.type === 'ww' && wwViewMode === 'table') {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
   if (!game || !game.players || !game.players.length) {
     container.replaceChildren();
     return;
@@ -909,10 +949,17 @@ async function undercoverStep() {
     queueGame({ k: 'key', gid, d: Sra.keyText(me.key.d) });
   }
 }
+let roomJudgeMode = 'server';
 async function startEscape() {
   if (!canStartGame('esc')) return;
   gameOverAt = 0; dealerMissingAt = 0; if (window.innerWidth <= 600) switchMobileTab('game');
   const players = gameRoom().slice();
+  if (roomJudgeMode === 'server') {
+    myClues = null;
+    myWord = '';
+    sendJudge({ k: 'start', game: 'esc', players });
+    return;
+  }
   const d = Escape.deal(players);
   const cards = {};
   for (const n of players) if (n !== you) cards[n] = await group.sealFor(n, JSON.stringify(d.hands.get(n)), `esc|${d.deal.gid}`);
@@ -927,6 +974,15 @@ async function startWerewolf(board, sheriff) {
   const players = gameRoom().slice();
   const b = board || $('wwBoard')?.value || Wolf.boardsFor(players.length)[0] || 'b6';
   const s = sheriff !== undefined ? sheriff : ($('wwSheriff')?.checked !== undefined ? $('wwSheriff').checked : (Wolf.BOARDS[b]?.sheriff !== undefined ? Wolf.BOARDS[b].sheriff : players.length >= 12));
+  if (roomJudgeMode === 'server') {
+    myRole = null;
+    myTell = null;
+    myAct = null;
+    myLog = [];
+    myDueled = false;
+    sendJudge({ k: 'start', game: 'ww', board: b, sheriff: s, players });
+    return;
+  }
   const d = Wolf.deal(players, b, s);
   if (!d) return;
   const cards = {};
@@ -1048,20 +1104,35 @@ async function gameEvent(g, from, fromJudge = false) {
       g = { ...g, card: deck && d && game.players.includes(from) ? readCard(Sra.decode(Sra.unlock(deck[cardOf(game, from)], d))) : null };
     }
   }
-  if (g.k === 'esc-new' && from !== you && Array.isArray(g.players) && g.players.includes(you) && (!game || game.phase === 'over')) {
-    try { myClues = Escape.readHand(await group.openFrom(from, g.cards?.[you], `esc|${g.gid}`)); } catch { myClues = null; }
+  if (g.k === 'esc-new' && (!game || game.phase === 'over')) {
+    if (fromJudge) {
+      if (judged.clues?.gid === g.gid) myClues = judged.clues.clues;
+    } else if (from !== you && Array.isArray(g.players) && g.players.includes(you)) {
+      try { myClues = Escape.readHand(await group.openFrom(from, g.cards?.[you], `esc|${g.gid}`)); } catch { myClues = null; }
+    }
     myWord = '';
+  }
+  if (g.k === 'judge-pref') {
+    if (g.mode === 'server' || g.mode === 'client') {
+      roomJudgeMode = g.mode;
+      if ($('judgeModeSelect')) $('judgeModeSelect').value = g.mode;
+    }
   }
   if (g.k === 'tr-new' && (!game || game.phase === 'over')) { myPact = null; myWord = ''; myClues = null; }
   if (g.k === 'ww-new' && (!game || game.phase === 'over')) {
     myTell = null;
     myAct = null;
-    if (from !== you) {
+    if (fromJudge) {
       myRole = null;
       myLog = [];
       myDueled = false;
-      if (fromJudge) { const c = judged.card; myRole = c?.gid === g.gid ? { role: c.role, ...(c.pack && { pack: c.pack }) } : null; }
-      else try { if (Array.isArray(g.players) && g.players.includes(you)) myRole = JSON.parse(await group.openFrom(from, g.cards?.[you], `wwcard|${g.gid}`)); } catch {}
+      const c = judged.card;
+      myRole = c?.gid === g.gid ? { role: c.role, ...(c.pack && { pack: c.pack }) } : null;
+    } else if (from !== you) {
+      myRole = null;
+      myLog = [];
+      myDueled = false;
+      try { if (Array.isArray(g.players) && g.players.includes(you)) myRole = JSON.parse(await group.openFrom(from, g.cards?.[you], `wwcard|${g.gid}`)); } catch {}
     }
   }
   // 狼人杀: the judge reads the actions and ballots sealed for it (and acts
@@ -1228,14 +1299,24 @@ function tellNote(x) {
 function wolfNote(note) {
   const list = (ns) => ns.map(badge).join(' ');
   if (note.k === 'ww-new') {
+    lastVoteResults = null;
+    lastDawnDead = [];
     system(t('ww.started', { b: note.by === Wolf.JUDGE ? '🌍' : badge(note.by), list: list(note.players), n: note.players.length, board: boardText(note.board) }) + ` ${t('ww.rules')}${note.sheriff ? ` ${t('ww.sheriffOn')}` : ''} ${t(note.by === Wolf.JUDGE ? 'ww.serverJudge' : 'ww.judge')}`);
     if (myRole) system(t('ww.hold'));
   }
   if (note.k === 'ww-skip') system(t('game.skipped', { b: badge(note.n) }));
   if (note.k !== 'ww-go') return;
   for (const x of note.notes) {
-    if (x.k === 'dawn') system(t('ww.n.dawn', { list: list(x.dead) }));
-    if (x.k === 'peace') system(t('ww.n.peace'));
+    if (x.k === 'dawn') {
+      lastDawnDead = x.dead || [];
+      lastVoteResults = null;
+      system(t('ww.n.dawn', { list: list(x.dead) }));
+    }
+    if (x.k === 'peace') {
+      lastDawnDead = [];
+      lastVoteResults = null;
+      system(t('ww.n.peace'));
+    }
     if (x.k === 'candidates') system(x.list.length ? t('ww.n.candidates', { list: list(x.list) }) : t('ww.n.noCandidates'));
     if (x.k === 'sheriff') system(t('ww.n.sheriff', { b: badge(x.n) }));
     if (x.k === 'noSheriff') system(t('ww.n.noSheriff'));
@@ -1243,6 +1324,7 @@ function wolfNote(note) {
       const votes = Object.entries(x.votes ?? {}).map(([v, c]) => `${badge(Number(v))}→${badge(Number(c))}`).join('，');
       if (votes) system(`${t('game.votes')}${votes}`);
       if (!x.sheriff) system(x.out ? t('ww.n.out', { b: badge(x.out) }) : t('game.tie'));
+      lastVoteResults = { votes: x.votes ?? {}, out: x.out, tie: !x.sheriff && !x.out, at: Date.now() };
     }
     if (x.k === 'idiot') system(t('ww.n.idiot', { b: badge(x.n) }));
     if (x.k === 'badge') system(t('ww.n.badge', { b: badge(x.n), to: badge(x.to) }));
@@ -1257,6 +1339,7 @@ function wolfNote(note) {
   const more = note.dead.filter((n) => !told.has(n));
   if (more.length) system(t('ww.n.alsoDead', { list: list(more) }));
   const ph = note.phase;
+  if (ph === 'nightA') lastVoteResults = null;
   if (ph === 'over') system(wolfEndText(note.end));
   else if (ph === 'nightA') system(t('ww.phase.nightA', { d: note.day }));
   else if (ph === 'last') system(t('ww.phase.last', { list: list(game.speakers) }));
@@ -1633,12 +1716,19 @@ async function wolfSendAct(a, summary, kind = '') {
 // come outside the room's encryption, over the connection: everyone's game
 // events, and this page's card and what the judge tells it. Only a public
 // werewolf table takes them; anywhere else they are ignored.
-const judged = { card: null, tells: new Map() };
-const serverJudged = () => publicTable?.game === 'ww';
+const judged = { card: null, tells: new Map(), clues: null };
 function judgeFrame(msg) {
-  if (!serverJudged()) return;
-  if (msg.card && typeof msg.card === 'object' && typeof msg.card.role === 'string') judged.card = msg.card;
+  if (msg.card && typeof msg.card === 'object' && typeof msg.card.role === 'string') {
+    judged.card = msg.card;
+    if (game?.type === 'ww' && game.gid === msg.card.gid) {
+      myRole = { role: msg.card.role, ...(msg.card.pack && { pack: msg.card.pack }) };
+    }
+  }
   if (msg.tell && typeof msg.tell === 'object') judged.tells.set(`${msg.tell.gid}|${msg.tell.step}`, msg.tell.data ?? {});
+  if (msg.clues && typeof msg.clues === 'object' && Array.isArray(msg.clues.clues)) {
+    judged.clues = msg.clues;
+    myClues = msg.clues.clues;
+  }
   if (msg.g && typeof msg.g === 'object' && Number.isInteger(msg.from)) gameEvent(msg.g, msg.from, true);
 }
 function sendJudge(a) {
@@ -2144,7 +2234,22 @@ function renderGame() {
     btnVoteEnd.hidden = !game || game.phase === 'over' || !game.players?.includes(you);
   }
 
-  if (!game) { $('messageInput').placeholder = t('input.placeholder'); return; }
+  if (!game) {
+    if ($('wwTable')) $('wwTable').hidden = true;
+    if ($('wwSettlement')) $('wwSettlement').hidden = true;
+    $('messageInput').placeholder = t('input.placeholder');
+    return;
+  }
+  if (game.type !== 'ww') {
+    if ($('wwTable')) $('wwTable').hidden = true;
+    if ($('wwSettlement')) $('wwSettlement').hidden = true;
+    const actionsBox = document.querySelector('.game-actions');
+    const gw = $('gameWord');
+    if (gw && actionsBox && gw.parentElement !== actionsBox) {
+      actionsBox.prepend(gw);
+      gw.classList.remove('ww-card-active');
+    }
+  }
   // A game that starts closes the drawer (on a phone it covers the panel).
   if (game.gid !== panelGid) { panelGid = game.gid; closeSidebar(false); }
   if (game.type === 'esc') return renderEscape();
@@ -2229,6 +2334,468 @@ function renderEscape() {
   clearInterval(gameTick);
   gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); }, 1000);
 }
+function renderWerewolfSeats(stage, c, sp, left) {
+  if (!game || game.type !== 'ww') return;
+  const leftCol = $('wwSeatsLeft');
+  const rightCol = $('wwSeatsRight');
+  if (!leftCol || !rightCol) return;
+
+  const players = game.players || [];
+  const n = players.length;
+  const half = Math.ceil(n / 2);
+  const leftPlayers = players.slice(0, half);
+  const rightPlayers = players.slice(half);
+
+  const actionableMap = new Map();
+  if (c && stage && (!myAct || !myAct.sent) && stage.options) {
+    for (const o of stage.options) {
+      if (o.disabled) continue;
+      let targetPlayer = 0;
+      if (typeof o.value === 'number' && o.value > 0 && players.includes(o.value)) {
+        targetPlayer = o.value;
+      } else if (o.act) {
+        if (typeof o.act.poison === 'number' && o.act.poison > 0) targetPlayer = o.act.poison;
+        else if (typeof o.act.save === 'number' && o.act.save > 0) targetPlayer = o.act.save;
+      } else if (o.label && o.label[0] === 'badge' && o.label[1] && o.label[1].n) {
+        targetPlayer = o.label[1].n;
+      }
+      if (targetPlayer > 0 && !actionableMap.has(targetPlayer)) {
+        actionableMap.set(targetPlayer, o);
+      }
+    }
+  }
+
+  const isWolfPlayer = (p) => {
+    if (!myRole) return false;
+    if (myRole.pack && myRole.pack.includes(p)) return true;
+    return false;
+  };
+
+  const isVotingPhase = Wolf.VOTING.includes(game.phase);
+  const hasVoted = (p) => isVotingPhase && Array.isArray(game.voted) && game.voted.includes(p);
+
+  const createSeat = (p, colIndex = 0, isLeft = true) => {
+    const seat = document.createElement('div');
+    const isAlive = game.alive.includes(p);
+    const isAway = !gameRoom().includes(p);
+    const isSpeaking = p === sp;
+    const isActionable = actionableMap.has(p);
+    const voted = hasVoted(p);
+
+    seat.className = `ww-seat${isAlive ? '' : ' dead'}${isAway ? ' away' : ''}${isSpeaking ? ' speaking' : ''}${isActionable ? ' actionable' : ''}${p === you ? ' is-me' : ''}`;
+    seat.dataset.player = String(p);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ww-seat-avatar-wrap';
+
+    const avatar = document.createElement('div');
+    avatar.className = `ww-seat-avatar avatar c${p}`;
+    avatar.innerHTML = '<svg class="ww-avatar-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>';
+
+    if (voted) {
+      const checkEl = document.createElement('div');
+      checkEl.className = 'ww-avatar-voted';
+      checkEl.innerHTML = '<svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="#22c55e" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      wrap.appendChild(checkEl);
+    }
+
+    if (isSpeaking) {
+      const ringSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      ringSvg.setAttribute('class', 'ww-ring');
+      ringSvg.setAttribute('viewBox', '0 0 60 60');
+      const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      bgCircle.setAttribute('class', 'ww-ring-bg');
+      bgCircle.setAttribute('cx', '30');
+      bgCircle.setAttribute('cy', '30');
+      bgCircle.setAttribute('r', '27');
+      const barCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      barCircle.setAttribute('class', 'ww-ring-bar');
+      barCircle.setAttribute('cx', '30');
+      barCircle.setAttribute('cy', '30');
+      barCircle.setAttribute('r', '27');
+      barCircle.setAttribute('stroke-dasharray', '169.64');
+      const totalSec = 60;
+      const curLeft = Math.max(0, Math.min(totalSec, left));
+      const offset = 169.64 * (1 - curLeft / totalSec);
+      barCircle.setAttribute('stroke-dashoffset', String(offset));
+      ringSvg.appendChild(bgCircle);
+      ringSvg.appendChild(barCircle);
+      wrap.appendChild(ringSvg);
+    }
+
+    const numBadge = document.createElement('span');
+    numBadge.className = 'ww-seat-num-badge';
+    numBadge.textContent = String(p);
+    wrap.appendChild(numBadge);
+
+    if (p === game.sheriff) {
+      const shBadge = document.createElement('span');
+      shBadge.className = 'ww-badge-sheriff';
+      shBadge.textContent = '🎖';
+      shBadge.title = t('ww.sheriffOpt');
+      wrap.appendChild(shBadge);
+    }
+    if (!isAlive) {
+      const deadBadge = document.createElement('span');
+      deadBadge.className = 'ww-badge-dead';
+      deadBadge.textContent = '💀';
+      wrap.appendChild(deadBadge);
+    }
+    if (p !== you && isWolfPlayer(p)) {
+      const wolfBadge = document.createElement('span');
+      wolfBadge.className = 'ww-badge-wolf';
+      wolfBadge.textContent = '🐺';
+      wolfBadge.title = t('ww.role.wolf');
+      wrap.appendChild(wolfBadge);
+    }
+
+    wrap.appendChild(avatar);
+
+    const nameBar = document.createElement('div');
+    nameBar.className = `ww-seat-name-bar${p === you ? ' me' : ''}`;
+    if (p === you) {
+      nameBar.textContent = t('me');
+    } else {
+      const shortSpan = document.createElement('span');
+      shortSpan.className = 'ww-name-short';
+      shortSpan.textContent = `${p}号`;
+      const fullSpan = document.createElement('span');
+      fullSpan.className = 'ww-name-full';
+      fullSpan.textContent = t('member.name', { n: p });
+      nameBar.append(shortSpan, fullSpan);
+    }
+
+    seat.appendChild(wrap);
+    seat.appendChild(nameBar);
+
+    if (isActionable) {
+      let lastActionTime = 0;
+      const handleAction = (e) => {
+        e.stopPropagation();
+        const now = Date.now();
+        if (now - lastActionTime < 400) return;
+        lastActionTime = now;
+        const o = actionableMap.get(p);
+        if (o) promptConfirmAction(p, o, stage, c);
+      };
+      seat.addEventListener('click', handleAction);
+      seat.addEventListener('pointerup', handleAction);
+      avatar.addEventListener('click', handleAction);
+      avatar.addEventListener('pointerup', handleAction);
+    }
+
+    const bubbleInfo = seatSpeechBubbles.get(p);
+    if (bubbleInfo && Date.now() < bubbleInfo.until) {
+      const bEl = document.createElement('div');
+      let posClass = 'bubble-top';
+      if (isLeft) {
+        if (colIndex === 1) posClass = 'bubble-top';
+        else if (colIndex === 2) posClass = 'bubble-shift-down';
+        else if (colIndex >= 3) posClass = 'bubble-bottom';
+      } else {
+        if (colIndex === 1) posClass = 'bubble-shift-up';
+        else if (colIndex >= 2) posClass = 'bubble-bottom';
+      }
+      bEl.className = `ww-seat-bubble ${posClass}`;
+      bEl.textContent = bubbleInfo.text;
+      seat.appendChild(bEl);
+    }
+
+    return seat;
+  };
+
+  leftCol.replaceChildren(...leftPlayers.map((p, i) => createSeat(p, i, true)));
+  rightCol.replaceChildren(...rightPlayers.map((p, i) => createSeat(p, i, false)));
+}
+
+function promptConfirmAction(p, o, stage, c) {
+  const dialog = $('wwConfirmDialog');
+  const textEl = $('wwConfirmText');
+  const okBtn = $('wwConfirmOk');
+  const cancelBtn = $('wwConfirmCancel');
+  if (!dialog || !textEl || !okBtn || !cancelBtn || !o) return;
+
+  let prompt = t('ww.confirm.pick', { n: p });
+  const isWolfRole = myRole?.role && myRole.role.startsWith('wolf');
+  if (stage.prompt === 'ww.ask.kill' || (stage.key === 't' && isWolfRole)) {
+    prompt = t('ww.confirm.kill', { n: p });
+  } else if (stage.prompt === 'ww.ask.check' || stage.prompt === 'ww.ask.peek') {
+    prompt = t('ww.confirm.check', { n: p });
+  } else if (stage.prompt === 'ww.ask.guard') {
+    prompt = t('ww.confirm.guard', { n: p });
+  } else if (game.phase === 'vote' || stage.prompt === 'ww.ask.vote') {
+    prompt = t('ww.confirm.vote', { n: p });
+  } else if (game.phase === 'sheriffVote' || stage.prompt === 'ww.ask.sheriffVote') {
+    prompt = t('ww.confirm.sheriffVote', { n: p });
+  } else if (o?.act && typeof o.act.poison === 'number') {
+    prompt = t('ww.confirm.poison', { n: p });
+  } else if (o?.act && typeof o.act.save === 'number') {
+    prompt = t('ww.confirm.save', { n: p });
+  } else if (stage.prompt === 'ww.ask.shoot') {
+    prompt = t('ww.confirm.shoot', { n: p });
+  } else if (stage.prompt === 'ww.ask.badge') {
+    prompt = t('ww.confirm.badge', { n: p });
+  } else if (stage.prompt === 'ww.ask.charm') {
+    prompt = t('ww.confirm.charm', { n: p });
+  } else if (stage.prompt === 'ww.ask.prey') {
+    prompt = t('ww.confirm.prey', { n: p });
+  } else if (stage.prompt === 'ww.ask.dream') {
+    prompt = t('ww.confirm.dream', { n: p });
+  }
+
+  textEl.textContent = prompt;
+  dialog.hidden = false;
+
+  pendingWolfPick = { c, stage, o, label: badge(p) };
+}
+
+const roleShort = (r) => {
+  const map = {
+    seer: '预', wolf: '狼', villager: '民', witch: '巫', hunter: '猎', guard: '守', idiot: '痴',
+    knight: '骑', whiteWolf: '白', wolfKing: '枪', wolfBeauty: '美', bigWolf: '大', hiddenWolf: '隐',
+    gargoyle: '石', apothecary: '药', dreamer: '摄', magician: '魔', cupid: '丘', thief: '盗'
+  };
+  return map[r] || (r ? r.slice(0, 1).toUpperCase() : '?');
+};
+
+function renderWerewolfSettlement() {
+  const settlement = $('wwSettlement');
+  if (!settlement) return;
+  if (!game || game.type !== 'ww' || game.phase !== 'over' || !game.end) {
+    settlement.hidden = true;
+    return;
+  }
+  settlement.hidden = false;
+
+  const winnerEl = $('wwSettlementWinner');
+  const winner = game.end.winner || 'good';
+  winnerEl.textContent = t(`ww.win.${winner}`);
+  winnerEl.className = `ww-settlement-winner ${winner}`;
+
+  const players = game.players || [];
+  const half = Math.ceil(players.length / 2);
+  const leftPlayers = players.slice(0, half);
+  const rightPlayers = players.slice(half);
+
+  const leftCol = $('wwReplaySeatsLeft');
+  const rightCol = $('wwReplaySeatsRight');
+  const timeline = $('wwReplayTimeline');
+
+  const createPlayerCard = (p) => {
+    const r = (game.end.roles && game.end.roles[p]) ? game.end.roles[p] : 'villager';
+    const dead = !game.alive.includes(p);
+    const card = document.createElement('div');
+    card.className = `ww-settlement-player${dead ? ' dead' : ''}`;
+    card.dataset.player = String(p);
+
+    const roleBadge = document.createElement('div');
+    roleBadge.className = 'ww-settlement-role-badge';
+    roleBadge.textContent = `${p} ${roleShort(r)}`;
+
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'ww-settlement-avatar-wrap';
+
+    const avatar = document.createElement('div');
+    avatar.className = `ww-seat-avatar avatar c${p}`;
+    avatar.innerHTML = '<svg class="ww-avatar-icon" viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>';
+
+    const icon = document.createElement('div');
+    icon.className = 'ww-settlement-role-icon';
+    icon.innerHTML = roleIconSvg(r);
+
+    avatarWrap.appendChild(avatar);
+    avatarWrap.appendChild(icon);
+
+    if (dead) {
+      const stamp = document.createElement('div');
+      stamp.className = 'ww-settlement-stamp';
+      stamp.textContent = t('ww.replay.out');
+      avatarWrap.appendChild(stamp);
+    }
+
+    const name = document.createElement('div');
+    name.className = 'ww-settlement-player-name';
+    name.textContent = p === you ? `${p}·${t('me')}` : t('member.name', { n: p });
+
+    const roleFullName = document.createElement('div');
+    roleFullName.className = 'ww-settlement-role-name';
+    roleFullName.textContent = roleName(r);
+
+    card.appendChild(roleBadge);
+    card.appendChild(avatarWrap);
+    card.appendChild(name);
+    card.appendChild(roleFullName);
+    return card;
+  };
+
+  if (leftCol) leftCol.replaceChildren(...leftPlayers.map(createPlayerCard));
+  if (rightCol) rightCol.replaceChildren(...rightPlayers.map(createPlayerCard));
+
+  if (timeline) {
+    const endLog = Array.isArray(game.end.log) ? game.end.log : (Array.isArray(game.log) ? game.log : []);
+    if (!endLog.length) {
+      timeline.innerHTML = `<div class="ww-replay-empty">${t('ww.replay.noLog')}</div>`;
+    } else {
+      const groups = [];
+      let currentGroup = null;
+      for (const item of endLog) {
+        const key = `${item.day}-${item.period}`;
+        if (!currentGroup || currentGroup.key !== key) {
+          currentGroup = { key, day: item.day, period: item.period, items: [] };
+          groups.push(currentGroup);
+        }
+        currentGroup.items.push(item);
+      }
+
+      timeline.replaceChildren(...groups.map((grp) => {
+        const sec = document.createElement('div');
+        sec.className = `ww-replay-section ${grp.period}`;
+
+        const header = document.createElement('div');
+        header.className = `ww-replay-section-header ${grp.period}`;
+        header.textContent = grp.period === 'night' ? `🌙 ${t('ww.replay.night', { d: grp.day })}` : `☀️ ${t('ww.replay.day', { d: grp.day })}`;
+        sec.appendChild(header);
+
+        const list = document.createElement('div');
+        list.className = 'ww-replay-list';
+
+        for (const item of grp.items) {
+          const row = document.createElement('div');
+          row.className = `ww-replay-row ${item.type}`;
+
+          if (item.type === 'seer') {
+            row.innerHTML = `<span class="ww-replay-icon">🔮</span><strong>${t('ww.role.seer')}：</strong>${t('ww.replay.seerCheck', { n: item.target, res: item.wolf ? t('ww.isWolf') : t('ww.isGood') })}`;
+          } else if (item.type === 'gargoyle') {
+            row.innerHTML = `<span class="ww-replay-icon">🗿</span><strong>${t('ww.role.gargoyle')}：</strong>${t('ww.replay.gargoylePeek', { n: item.target, role: roleName(item.role) })}`;
+          } else if (item.type === 'kill') {
+            const victimList = item.victims && item.victims.length ? item.victims.map((n) => `[${n}]`).join(' ') : '';
+            row.innerHTML = `<span class="ww-replay-icon">🐺</span><strong>${t('ww.role.wolf')}：</strong>${victimList ? t('ww.replay.killSuccess', { list: victimList }) : t('ww.replay.noKill')}`;
+          } else if (item.type === 'witch') {
+            let desc = t('ww.replay.noOperation');
+            if (item.saved && item.saved.length) {
+              desc = t('ww.replay.witchSave', { list: item.saved.map((n) => `[${n}]`).join(' ') });
+            } else if (item.poisoned && item.poisoned.length) {
+              desc = t('ww.replay.witchPoison', { list: item.poisoned.map((n) => `[${n}]`).join(' ') });
+            }
+            row.innerHTML = `<span class="ww-replay-icon">🧪</span><strong>${t('ww.role.witch')}：</strong>${desc}`;
+          } else if (item.type === 'guard') {
+            row.innerHTML = `<span class="ww-replay-icon">🛡️</span><strong>${t('ww.role.guard')}：</strong>${item.target ? t('ww.replay.guardProtect', { n: item.target }) : t('ww.replay.noOperation')}`;
+          } else if (item.type === 'charm') {
+            row.innerHTML = `<span class="ww-replay-icon">💄</span><strong>${t('ww.role.wolfBeauty')}：</strong>${t('ww.replay.charm', { n: item.target })}`;
+          } else if (item.type === 'prey') {
+            row.innerHTML = `<span class="ww-replay-icon">🐾</span><strong>${t('ww.role.bigWolf')}：</strong>${t('ww.replay.prey', { n: item.target })}`;
+          } else if (item.type === 'dream') {
+            row.innerHTML = `<span class="ww-replay-icon">💤</span><strong>${t('ww.role.dreamer')}：</strong>${t('ww.replay.dream', { n: item.target })}`;
+          } else if (item.type === 'magician') {
+            row.innerHTML = `<span class="ww-replay-icon">🪄</span><strong>${t('ww.role.magician')}：</strong>${t('ww.replay.magicianSwap', { a: item.a, b: item.b })}`;
+          } else if (item.type === 'cupid') {
+            row.innerHTML = `<span class="ww-replay-icon">💘</span><strong>${t('ww.role.cupid')}：</strong>${t('ww.replay.cupidLink', { a: item.lovers[0], b: item.lovers[1] })}`;
+          } else if (item.type === 'death') {
+            const deadStr = item.dead && item.dead.length ? t('ww.replay.deadList', { list: item.dead.map((n) => `[${n}]`).join(' ') }) : t('ww.n.peace');
+            row.innerHTML = `<span class="ww-replay-icon">☠️</span><strong>${t('ww.replay.deathNews')}：</strong>${deadStr}`;
+          } else if (item.type === 'vote') {
+            const votesObj = item.votes || {};
+            const grouped = {};
+            for (const [v, tg] of Object.entries(votesObj)) {
+              const tgt = Number(tg);
+              if (tgt > 0) {
+                if (!grouped[tgt]) grouped[tgt] = [];
+                grouped[tgt].push(`[${v}]`);
+              }
+            }
+            const tallyParts = Object.entries(grouped).map(([tgt, voters]) => `${voters.join(' ')} 投给 [${tgt}]`);
+            if (item.abstain && item.abstain.length) {
+              tallyParts.push(`${item.abstain.map((n) => `[${n}]`).join(' ')} 弃票`);
+            }
+            const outStr = item.out ? (item.idiot ? t('ww.replay.idiotSaved', { n: item.out }) : t('ww.replay.exileOut', { n: item.out })) : t('ww.voteTie');
+            row.innerHTML = `<span class="ww-replay-icon">🗳️</span><strong>${t('ww.replay.exileResult')}：</strong><div>${tallyParts.join('；') || t('ww.noVote')}</div><div class="ww-replay-out-text">${outStr}</div>`;
+          } else if (item.type === 'sheriffVote') {
+            const votesObj = item.votes || {};
+            const grouped = {};
+            for (const [v, tg] of Object.entries(votesObj)) {
+              const tgt = Number(tg);
+              if (tgt > 0) {
+                if (!grouped[tgt]) grouped[tgt] = [];
+                grouped[tgt].push(`[${v}]`);
+              }
+            }
+            const tallyParts = Object.entries(grouped).map(([tgt, voters]) => `${voters.join(' ')} 投给 [${tgt}]`);
+            if (item.abstain && item.abstain.length) {
+              tallyParts.push(`${item.abstain.map((n) => `[${n}]`).join(' ')} 弃票`);
+            }
+            const resultStr = item.sheriff ? `${t('ww.replay.sheriffElected')}：[${item.sheriff}]` : t('ww.n.noSheriff');
+            row.innerHTML = `<span class="ww-replay-icon">🎖️</span><strong>${t('ww.replay.sheriffVoteTally')}：</strong><div>${tallyParts.join('；')}</div><div class="ww-replay-out-text">${resultStr}</div>`;
+          } else if (item.type === 'shoot') {
+            row.innerHTML = `<span class="ww-replay-icon">🏹</span>${t('ww.replay.shoot', { from: item.from, to: item.target })}`;
+          } else if (item.type === 'badge') {
+            row.innerHTML = `<span class="ww-replay-icon">🎖️</span>${item.to ? t('ww.replay.passBadge', { from: item.from, to: item.to }) : t('ww.replay.tearBadge', { from: item.from })}`;
+          } else if (item.type === 'duel') {
+            row.innerHTML = `<span class="ww-replay-icon">⚔️</span>${t('ww.replay.duel', { from: item.from, to: item.target, wolf: item.wolf ? t('ww.isWolf') : t('ww.isGood') })}`;
+          } else if (item.type === 'boom') {
+            row.innerHTML = `<span class="ww-replay-icon">💥</span>${t('ww.replay.boom', { from: item.from, to: item.target })}`;
+          } else if (item.type === 'lastWords') {
+            row.innerHTML = `<span class="ww-replay-icon">💬</span><strong>${t('ww.replay.lastWords')}：</strong>${t('ww.replay.speakerWords', { n: item.speaker })}`;
+          }
+          if (row.innerHTML) list.appendChild(row);
+        }
+        sec.appendChild(list);
+        return sec;
+      }));
+    }
+  }
+
+  const againBtn = $('wwAgainBtn');
+  const switchBtn = $('wwSwitchBtn');
+  const backBtn = $('wwBackChatBtn');
+
+  if (againBtn) {
+    againBtn.onclick = () => {
+      settlement.hidden = true;
+      if (canStartGame('ww')) startAgain();
+      else if ($('gameAgain')) $('gameAgain').click();
+    };
+  }
+  if (switchBtn) {
+    switchBtn.onclick = () => {
+      settlement.hidden = true;
+      openSidebar();
+    };
+  }
+  if (backBtn) {
+    backBtn.onclick = () => {
+      settlement.hidden = true;
+    };
+  }
+}
+
+async function wolfPass() {
+  const sp = Wolf.speaker(game);
+  if (sp !== you) return;
+  const text = t('ww.pass');
+  const say = { k: 'ww-say', gid: game.gid };
+  if (game.dealer === Wolf.JUDGE) {
+    if (await sendMessage(text, say, true)) sendJudge({ k: 'say' });
+    return;
+  }
+  await sendMessage(text, say, true);
+}
+
+async function sendMobileChat() {
+  const input = $('wwMobileInput');
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) return;
+  const text = checkMessage(raw);
+  if (!text) return;
+  input.value = '';
+  const say = game?.type === 'ww' ? (Wolf.speaker(game) === you ? { k: 'ww-say', gid: game.gid } : undefined) : undefined;
+  if (say && say.k === 'ww-say' && game.dealer === Wolf.JUDGE) {
+    if (await sendMessage(text, say, true)) sendJudge({ k: 'say' });
+    return;
+  }
+  await sendMessage(text, say, true);
+}
+
 function renderWerewolf() {
   const left = Math.max(0, Math.ceil((game.deadline - Date.now()) / 1000));
   const over = game.phase === 'over';
@@ -2237,7 +2804,25 @@ function renderWerewolf() {
   const night = game.phase.startsWith('night');
   $('gameTitle').textContent = t(night ? 'ww.titleNight' : 'ww.titleDay', { d: Math.max(1, game.day) });
   const sp = Wolf.speaker(game);
+  if (myAct?.step !== game.step) wolfStep();
   const c = wolfChoices();
+
+  const table = $('wwTable');
+  table.hidden = false;
+  table.classList.toggle('ww-night', night);
+  table.classList.toggle('ww-day-theme', !night);
+  table.classList.toggle('ww-list-mode', wwViewMode === 'list');
+
+  const boardName = Wolf.BOARDS[game.board] ? boardText(game.board) : t('game.name.ww');
+  $('wwModeBadge').textContent = `🐺 ${boardName}`;
+  const isServerJudge = publicTable || game.dealer === Wolf.JUDGE;
+  $('wwJudgeBadge').textContent = `⚖️ ${t(isServerJudge ? 'ww.judgeServerShort' : 'ww.judgeClientShort')}`;
+  $('wwViewToggle').textContent = t(wwViewMode === 'table' ? 'ww.listMode' : 'ww.roundTable');
+
+  $('wwArena').hidden = (wwViewMode === 'list');
+  $('gameVotes').hidden = (wwViewMode === 'table');
+  $('gameSeats').hidden = (wwViewMode === 'table');
+
   // The line: what this page is to do now, else what everyone is waiting for.
   let line;
   const stage = c && myAct?.step === game.step && !myAct.sent ? c.stages[myAct.stage] : c?.send === 'day' ? c.stages[0] : null;
@@ -2255,12 +2840,157 @@ function renderWerewolf() {
   }
   $('gameLine').textContent = line;
   $('gamePlayers').textContent = game.players.map((n) => `${game.alive.includes(n) ? badge(n) : `${badge(n)}✖`}${n === game.sheriff ? '🎖' : ''}${game.mute.includes(n) ? '🤪' : ''}`).join(' ');
-  $('gameWord').hidden = over || !myRole;
-  if (!$('gameWord').classList.contains('open')) $('gameWord').textContent = t('ww.holdButton');
+
+  let stageTitleText = '';
+  if (over) stageTitleText = game.end ? t(`ww.win.${game.end.winner || 'good'}`) : t('game.aborted');
+  else if (night) {
+    if (game.phase === 'nightA') stageTitleText = '🌙 天黑请闭眼';
+    else if (game.phase === 'nightT') stageTitleText = '🃏 盗贼选牌';
+    else if (game.phase === 'nightB') stageTitleText = '🧪 女巫行动';
+    else if (stage && stage.prompt === 'ww.ask.kill') stageTitleText = '🐺 狼人杀人';
+    else if (stage && stage.prompt === 'ww.ask.check') stageTitleText = '🔮 预言家验人';
+    else if (stage && stage.prompt === 'ww.ask.guard') stageTitleText = '🛡️ 守卫守护';
+    else if (stage) {
+      const pText = t(stage.prompt);
+      stageTitleText = pText.length > 8 ? pText.slice(0, 8) : pText;
+    } else stageTitleText = '🌙 天黑请闭眼';
+  } else {
+    if (game.phase === 'dawn') stageTitleText = '☀️ 天亮了';
+    else if (sp) stageTitleText = `${sp} 号发言中`;
+    else if (game.phase === 'vote') stageTitleText = '🗳 放逐投票';
+    else if (game.phase === 'sheriffVote') stageTitleText = '🎖 选警长投票';
+    else if (game.phase === 'sheriffSign') stageTitleText = '🎖 竞选警长';
+    else if (game.phase === 'badge') stageTitleText = '🎖 移交警徽';
+    else if (game.phase === 'shoot') stageTitleText = '🏹 猎人开枪';
+    else if (game.phase === 'order') stageTitleText = '🎖 发言顺序';
+    else stageTitleText = t('ww.titleDay', { d: Math.max(1, game.day) });
+  }
+
+  if ($('wwStageTitle').textContent !== stageTitleText) {
+    $('wwStageTitle').textContent = stageTitleText;
+    $('wwStageTitle').classList.remove('fade-in');
+    void $('wwStageTitle').offsetWidth;
+    $('wwStageTitle').classList.add('fade-in');
+  }
+
+  let tapHint = '';
+  if (stage && c && (!myAct || !myAct.sent)) {
+    if (stage.prompt === 'ww.ask.kill') tapHint = t('ww.hint.tapKill');
+    else if (stage.prompt === 'ww.ask.check' || stage.prompt === 'ww.ask.peek') tapHint = t('ww.hint.tapCheck');
+    else if (stage.prompt === 'ww.ask.guard') tapHint = t('ww.hint.tapGuard');
+    else if (stage.prompt === 'ww.ask.potion') tapHint = t('ww.hint.tapPotion');
+    else if (stage.prompt === 'ww.ask.shoot') tapHint = t('ww.hint.tapShoot');
+    else if (stage.prompt === 'ww.ask.vote' || game.phase === 'vote') tapHint = t('ww.hint.tapVote');
+    else if (stage.prompt === 'ww.ask.sheriffVote' || game.phase === 'sheriffVote') tapHint = t('ww.hint.tapSheriffVote');
+    else if (stage.prompt === 'ww.ask.badge') tapHint = t('ww.hint.tapBadge');
+  }
+
+  let subText = '';
+  if (lastPassNotice && Date.now() < lastPassNotice.until) {
+    subText = `${lastPassNotice.n} 号结束发言 · `;
+  }
+  if (sp && sp === you) {
+    subText += t('ww.yourSpeak', { s: left });
+  } else if (sp && sp !== you) {
+    subText += `倒计时 ${left} 秒`;
+  } else if (game.phase === 'vote') {
+    const hasVotedMe = Array.isArray(game.voted) && game.voted.includes(you);
+    const voteDesc = hasVotedMe ? '已提交投票' : '点编号投票';
+    subText += `${voteDesc}（${left} 秒）`;
+  } else if (game.phase === 'sheriffVote') {
+    const hasVotedMe = Array.isArray(game.voted) && game.voted.includes(you);
+    const voteDesc = hasVotedMe ? '已提交选票' : '点编号选警长';
+    subText += `${voteDesc}（${left} 秒）`;
+  } else if (myAct?.step === game.step && myAct.sent && myAct.done) {
+    subText += t('ww.done', { what: myAct.done, s: left });
+  } else if (tapHint) {
+    subText += `${tapHint} · ${t('ww.countdown', { s: left })}`;
+  } else if (stage && c?.send !== 'day') {
+    subText += `${t(stage.prompt)} · ${t('ww.countdown', { s: left })}`;
+  } else {
+    subText += t('ww.countdown', { s: left });
+  }
+  $('wwStageSub').textContent = subText;
+
+  if (lastVoteResults && !night && !over) {
+    const votesObj = lastVoteResults.votes || {};
+    const grouped = {};
+    const abstains = [];
+    for (const [voterStr, tgt] of Object.entries(votesObj)) {
+      const v = Number(voterStr);
+      const target = Number(tgt);
+      if (!target) {
+        abstains.push(v);
+      } else {
+        if (!grouped[target]) grouped[target] = [];
+        grouped[target].push(v);
+      }
+    }
+    const lines = [];
+    for (const [target, voters] of Object.entries(grouped)) {
+      const voterNames = voters.map((n) => `${n} 号`).join('、');
+      lines.push(`${voterNames} → ${target} 号`);
+    }
+    if (abstains.length) {
+      lines.push(`${abstains.map((n) => `${n} 号`).join('、')} ${t('ww.noVote')}`);
+    }
+    if (lines.length) {
+      const tally = lines.join('  ');
+      const outText = lastVoteResults.out ? t('ww.n.out', { b: `${lastVoteResults.out} 号` }) : (lastVoteResults.tie ? t('ww.voteTie') : '');
+      $('wwStageVotes').textContent = `${tally}${outText ? ' · ' + outText : ''}`;
+      $('wwStageVotes').hidden = false;
+    } else {
+      $('wwStageVotes').hidden = true;
+    }
+  } else {
+    $('wwStageVotes').hidden = true;
+  }
+
+  renderWerewolfSeats(stage, c, sp, left);
+
+  const potionPanel = $('wwPotionPanel');
+  if (potionPanel) {
+    if (c && stage && myRole?.role === 'witch' && stage.options && (!myAct || !myAct.sent) && game.phase === 'nightB') {
+      potionPanel.hidden = false;
+      $('wwPotionActions').replaceChildren(...stage.options.map((o) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `secondary-button ${o.cls === 'good' ? 'pact-keep' : o.cls === 'bad' ? 'pact-betray' : ''}`;
+        const [k, v] = o.label;
+        btn.textContent = k === 'badge' ? badge(v.n) : t(k, { ...v, n: v?.n !== undefined ? badge(v.n) : undefined, b: v?.n !== undefined ? badge(v.n) : undefined });
+        btn.addEventListener('click', () => {
+          potionPanel.hidden = true;
+          wolfPick(c, stage, o, btn.textContent);
+        });
+        return btn;
+      }));
+    } else {
+      potionPanel.hidden = true;
+    }
+  }
+
+  const passBtn = $('wwPassButton');
+  if (passBtn) passBtn.hidden = !(sp === you && !over);
+
+  const gameWord = $('gameWord');
+  gameWord.hidden = over || !myRole;
+  if (wwViewMode === 'list') {
+    gameWord.classList.remove('ww-card-active');
+    const actions = document.querySelector('.game-actions');
+    if (actions && gameWord.parentElement !== actions) actions.appendChild(gameWord);
+  } else {
+    gameWord.classList.add('ww-card-active');
+    if (!gameWord.classList.contains('open')) gameWord.textContent = t('ww.cardBack');
+    if (gameWord.parentElement !== $('wwArena')) $('wwArena').appendChild(gameWord);
+  }
+
+  renderWerewolfSettlement();
+
   $('escForm').hidden = true;
   $('trForm').hidden = true;
   $('ldForm').hidden = true;
   $('smForm').hidden = true;
+
   // The buttons for the stage in hand.
   const votes = $('gameVotes');
   const key = stage ? `${game.phase}|${game.step}|${game.day}|${game.turn}|${myAct?.stage ?? 0}|${c.send}` : '';
@@ -2289,6 +3019,7 @@ function renderWerewolf() {
   $('gameEnd').hidden = !(judging && !over);
   $('gameClose').hidden = !over;
   $('messageInput').placeholder = sp === you ? t('ww.speakHint') : t('input.placeholder');
+  $('wwMobileInput').placeholder = sp === you ? t('ww.speakHint') : t('input.placeholder');
   if (sp === you) nudge(`say|${game.phase}|${game.day}|${game.turn}`);
   clearInterval(gameTick);
   gameTick = over && !publicTable ? 0 : setInterval(() => { renderGame(); dealerStep(); wolfStep(); }, 1000);
@@ -2301,6 +3032,7 @@ function wolfPick(c, stage, o, label) {
     wolfSendAct({ ...c.act, t: o.value }, label, 'day');
     return;
   }
+  if (!myAct || myAct.step !== game.step) wolfStep();
   if (!myAct || myAct.sent || myAct.step !== game.step) return;
   if (o.act) return wolfSendAct(o.act, label);
   myAct.picks[stage.key] = o.value;
@@ -2533,7 +3265,11 @@ function tryCode() {
   // not tried (it would cost a try).
   if (new Set(code).size !== code.length) return system(t('esc.distinct'));
   $('escCode').value = '';
-  queueGame({ k: 'esc-try', gid: game.gid, lock: game.lock, code });
+  if (game.dealer === 0) {
+    sendJudge({ k: 'try', gid: game.gid, lock: game.lock, code });
+  } else {
+    queueGame({ k: 'esc-try', gid: game.gid, lock: game.lock, code });
+  }
 }
 $('escForm').addEventListener('submit', (e) => { e.preventDefault(); tryCode(); });
 // Keep the focus (and on phones the keyboard) in the code box: taking it
@@ -2547,6 +3283,52 @@ $('ldStart')?.addEventListener('click', () => { startDice(); });
 $('wwBoard')?.addEventListener('change', () => {
   if ($('wwSheriff')) $('wwSheriff').checked = !!Wolf.BOARDS[$('wwBoard').value]?.sheriff;
   renderRoomModes();
+});
+$('judgeModeSelect')?.addEventListener('change', () => {
+  roomJudgeMode = $('judgeModeSelect').value;
+  queueGame({ k: 'judge-pref', mode: roomJudgeMode });
+  renderGame();
+});
+$('wwViewToggle')?.addEventListener('click', () => {
+  wwViewMode = (wwViewMode === 'table') ? 'list' : 'table';
+  renderWerewolf();
+});
+$('wwPassButton')?.addEventListener('click', () => {
+  wolfPass();
+});
+$('wwMobileSend')?.addEventListener('click', () => {
+  sendMobileChat();
+});
+$('wwMobileInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendMobileChat();
+  }
+});
+let lastConfirmOkTime = 0;
+const handleConfirmOk = (e) => {
+  if (e) e.stopPropagation();
+  const now = Date.now();
+  if (now - lastConfirmOkTime < 400) return;
+  lastConfirmOkTime = now;
+  $('wwConfirmDialog').hidden = true;
+  if (pendingWolfPick) {
+    const p = pendingWolfPick;
+    pendingWolfPick = null;
+    wolfPick(p.c, p.stage, p.o, p.label);
+  }
+};
+$('wwConfirmOk')?.addEventListener('click', handleConfirmOk);
+$('wwConfirmOk')?.addEventListener('pointerup', handleConfirmOk);
+$('wwConfirmCancel')?.addEventListener('click', (e) => {
+  if (e) e.stopPropagation();
+  $('wwConfirmDialog').hidden = true;
+  pendingWolfPick = null;
+});
+$('wwConfirmCancel')?.addEventListener('pointerup', (e) => {
+  if (e) e.stopPropagation();
+  $('wwConfirmDialog').hidden = true;
+  pendingWolfPick = null;
 });
 $('smForm')?.addEventListener('submit', (e) => { e.preventDefault(); guessWord(); });
 $('smGuess')?.addEventListener('pointerdown', (e) => e.preventDefault());
@@ -2639,7 +3421,7 @@ function rulesLabel(id) {
 function rulesText(id) {
   const b = Wolf.BOARDS[id];
   if (!b) return t(`rules.${id}`);
-  const roles = [...new Set(b.cards)].map((r) => `· ${roleName(r)} — ${t(`ww.desc.${r}`)}`);
+  const roles = [...new Set(b.cards)].map((r) => `· ${ROLE_EMOJIS[r] ? ROLE_EMOJIS[r] + ' ' : ''}${roleName(r)} — ${t(`ww.desc.${r}`)}`);
   return [`${t('rules.boardHead', { n: b.n, list: boardText(id) })}\n${t(b.sheriff ? 'rules.sheriffOn' : 'rules.sheriffOff')}`, t(`rules.b.${id}`), [t('rules.boardRoles'), ...roles].join('\n'), t('rules.boardMore')].join('\n\n');
 }
 function showRules(id) {
@@ -2997,7 +3779,7 @@ const showWord = (on) => {
   if (game?.type === 'ww') {
     // The card: role, what it does, the pack, and what this page has learnt.
     const card = myRole ? [t('ww.card', { r: roleName(myRole.role) }), t(`ww.desc.${myRole.role}`), ...(myRole.pack ? [t('ww.pack', { list: myRole.pack.map(badge).join(' ') })] : []), ...myLog].join('\n') : '';
-    $('gameWord').textContent = on ? card : t('ww.holdButton');
+    $('gameWord').textContent = on ? card : t('ww.cardBack');
     $('gameWord').classList.toggle('open', on);
     return;
   }
@@ -3612,7 +4394,7 @@ $('messageForm').addEventListener('submit', async (event) => {
   // On this page's turn in a game, the message is its description.
   const say = game?.type === 'ww' ? (Wolf.speaker(game) === you ? { k: 'ww-say', gid: game.gid } : undefined) : game && speaker(game) === you ? { k: 'say', gid: game.gid } : undefined;
   // At a public werewolf table the server's judge is told the speech is made.
-  if (say?.k === 'ww-say' && game.dealer === Wolf.JUDGE) { if (await sendMessage(text, undefined, true)) sendJudge({ k: 'say' }); return; }
+  if (say?.k === 'ww-say' && game.dealer === Wolf.JUDGE) { if (await sendMessage(text, say, true)) sendJudge({ k: 'say' }); return; }
   await sendMessage(text, say, true);
 });
 // Phones drop connections in the background; reconnect as soon as the page

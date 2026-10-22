@@ -69,8 +69,12 @@ await tap(pages[2], '#gameWord');
 await pages[2].waitForTimeout(300);
 ok(!/你的身份：/.test(await pages[2].locator('#gameWord').innerText()), 'another tap hides it');
 
-// The game, tapped through: random choices, speeches sent with the button.
+// The game, played exclusively through touchscreen avatar taps and controls.
 let taps = 0; const misses = [], dead = [];
+let wolfKillTapped = false;
+let seerCheckTapped = false;
+let witchTapped = false;
+let voteTapped = false;
 const start = Date.now();
 let ended = false;
 while (!ended && Date.now() - start < 12 * 60000) {
@@ -78,36 +82,83 @@ while (!ended && Date.now() - start < 12 * 60000) {
     const p = pages[i];
     const st = await p.evaluate(() => ({
       line: document.getElementById('gameLine').textContent,
-      key: document.getElementById('gameVotes').dataset.key,
-      n: document.querySelectorAll('#gameVotes button:not([disabled])').length,
-      all: [...document.querySelectorAll('#gameVotes button')].map((b) => !b.disabled)
+      actCount: document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length,
+      hasPotion: document.getElementById('wwPotionPanel') && !document.getElementById('wwPotionPanel').hidden,
+      isOver: document.getElementById('wwSettlement') && !document.getElementById('wwSettlement').hidden
     }));
+    if (st.isOver) {
+      ended = true;
+      break;
+    }
     if (/(轮到你发言|请发表遗言)/.test(st.line)) {
-      if (await p.locator('#tabChat').isVisible()) await tap(p, '#tabChat');
-      await p.fill('#messageInput', `我是好人 ${i}`);
-      await tap(p, '#sendButton');
-      if (await p.locator('#tabGame').isVisible()) await tap(p, '#tabGame');
+      if (await p.locator('#wwMobileInput').isVisible()) {
+        await p.fill('#wwMobileInput', `我是好人 ${i}`);
+        await tap(p, '#wwMobileSend');
+      } else if (await p.locator('#wwPassButton').isVisible()) {
+        await tap(p, '#wwPassButton');
+      } else {
+        if (await p.locator('#tabChat').isVisible()) await tap(p, '#tabChat');
+        await p.fill('#messageInput', `我是好人 ${i}`);
+        await tap(p, '#sendButton');
+        if (await p.locator('#tabGame').isVisible()) await tap(p, '#tabGame');
+      }
       continue;
     }
-    if (!st.n) continue;
-    // Day actions (a duel, a blast) wait: they would end the day at once.
-    if (await p.locator('#gameVotes .ww-day').count()) continue;
-    const live = st.all.map((x, j) => (x ? j : -1)).filter((j) => j >= 0);
-    const j = live[Math.floor(Math.random() * live.length)];
-    const sel = `#gameVotes button:nth-of-type(${j + 1})`;
+
+    if (st.hasPotion && !st.actCount) {
+      const potionBtn = p.locator('#wwPotionActions button').first();
+      if (await potionBtn.count()) {
+        await tap(p, '#wwPotionActions button:first-child');
+        witchTapped = true;
+        taps++;
+        await p.waitForTimeout(500);
+        continue;
+      }
+    }
+
+    if (!st.actCount) continue;
+
+    // Touchscreen tap directly on the actionable avatar
+    const sel = '.ww-seat.actionable .ww-seat-avatar';
     const h = await tap(p, sel);
     if (!h) continue;
     taps++;
     if (!h.ok) { misses.push(`${i}: ${st.line.slice(0, 30)} → ${h.on}`); continue; }
-    await p.waitForTimeout(700);
-    const after = await p.evaluate(() => ({ key: document.getElementById('gameVotes').dataset.key, n: document.querySelectorAll('#gameVotes button:not([disabled])').length, line: document.getElementById('gameLine').textContent }));
-    if (after.key === st.key && after.n === st.n && after.line.slice(0, 10) === st.line.slice(0, 10)) dead.push(`${i}: ${st.line.slice(0, 30)}`);
+
+    // Avatar tapped -> confirm dialog pops up
+    await p.waitForSelector('#wwConfirmDialog:not([hidden])', { timeout: 4000 }).catch(() => {});
+    const confirmVisible = await p.locator('#wwConfirmDialog').isVisible();
+    if (confirmVisible) {
+      const confirmText = await p.locator('#wwConfirmText').innerText();
+      if (/刀/.test(confirmText)) wolfKillTapped = true;
+      if (/查验/.test(confirmText)) seerCheckTapped = true;
+      if (/毒/.test(confirmText) || /救/.test(confirmText)) witchTapped = true;
+      if (/投/.test(confirmText)) voteTapped = true;
+
+      // Tap confirm button using touchscreen
+      const okHit = await tap(p, '#wwConfirmOk');
+      if (okHit?.ok) {
+        taps++;
+      }
+    }
+
+    await p.waitForTimeout(750);
+    const after = await p.evaluate(() => ({
+      actCount: document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length,
+      line: document.getElementById('gameLine').textContent
+    }));
+    if (after.actCount === st.actCount && after.line.slice(0, 10) === st.line.slice(0, 10)) {
+      dead.push(`${i}: ${st.line.slice(0, 30)}`);
+    }
   }
-  ended = /获胜！/.test(await J.locator('#messages').innerText());
+  ended = ended || /获胜！/.test(await J.locator('#messages').innerText());
 }
-ok(ended, 'the game was played to the end with taps');
-ok(taps > 5 && !misses.length, `${taps} taps on game buttons, each on the button itself${misses.length ? ': ' + misses.join(' / ') : ''}`);
-ok(!dead.length, `every tapped button did something${dead.length ? ': ' + dead.join(' / ') : ''}`);
+ok(ended, 'the game was played to the end with avatar touch taps');
+ok(wolfKillTapped, 'wolf kill completed by tapping avatar');
+ok(seerCheckTapped, 'seer check completed by tapping avatar');
+ok(voteTapped, 'daytime voting completed by tapping avatar');
+ok(taps > 5 && !misses.length, `${taps} taps on seats and confirm dialogs, each on target itself${misses.length ? ': ' + misses.join(' / ') : ''}`);
+ok(!dead.length, `every tapped action seat did something${dead.length ? ': ' + dead.join(' / ') : ''}`);
 await b.close();
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
 process.exit(fails ? 1 : 0);

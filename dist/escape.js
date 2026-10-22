@@ -17,6 +17,7 @@
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
+export const JUDGE = 0;
 export const LOCKS = [3, 4, 5];                     // digits in each lock's code
 export const LOCK_MS = [180000, 240000, 300000];    // time for each lock
 export const ALARMS = 3;                            // wrong tries before the alarm
@@ -173,7 +174,7 @@ export function apply(s, g, from, now) {
   if (g.k === 'esc-new') {
     if (s && s.phase !== 'over') return { s, note: null };
     const players = Array.isArray(g.players) ? g.players : [];
-    if (!GID.test(g.gid ?? '') || players.length < MIN_PLAYERS || players.length > MAX_PLAYERS || !players.every(isNumber) || !players.includes(from) || new Set(players).size !== players.length) return { s, note: null };
+    if (!GID.test(g.gid ?? '') || players.length < MIN_PLAYERS || players.length > MAX_PLAYERS || !players.every(isNumber) || !(players.includes(from) || from === JUDGE) || new Set(players).size !== players.length) return { s, note: null };
     const next = { type: 'esc', gid: g.gid, dealer: from, players: players.slice(), lock: 0, phase: 'lock', deadline: now + LOCK_MS[0], alarms: 0, tries: 0, trying: null, dropped: {} };
     return { s: next, note: { k: 'esc-new', by: from, players: next.players } };
   }

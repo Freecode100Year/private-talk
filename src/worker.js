@@ -15,7 +15,9 @@ import {
   emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
 } from './rules.js';
 import { Lobby as Tables, readBody, tableOf } from './lobby.js';
-import { WolfJudge } from './judge.js';
+import { WolfJudge, EscapeJudge } from './judge.js';
+import * as Wolf from '../dist/werewolf.js';
+import * as Escape from '../dist/escape.js';
 import { modeOf } from '../dist/modes.js';
 
 const plain = (status, body = null, headers = PLAIN_HEADERS) => new Response(body, { status, headers });
@@ -139,8 +141,35 @@ export class Room extends DurableObject {
       return 'lock' in r ? this.lock(r.lock, a.n) : this.remove(r.remove, a.n);
     }
     if (r.ref) {
+      const ref = r.ref;
+      if (ref.k === 'start') {
+        await this.judge();
+        if (this.wolfSeats > 0) return;
+        const peers = this.peers().map((ws) => ws.deserializeAttachment().n);
+        const players = Array.isArray(ref.players) && ref.players.length && ref.players.every((x) => peers.includes(x)) ? ref.players.slice().sort((x, y) => x - y) : peers.sort((x, y) => x - y);
+        if (ref.game === 'ww' && !(await this.judge())?.on && !(await this.escJudge())?.on && players.length >= Wolf.MIN_PLAYERS && players.length <= Wolf.MAX_PLAYERS) {
+          this.wolf = new WolfJudge();
+          this.escape = null;
+          await this.ctx.storage.delete('esc_judge');
+          await this.judgeOut(this.wolf.start(players, ref.board, Date.now(), ref.sheriff));
+        } else if (ref.game === 'esc' && !(await this.judge())?.on && !(await this.escJudge())?.on && players.length >= Escape.MIN_PLAYERS && players.length <= Escape.MAX_PLAYERS) {
+          this.escape = new EscapeJudge();
+          this.wolf = null;
+          await this.ctx.storage.delete('judge');
+          await this.judgeOut(this.escape.start(players, Date.now()));
+        }
+        return;
+      }
       const j = await this.judge();
-      if (j) await this.judgeOut(j.handle(a.n, r.ref, Date.now()));
+      if (j?.on) {
+        await this.judgeOut(j.handle(a.n, r.ref, Date.now()));
+        return;
+      }
+      const ej = await this.escJudge();
+      if (ej?.on) {
+        await this.judgeOut(ej.handle(a.n, r.ref, Date.now()));
+        return;
+      }
       return;
     }
     if (r.table) {
@@ -231,66 +260,93 @@ export class Room extends DurableObject {
   async judge() {
     if (this.wolf !== undefined) return this.wolf;
     const t = await this.ctx.storage.get('table');
-    // The table's mode: switched in the room (t.info.mode) or the one its passphrase names
     const m = t && modeOf(t.info?.mode || tableOf(t.info?.pass)?.mode);
     const game = m && m.game === 'ww' ? m : null;
-    this.wolf = game ? new WolfJudge(await this.ctx.storage.get('judge') ?? null) : null;
+    const saved = await this.ctx.storage.get('judge') ?? null;
+    this.wolf = game || saved ? new WolfJudge(saved) : null;
     this.wolfSeats = game ? game.players[1] : 0;
     this.wolfBoard = game?.settings?.board || null;
     this.wolfSheriff = game?.settings?.sheriff;
     return this.wolf;
   }
+  async escJudge() {
+    if (this.escape !== undefined) return this.escape;
+    const saved = await this.ctx.storage.get('esc_judge') ?? null;
+    this.escape = saved ? new EscapeJudge(saved) : null;
+    return this.escape;
+  }
   async judgeOut(out) {
-    if (!this.wolf) return;
+    const active = this.wolf?.on ? this.wolf : this.escape?.on ? this.escape : (this.wolf || this.escape);
+    if (!active) return;
     for (const { to, msg } of out) {
       if (!to) this.broadcast(msg);
       else for (const ws of this.peers()) if (ws.deserializeAttachment().n === to) { try { ws.send(JSON.stringify(msg)); } catch {} }
     }
     const t = await this.ctx.storage.get('table');
-    if (this.wolf.on) {
+    if (this.wolf?.on) {
       await this.ctx.storage.put('judge', this.wolf.toJSON());
       await this.ctx.storage.setAlarm(this.wolf.deadline + 50);
+    } else if (this.escape?.on) {
+      await this.ctx.storage.put('esc_judge', this.escape.toJSON());
+      await this.ctx.storage.setAlarm(this.escape.deadline + 50);
     } else {
       if (this.wolf?.game?.phase === 'over') {
         await this.ctx.storage.put('judge', this.wolf.toJSON());
         const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
-        if (list.length >= this.wolfSeats) {
+        if (this.wolfSeats && list.length >= this.wolfSeats) {
           this.wolfStart = Date.now() + 15000;
           await this.ctx.storage.setAlarm(this.wolfStart);
         }
       } else {
         await this.ctx.storage.delete('judge');
+        await this.ctx.storage.delete('esc_judge');
       }
     }
-    if (t && out.length) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: this.wolf.on }) }).catch(() => {});
+    if (t && out.length) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: !!this.wolf?.on }) }).catch(() => {});
   }
   async judgeMembers(list) {
     const j = await this.judge();
-    if (!j) return;
-    if (!j.on && list.length >= this.wolfSeats) {
-      if (!this.wolfStart) {
-        const delay = j.game?.phase === 'over' ? 15000 : 3000;
-        this.wolfStart = Date.now() + delay;
-        await this.ctx.storage.setAlarm(this.wolfStart);
-      }
+    if (j?.on) {
+      await this.judgeOut(j.members(list, Date.now()));
       return;
     }
-    if (!j.on && list.length < this.wolfSeats && this.wolfStart) {
-      this.wolfStart = 0;
-      await this.ctx.storage.deleteAlarm();
+    if (j && this.wolfSeats) {
+      if (list.length >= this.wolfSeats) {
+        if (!this.wolfStart) {
+          const delay = j.game?.phase === 'over' ? 15000 : 3000;
+          this.wolfStart = Date.now() + delay;
+          await this.ctx.storage.setAlarm(this.wolfStart);
+        }
+        return;
+      }
+      if (list.length < this.wolfSeats && this.wolfStart) {
+        this.wolfStart = 0;
+        await this.ctx.storage.deleteAlarm();
+      }
+      await this.judgeOut(j.members(list, Date.now()));
+      return;
     }
-    await this.judgeOut(j.members(list, Date.now()));
+    const ej = await this.escJudge();
+    if (ej?.on) {
+      await this.judgeOut(ej.members(list, Date.now()));
+    }
   }
   async alarm() {
     this.wolfStart = 0;
     const j = await this.judge();
-    if (!j) return;
-    const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
-    if (!j.on) {
+    if (j?.on) {
+      await this.judgeOut(j.tick(Date.now()));
+      return;
+    }
+    if (j && this.wolfSeats) {
+      const list = this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
       if (list.length >= this.wolfSeats) await this.judgeOut(j.start(list.slice(0, this.wolfSeats), this.wolfBoard || null, Date.now(), this.wolfSheriff));
       return;
     }
-    await this.judgeOut(j.tick(Date.now()));
+    const ej = await this.escJudge();
+    if (ej?.on) {
+      await this.judgeOut(ej.tick(Date.now()));
+    }
   }
 
   // A listed public table: the lobby hears how many are in the room. The
@@ -300,13 +356,23 @@ export class Room extends DurableObject {
     if (!t) return;
     const lobby = this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby'));
     await lobby.fetch('https://lobby/people', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, taken, info: t.info }) }).catch(() => {});
-    if (!taken) { await this.ctx.storage.delete(['table', 'judge']); await this.ctx.storage.deleteAlarm(); this.wolf = undefined; }
+    if (!taken) { await this.ctx.storage.delete(['table', 'judge', 'esc_judge']); await this.ctx.storage.deleteAlarm(); this.wolf = undefined; this.escape = undefined; }
   }
 
   members(skip) {
     const peers = this.peers(skip);
     const book = this.book(peers);
     const list = peers.map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
+    if (!list.length) {
+      this.ctx.waitUntil((async () => {
+        await this.ctx.storage.delete(['table', 'judge', 'esc_judge']);
+        await this.ctx.storage.deleteAlarm();
+        this.wolf = undefined;
+        this.escape = undefined;
+        this.wolfSeats = 0;
+        this.wolfStart = 0;
+      })());
+    }
     this.ctx.waitUntil(this.table(list.length).then(() => this.judgeMembers(list)));
     this.broadcast({ type: 'members', members: list, host: this.host(peers), max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
   }

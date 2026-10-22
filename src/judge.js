@@ -18,6 +18,7 @@
 // what to send: [{ to: n | 0 (everyone), msg }].
 
 import * as Wolf from '../dist/werewolf.js';
+import * as Escape from '../dist/escape.js';
 
 const JUDGE = Wolf.JUDGE;
 
@@ -108,6 +109,123 @@ export class WolfJudge {
       if (this.s.moves === before) break;
     }
     if (this.s && !this.on) this.s = { game: this.s.game, done: true };
+    return out;
+  }
+}
+
+export class EscapeJudge {
+  constructor(saved = null) {
+    // { gid, players, lock, codes, hands, alarms, tries, trying, deadline, phase, dropped, here }
+    this.s = saved;
+  }
+
+  toJSON() { return this.s; }
+  get game() {
+    if (!this.s) return null;
+    return {
+      type: 'esc',
+      gid: this.s.gid,
+      dealer: 0,
+      players: this.s.players,
+      lock: this.s.lock,
+      phase: this.s.phase,
+      deadline: this.s.deadline,
+      alarms: this.s.alarms,
+      tries: this.s.tries,
+      trying: this.s.trying,
+      dropped: this.s.dropped
+    };
+  }
+  get deadline() { return this.s && this.s.phase !== 'over' ? this.s.deadline : 0; }
+  get on() { return !!this.s && this.s.phase !== 'over'; }
+
+  start(players, now) {
+    if (this.on) return [];
+    if (!Array.isArray(players) || players.length < Escape.MIN_PLAYERS || players.length > Escape.MAX_PLAYERS) return [];
+    const sorted = players.slice().sort((a, b) => a - b);
+    const d = Escape.deal(sorted);
+    if (!d) return [];
+    const handsObj = {};
+    for (const [n, h] of d.hands) handsObj[n] = h;
+    this.s = {
+      gid: d.deal.gid,
+      players: sorted,
+      lock: 0,
+      phase: 'lock',
+      codes: d.codes,
+      hands: handsObj,
+      alarms: 0,
+      tries: 0,
+      trying: null,
+      deadline: now + Escape.LOCK_MS[0],
+      dropped: {},
+      here: sorted.slice()
+    };
+    const out = [];
+    for (const n of sorted) {
+      out.push({ to: n, msg: { type: 'ref', clues: { gid: d.deal.gid, clues: this.s.hands[n] } } });
+    }
+    out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-new', gid: d.deal.gid, players: sorted } } });
+    return out;
+  }
+
+  handle(n, a, now) {
+    const out = [];
+    if (!this.on || !a || typeof a !== 'object') return out;
+    if (a.k === 'try' && this.s.players.includes(n) && !this.s.trying && a.lock === this.s.lock && typeof a.code === 'string') {
+      const len = Escape.LOCKS[this.s.lock];
+      if (a.code.length !== len || !/^\d+$/.test(a.code)) return out;
+      this.s.tries++;
+      this.s.trying = { n, code: a.code };
+      out.push({ to: 0, msg: { type: 'ref', from: n, g: { k: 'esc-try', gid: this.s.gid, lock: this.s.lock, code: a.code } } });
+      const ok = a.code === this.s.codes[this.s.lock];
+      if (ok) {
+        if (this.s.lock + 1 >= Escape.LOCKS.length) {
+          this.s.phase = 'over';
+          this.s.trying = null;
+          out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-res', gid: this.s.gid, lock: this.s.lock, code: a.code, ok: true, codes: this.s.codes } } });
+        } else {
+          this.s.lock++;
+          this.s.deadline = now + Escape.LOCK_MS[this.s.lock];
+          this.s.trying = null;
+          out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-res', gid: this.s.gid, lock: this.s.lock - 1, code: a.code, ok: true } } });
+        }
+      } else {
+        this.s.alarms++;
+        this.s.trying = null;
+        if (this.s.alarms >= Escape.ALARMS) {
+          this.s.phase = 'over';
+          out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-res', gid: this.s.gid, lock: this.s.lock, code: a.code, ok: false, codes: this.s.codes } } });
+        } else {
+          out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-res', gid: this.s.gid, lock: this.s.lock, code: a.code, ok: false } } });
+        }
+      }
+    }
+    return out;
+  }
+
+  members(here, now) {
+    const out = [];
+    if (!this.s) return out;
+    this.s.here = here.slice();
+    if (!this.on) return out;
+    for (const p of this.s.players) {
+      if (!here.includes(p) && !this.s.dropped[p] && this.s.hands[p]) {
+        this.s.dropped[p] = this.s.hands[p];
+        out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-drop', gid: this.s.gid, n: p, clues: this.s.hands[p] } } });
+      }
+    }
+    return out;
+  }
+
+  tick(now) {
+    const out = [];
+    if (!this.on) return out;
+    if (now >= this.s.deadline) {
+      this.s.phase = 'over';
+      this.s.trying = null;
+      out.push({ to: 0, msg: { type: 'ref', from: 0, g: { k: 'esc-res', gid: this.s.gid, lock: this.s.lock, time: true, codes: this.s.codes } } });
+    }
     return out;
   }
 }

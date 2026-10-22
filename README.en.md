@@ -49,10 +49,10 @@ A passphrase may use letters and digits of any language, no symbols. Opening the
 
 Taken by `browser-tests/screens.mjs`, which plays the games with real browsers (phone-sized; fresh rooms, numbered members only). The interface is in Chinese here; it follows the browser's language.
 
-| Werewolf: the wolves choose | The seer checks | The witch's potions | Sheriff election |
+| Werewolf: tap avatar to confirm | The seer checks | The witch's potions | Sheriff election |
 |---|---|---|---|
 | <img src="docs/screenshots/werewolf-night-wolf.webp" width="200"> | <img src="docs/screenshots/werewolf-night-seer.webp" width="200"> | <img src="docs/screenshots/werewolf-night-witch.webp" width="200"> | <img src="docs/screenshots/werewolf-sheriff.webp" width="200"> |
-| **Holding the role card** | **Speeches by day** | **The vote** | **The end, roles revealed** |
+| **Holding the role card** | **Speeches by day** | **Voting checkmark** | **Game review replay** |
 | <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
 | **Undercover** | **Cipher Escape** | **Pact Exchange (a note)** | **Secret Mission** |
 | <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |

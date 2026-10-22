@@ -159,6 +159,13 @@
             <label class="allow-old"><input type="checkbox" id="allowOld" /><span data-t="allowOld">允许旧版本（没有前向保密和签名）</span></label>
           </div>
           <div class="sidebar-game-section" id="sidebarGameSection">
+            <div class="judge-selector" id="judgeSelector">
+              <label for="judgeModeSelect" class="judge-selector-label" data-t="ww.judgeSelect">裁判</label>
+              <select id="judgeModeSelect" class="judge-select" aria-label="裁判方式" data-t-aria="ww.judgeSelect">
+                <option value="server" data-t="ww.judgeServer">服务器法官（推荐，人人都能玩）</option>
+                <option value="client" data-t="ww.judgeClient">开局者的页面（开局者可见全部身份）</option>
+              </select>
+            </div>
             <div class="room-modes-list" id="roomModesList"></div>
             <select id="wwBoard" aria-label="板子" data-t-aria="ww.board" class="compat-hidden"></select>
             <input type="checkbox" id="wwSheriff" class="compat-hidden" />
@@ -218,7 +225,61 @@
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <section class="game-panel" id="gamePanel" hidden aria-live="polite">
             <div class="game-seats" id="gameSeats" aria-label="座位"></div>
-            <div class="game-head"><strong id="gameTitle"></strong><span id="gamePlayers"></span></div>
+            <div class="ww-table" id="wwTable" hidden>
+              <div class="ww-top-bar">
+                <span class="ww-mode-badge" id="wwModeBadge">🐺 狼人杀</span>
+                <span class="ww-judge-badge" id="wwJudgeBadge">⚖️ 服务器法官</span>
+                <button class="ghost-button ww-view-toggle" id="wwViewToggle" type="button" data-t="ww.listMode">列表模式</button>
+              </div>
+              <div class="ww-arena" id="wwArena">
+                <div class="ww-seats-col ww-seats-left" id="wwSeatsLeft"></div>
+                <div class="ww-stage" id="wwStage">
+                  <div class="ww-stage-title" id="wwStageTitle"></div>
+                  <div class="ww-stage-sub" id="wwStageSub"></div>
+                  <div class="ww-stage-votes" id="wwStageVotes" hidden></div>
+                </div>
+                <div class="ww-seats-col ww-seats-right" id="wwSeatsRight"></div>
+              </div>
+              <div class="ww-confirm-dialog" id="wwConfirmDialog" hidden>
+                <div class="ww-confirm-box">
+                  <p class="ww-confirm-text" id="wwConfirmText"></p>
+                  <div class="ww-confirm-actions">
+                    <button class="primary-button" id="wwConfirmOk" type="button">确定</button>
+                    <button class="secondary-button" id="wwConfirmCancel" type="button">取消</button>
+                  </div>
+                </div>
+              </div>
+              <div class="ww-potion-panel" id="wwPotionPanel" hidden>
+                <div class="ww-potion-title" data-t="ww.potionPanel">女巫药水</div>
+                <div class="ww-potion-actions" id="wwPotionActions"></div>
+              </div>
+              <div class="ww-bottom-row" id="wwBottomRow">
+                <button class="ww-pass-button" id="wwPassButton" type="button" hidden data-t="ww.pass">结束发言（过）</button>
+              </div>
+              <div class="ww-mobile-chat" id="wwMobileChat">
+                <input class="ww-mobile-input" id="wwMobileInput" maxlength="500" placeholder="发消息…" spellcheck="false" />
+                <button class="ww-mobile-send" id="wwMobileSend" type="button">发送</button>
+              </div>
+              <div class="ww-settlement" id="wwSettlement" hidden>
+                <div class="ww-settlement-card">
+                  <div class="ww-replay-header">
+                    <span class="ww-replay-title" data-t="ww.replayTitle">游戏复盘</span>
+                    <div class="ww-settlement-winner" id="wwSettlementWinner"></div>
+                  </div>
+                  <div class="ww-settlement-grid ww-replay-grid" id="wwSettlementGrid">
+                    <div class="ww-replay-col ww-replay-left" id="wwReplaySeatsLeft"></div>
+                    <div class="ww-replay-timeline" id="wwReplayTimeline"></div>
+                    <div class="ww-replay-col ww-replay-right" id="wwReplaySeatsRight"></div>
+                  </div>
+                  <div class="ww-settlement-actions">
+                    <button class="primary-button" id="wwAgainBtn" type="button" data-t="game.again">再来一局</button>
+                    <button class="secondary-button" id="wwSwitchBtn" type="button" data-t="game.switch">换个游戏</button>
+                    <button class="ghost-button" id="wwBackChatBtn" type="button" data-t="ww.backToChat">回到聊天</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="game-head" id="gameHead"><strong id="gameTitle"></strong><span id="gamePlayers"></span></div>
             <p id="gameLine"></p>
             <div class="quick-emojis" id="quickEmojis" aria-label="快捷表情">
               <button class="quick-emoji-btn" type="button" data-q="0" aria-label="👍">👍</button>

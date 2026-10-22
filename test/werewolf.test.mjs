@@ -258,3 +258,27 @@ test('only the judge moves the game; each actor acts once; ballots once', () => 
   assert.deepEqual(waitingFor(s, [3, 4]), [4]);
   assert.equal(speaker(s), 0);
 });
+
+test('replay log: empty during game, complete at end with seer check, kill, witch, vote and death', () => {
+  const x = table('b12guard', P12);
+  assert.deepEqual(x.s.log, [], 'log is empty at start');
+  x.run(); // nightA
+  assert.deepEqual(x.s.log, [], 'log is not revealed during night');
+  x.run({ 1: { t: 9 }, 2: { t: 9 }, 5: { t: 1 }, 8: { t: 9 } }); // nightB (seer checks 1: wolf, wolves kill 9, guard guards 9)
+  assert.deepEqual(x.s.log, [], 'log is not revealed at nightB');
+  x.run({ 6: { poison: 2 } }); // dawn -> last words for 2
+  assert.deepEqual(x.s.log, [], 'log is not revealed during day');
+  x.run(); // last -> say
+  x.speakAll();
+  x.run(); // say -> vote
+  assert.deepEqual(x.s.log, [], 'log is not revealed during vote');
+  x.run({ 1: { t: 3 }, 5: { t: 3 }, 6: { t: 3 }, 7: { t: 3 } }); // 3 voted out
+  assert.ok(x.secret.log.length > 0, 'judge secret log has entries');
+  const types = x.secret.log.map((e) => e.type);
+  assert.ok(types.includes('kill'), 'contains wolf kill');
+  assert.ok(types.includes('seer'), 'contains seer check');
+  assert.ok(types.includes('witch'), 'contains witch action');
+  assert.ok(types.includes('guard'), 'contains guard action');
+  assert.ok(types.includes('vote'), 'contains vote action');
+  assert.ok(types.includes('death'), 'contains death message');
+});

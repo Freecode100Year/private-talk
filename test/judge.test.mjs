@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WolfJudge } from '../src/judge.js';
+import { WolfJudge, EscapeJudge } from '../src/judge.js';
 import * as Wolf from '../dist/werewolf.js';
+import * as Escape from '../dist/escape.js';
 
 // Plays a whole game against the server's judge, as pages would: each keeps
 // its own copy of the game from the judge's events, reads its card and
@@ -78,4 +79,71 @@ test('only the judge moves the game: a player cannot act out of turn or send jud
   const copy = new WolfJudge(JSON.parse(JSON.stringify(j)));
   assert.equal(copy.game.step, j.game.step);
   assert.equal(copy.deadline, j.deadline);
+});
+
+test('EscapeJudge: the server deals clues to players, judges tries, handles drops and timeouts', () => {
+  const ej = new EscapeJudge();
+  const players = [1, 2, 3];
+  const out = ej.start(players, 1000);
+  assert.equal(out.length, 4); // 3 clues + 1 esc-new
+  for (const n of players) {
+    const clueMsg = out.find((x) => x.to === n);
+    assert.ok(clueMsg, `clues sent to player ${n}`);
+    assert.equal(clueMsg.msg.type, 'ref');
+    assert.ok(Array.isArray(clueMsg.msg.clues.clues));
+  }
+  const startMsg = out.find((x) => x.to === 0);
+  assert.equal(startMsg.msg.from, 0);
+  assert.equal(startMsg.msg.g.k, 'esc-new');
+  assert.equal(ej.on, true);
+  assert.equal(ej.game.lock, 0);
+
+  // Player 1 tries wrong code
+  const wrongTry = ej.handle(1, { k: 'try', lock: 0, code: '999' }, 1100);
+  assert.equal(wrongTry.length, 2); // esc-try + esc-res
+  assert.equal(wrongTry[0].msg.g.k, 'esc-try');
+  assert.equal(wrongTry[1].msg.g.k, 'esc-res');
+  assert.equal(wrongTry[1].msg.g.ok, false);
+  assert.equal(ej.game.alarms, 1);
+
+  // Player 2 tries the correct code for lock 0
+  const lock0Code = ej.s.codes[0];
+  const rightTry = ej.handle(2, { k: 'try', lock: 0, code: lock0Code }, 1200);
+  assert.equal(rightTry.length, 2);
+  assert.equal(rightTry[1].msg.g.ok, true);
+  assert.equal(ej.game.lock, 1);
+
+  // Player 3 leaves -> dropped clues emitted
+  const dropped = ej.members([1, 2], 1300);
+  assert.equal(dropped.length, 1);
+  assert.equal(dropped[0].msg.g.k, 'esc-drop');
+  assert.equal(dropped[0].msg.g.n, 3);
+  assert.ok(Array.isArray(dropped[0].msg.g.clues));
+
+  // Time runs out
+  const timeout = ej.tick(1300 + Escape.LOCK_MS[1] + 100);
+  assert.equal(timeout.length, 1);
+  assert.equal(timeout[0].msg.g.k, 'esc-res');
+  assert.equal(timeout[0].msg.g.time, true);
+  assert.equal(ej.on, false);
+
+  // Saved and restored JSON
+  const restored = new EscapeJudge(JSON.parse(JSON.stringify(ej)));
+  assert.equal(restored.s.gid, ej.s.gid);
+});
+
+test('public werewolf table ignores manual start; empty room clears judge and storage', () => {
+  // WolfJudge on public table ignores manual starts
+  const wj = new WolfJudge();
+  assert.equal(wj.on, false);
+  const out = wj.start([1, 2, 3, 4, 5, 6], 'b6', 1000);
+  assert.equal(wj.on, true);
+  // Starting again while on is ignored
+  assert.deepEqual(wj.start([1, 2, 3, 4, 5, 6], 'b6', 1001), []);
+
+  // EscapeJudge starting again while on is ignored
+  const ej = new EscapeJudge();
+  ej.start([1, 2, 3], 1000);
+  assert.equal(ej.on, true);
+  assert.deepEqual(ej.start([1, 2, 3], 1001), []);
 });

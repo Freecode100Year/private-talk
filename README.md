@@ -53,10 +53,10 @@
 
 以下截图由 `browser-tests/screens.mjs` 用真浏览器自动玩一局后截取（手机尺寸，房间是临时新建的，成员只有编号）。
 
-| 狼人杀 · 狼人夜里选刀口 | 预言家查验 | 女巫用药 | 竞选警长 |
+| 狼人杀 · 狼人点头像确认 | 预言家查验 | 女巫用药 | 竞选警长 |
 |---|---|---|---|
 | <img src="docs/screenshots/werewolf-night-wolf.webp" width="200"> | <img src="docs/screenshots/werewolf-night-seer.webp" width="200"> | <img src="docs/screenshots/werewolf-night-witch.webp" width="200"> | <img src="docs/screenshots/werewolf-sheriff.webp" width="200"> |
-| **按住身份牌：技能说明和私下信息** | **白天轮流发言** | **放逐投票** | **结束公布身份** |
+| **按住身份牌：技能说明和私下信息** | **白天轮流发言** | **投票头像打勾** | **对局复盘摊牌** |
 | <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
 | **暗号潜伏** | **密电逃脱** | **密约交易所（纸条）** | **秘密任务** |
 | <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |

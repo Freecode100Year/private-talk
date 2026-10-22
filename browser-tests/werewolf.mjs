@@ -44,10 +44,19 @@ if (!PUBLIC) {
   if (process.env.WW_BOARD) await judge.selectOption('#wwBoard', process.env.WW_BOARD);
   board = await judge.locator('#wwBoard').inputValue();
   if (process.env.WW_SHERIFF) await judge.setChecked('#wwSheriff', process.env.WW_SHERIFF === '1');
+  if (process.env.WW_JUDGE === 'client') {
+    await judge.selectOption('#judgeModeSelect', 'client');
+  }
   await judge.click('#wwStart');
 }
 for (const p of players) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 30000 });
-ok((await text(players[1])).includes(PUBLIC ? '法官由服务器担任' : '法官由程序自动担任'), `everyone is told who judges (board ${board})`);
+const serverJudge = PUBLIC || process.env.WW_JUDGE !== 'client';
+ok((await text(players[1])).includes(serverJudge ? '法官由服务器担任' : '法官由程序自动担任'), `everyone is told who judges (board ${board})`);
+
+// Switch to list mode so buttons on #gameVotes can be verified
+for (const p of players) {
+  if (await p.locator('#wwViewToggle').isVisible()) await p.click('#wwViewToggle');
+}
 const cards = [];
 for (const p of players) {
   await p.waitForFunction(() => !document.getElementById('gameWord').hidden, null, { timeout: 10000 });
@@ -77,8 +86,14 @@ let ended = false;
 let picks = 0;
 let dayDone = '';
 let pauseUntil = 0;   // speeches wait a little after a day action, as people would
+const leaverMode = process.env.WW_LEAVER === '1';
+if (leaverMode) {
+  await judge.close();
+  ok(true, 'starter left the room; server judge continues game');
+}
+const startIndex = leaverMode ? 1 : 0;
 while (Date.now() - start < 15 * 60000 && !ended) {
-  for (let i = 0; i < PAGES; i++) {
+  for (let i = startIndex; i < PAGES; i++) {
     const p = players[i];
     const line = await p.locator('#gameLine').innerText().catch(() => '');
     if (/(轮到你发言|请发表遗言)/.test(line) && Date.now() > pauseUntil) {
@@ -116,21 +131,21 @@ while (Date.now() - start < 15 * 60000 && !ended) {
     await buttons.nth(pick).click().catch(() => {});
     picks++;
   }
-  ended = /获胜！/.test(await text(judge));
-  await judge.waitForTimeout(600);
+  ended = /获胜！/.test(await text(players[1]));
+  await players[1].waitForTimeout(600);
 }
 ok(ended, `the game ends (${Math.round((Date.now() - start) / 1000)} s, ${picks} choices made)`);
 const end = await text(players[1]);
 ok(/身份：/.test(end) && wolves.every((w) => end.includes(w)), 'all roles are revealed at the end');
 ok(/(已提交|✅)/.test(end) || picks > 0, 'choices were made through the panel');
 const seer = me.findIndex((_, i) => roleOf(i) === '预言家');
-if (seer >= 0) ok(/🔒 🔮 你查验了/.test(await text(players[seer])), 'the seer heard from the judge');
+if (seer >= 0 && (!leaverMode || seer > 0)) ok(/🔒 🔮 你查验了/.test(await text(players[seer])), 'the seer heard from the judge');
 const villager = me.findIndex((_, i) => roleOf(i) === '村民');
-if (villager >= 0) ok(!/🔒/.test(await text(players[villager])), 'a villager hears nothing private');
+if (villager >= 0 && (!leaverMode || villager > 0)) ok(!/🔒/.test(await text(players[villager])), 'a villager hears nothing private');
 if (process.env.WW_SHERIFF === '1' || /^b12/.test(board)) ok(/当选警长|没有警长/.test(end), 'the sheriff election ran');
-if (!PUBLIC) ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
+if (!PUBLIC && !leaverMode) ok(/遗言 · |发言 · /.test(await text(judge)), 'speeches are marked as such');
 if (process.env.WW_DAY === '1') ok(dayDone && /⚔️|💥/.test(end), `a day action was used and announced (${dayDone})`);
-ok(!(await text(judge)).includes('无法解密'), 'no unreadable messages');
+ok(!(await text(players[1])).includes('无法解密'), 'no unreadable messages');
 if (PUBLIC) {
   console.log('Waiting for next game to start automatically (15s)...');
   await judge.waitForFunction(() => {

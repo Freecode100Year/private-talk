@@ -112,7 +112,7 @@ export function deal(players, board, sheriff = !!BOARDS[board]?.sheriff) {
   const secret = {
     roles, dealt: { ...roles }, spare, potions, night: 1, sheriffOn: !!sheriff, queue: [], dawn: null,
     lastGuard: 0, lastDream: 0, dream: 0, lastCharm: 0, charm: 0, prey: 0, bonus: false, swap: null,
-    victims: [], lovers: [], cupid: 0, knightUsed: false, booms: [], acted: {}
+    victims: [], lovers: [], cupid: 0, knightUsed: false, booms: [], acted: {}, log: []
   };
   return { start: { k: 'ww-new', gid: gameId(), players: sorted, board, sheriff: !!sheriff }, secret, cards: cardsOut };
 }
@@ -161,7 +161,7 @@ export function apply(s, g, from, now) {
     const players = Array.isArray(g.players) ? g.players : [];
     const b = BOARDS[g.board];
     if (!GID.test(g.gid ?? '') || !b || b.n !== players.length || !players.every(isNumber) || !(players.includes(from) || from === JUDGE) || new Set(players).size !== players.length) return { s, note: null };
-    const next = { type: 'ww', gid: g.gid, dealer: from, board: g.board, sheriffOn: !!g.sheriff, players: players.slice(), alive: players.slice(), day: 0, phase: 'start', step: '', actors: [], acted: [], speakers: [], turn: 0, spoke: false, voters: [], voted: [], candidates: [], sheriff: 0, mute: [], deadline: now };
+    const next = { type: 'ww', gid: g.gid, dealer: from, board: g.board, sheriffOn: !!g.sheriff, players: players.slice(), alive: players.slice(), day: 0, phase: 'start', step: '', actors: [], acted: [], speakers: [], turn: 0, spoke: false, voters: [], voted: [], candidates: [], sheriff: 0, mute: [], deadline: now, log: [] };
     return { s: next, note: { k: 'ww-new', by: from, players: next.players, board: g.board, sheriff: !!g.sheriff } };
   }
   if (!s || s.type !== 'ww' || s.phase === 'over' || g.gid !== s.gid) return { s, note: null };
@@ -177,7 +177,11 @@ export function apply(s, g, from, now) {
     if ('sheriff' in g) next.sheriff = isNumber(g.sheriff) ? g.sheriff : 0;
     if (Array.isArray(g.candidates)) next.candidates = list(g.candidates, s);
     if (isNumber(g.mute) && !s.mute.includes(g.mute)) next.mute = [...s.mute, g.mute];
-    if (g.phase === 'over') next.end = { winner: ['good', 'wolves', 'lovers'].includes(g.end?.winner) ? g.end.winner : '', roles: g.end?.roles && typeof g.end.roles === 'object' ? g.end.roles : {} };
+    if (g.phase === 'over') {
+      const endLog = Array.isArray(g.end?.log) ? g.end.log.slice() : (Array.isArray(g.log) ? g.log.slice() : []);
+      next.end = { winner: ['good', 'wolves', 'lovers'].includes(g.end?.winner) ? g.end.winner : '', roles: g.end?.roles && typeof g.end.roles === 'object' ? g.end.roles : {}, log: endLog };
+      next.log = endLog;
+    }
     const notes = Array.isArray(g.notes) ? g.notes.filter((x) => x && typeof x === 'object' && typeof x.k === 'string') : [];
     return { s: next, note: { k: 'ww-go', prev: s.phase, phase: g.phase, day, dead, notes, end: next.end ?? null } };
   }
@@ -191,7 +195,7 @@ export function apply(s, g, from, now) {
   if (g.k === 'ww-ballot' && VOTING.includes(s.phase) && g.step === s.step && s.voters.includes(from) && !s.voted.includes(from)) {
     return { s: { ...s, voted: [...s.voted, from] }, note: null };
   }
-  if (g.k === 'abort' && fromJudge) return { s: { ...s, phase: 'over', end: null }, note: { k: 'abort' } };
+  if (g.k === 'abort' && fromJudge) return { s: { ...s, phase: 'over', end: null, log: s.log || [] }, note: { k: 'abort' } };
   return { s, note: null };
 }
 
@@ -266,7 +270,7 @@ function judge(s, secret) {
     return gone;
   };
   const win = () => winner(alive, secret);
-  const over = () => ({ go: { ...base, ...extra, phase: 'over', ...(dead.length && { dead: dead.slice() }), ...(notes.length && { notes: notes.slice() }), end: { winner: win(), roles } }, tell });
+  const over = () => ({ go: { ...base, ...extra, phase: 'over', ...(dead.length && { dead: dead.slice() }), ...(notes.length && { notes: notes.slice() }), end: { winner: win(), roles, log: (secret.log || []).slice() } }, tell });
   // Pops the next task.
   const next = () => {
     if (win()) return over();
@@ -274,6 +278,7 @@ function judge(s, secret) {
     if (task.k === 'badge') return go('badge', { actors: [task.n], step: `b${task.n}.${s.day}` });
     if (task.k === 'last') {
       const who = task.who.filter((n) => s.players.includes(n));
+      for (const w of who) (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'lastWords', speaker: w });
       return go('last', { speakers: who });
     }
     if (task.k === 'shoot') { told(task.n, { shoot: true }); return go('shoot', { actors: [task.n], step: `h${task.n}.${s.day}` }); }
@@ -313,6 +318,7 @@ function judge(s, secret) {
     const list = secret.dawn ?? [];
     secret.dawn = null;
     const gone = die(list, { last: secret.night === 2 });
+    (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'death', dead: gone.slice() });
     notes.push(gone.length ? { k: 'dawn', dead: gone } : { k: 'peace' });
     secret.queue.push({ k: 'say' });
     return next();
@@ -362,16 +368,43 @@ function judge(s, secret) {
         if (secret.bonus) victims.push(tally('t2'));
         secret.bonus = false;
         secret.victims = [...new Set(victims.filter(Boolean).map(m))];
+        secret.log = secret.log || [];
+        if (mag && a && secret.swap) secret.log.push({ day: s.day, period: 'night', type: 'magician', from: mag, a: a.a, b: a.b });
+        secret.log.push({ day: s.day, period: 'night', type: 'kill', victims: secret.victims.slice() });
         for (const n of alive) {
           const r = roles[n];
           const x = act(n);
-          if (r === 'seer' && ok(x.t) && x.t !== n) { const t = m(x.t); told(n, { check: { n: x.t, wolf: isWolf(roles[t]) && !ROLES[roles[t]].seenGood } }); }
-          if (r === 'gargoyle' && ok(x.t) && x.t !== n) told(n, { peek: { n: x.t, role: roles[m(x.t)] } });
-          if (r === 'guard') secret.guard = ok(x.t) && x.t !== secret.lastGuard ? x.t : 0;
-          if (r === 'wolfBeauty') secret.charm = ok(x.charm) && x.charm !== n && x.charm !== secret.lastCharm ? x.charm : 0;
-          if (r === 'bigWolf') secret.prey = ok(x.prey) && x.prey !== n ? x.prey : 0;
-          if (r === 'dreamer') secret.dream = ok(x.t) && x.t !== n ? x.t : 0;
-          if (r === 'cupid' && night === 1 && ok(x.a) && ok(x.b) && x.a !== x.b) { secret.lovers = [x.a, x.b]; secret.cupid = n; }
+          if (r === 'seer' && ok(x.t) && x.t !== n) {
+            const t = m(x.t);
+            const isW = isWolf(roles[t]) && !ROLES[roles[t]].seenGood;
+            told(n, { check: { n: x.t, wolf: isW } });
+            secret.log.push({ day: s.day, period: 'night', type: 'seer', from: n, target: x.t, wolf: isW });
+          }
+          if (r === 'gargoyle' && ok(x.t) && x.t !== n) {
+            told(n, { peek: { n: x.t, role: roles[m(x.t)] } });
+            secret.log.push({ day: s.day, period: 'night', type: 'gargoyle', from: n, target: x.t, role: roles[m(x.t)] });
+          }
+          if (r === 'guard') {
+            secret.guard = ok(x.t) && x.t !== secret.lastGuard ? x.t : 0;
+            secret.log.push({ day: s.day, period: 'night', type: 'guard', from: n, target: secret.guard });
+          }
+          if (r === 'wolfBeauty') {
+            secret.charm = ok(x.charm) && x.charm !== n && x.charm !== secret.lastCharm ? x.charm : 0;
+            if (secret.charm) secret.log.push({ day: s.day, period: 'night', type: 'charm', from: n, target: secret.charm });
+          }
+          if (r === 'bigWolf') {
+            secret.prey = ok(x.prey) && x.prey !== n ? x.prey : 0;
+            if (secret.prey) secret.log.push({ day: s.day, period: 'night', type: 'prey', from: n, target: secret.prey });
+          }
+          if (r === 'dreamer') {
+            secret.dream = ok(x.t) && x.t !== n ? x.t : 0;
+            if (secret.dream) secret.log.push({ day: s.day, period: 'night', type: 'dream', from: n, target: secret.dream });
+          }
+          if (r === 'cupid' && night === 1 && ok(x.a) && ok(x.b) && x.a !== x.b) {
+            secret.lovers = [x.a, x.b];
+            secret.cupid = n;
+            secret.log.push({ day: s.day, period: 'night', type: 'cupid', from: n, lovers: [x.a, x.b] });
+          }
         }
         if (!with_('guard').length) secret.guard = 0;
         if (!with_('dreamer').length) secret.dream = 0;
@@ -403,6 +436,12 @@ function judge(s, secret) {
           if (p.save && secret.victims.includes(x.save) && (x.save !== n || secret.night === 1)) { saved.add(x.save); p.save = false; }
           else if (p.poison && ok(x.poison) && x.poison !== n) { poisoned.add(m(x.poison)); p.poison = false; }
         }
+        secret.log = secret.log || [];
+        for (const n of alive) {
+          if (roles[n] === 'witch' || (secret.potions && secret.potions[n])) {
+            secret.log.push({ day: s.day, period: 'night', type: 'witch', from: n, saved: [...saved], poisoned: [...poisoned] });
+          }
+        }
         const guard = m(secret.guard ?? 0);
         const list = [];
         for (const v of secret.victims) {
@@ -428,13 +467,14 @@ function judge(s, secret) {
       if (phase === 'sheriffSign') {
         const candidates = alive.filter((n) => act(n).run === true);
         notes.push({ k: 'candidates', list: candidates });
-        if (candidates.length === 1) { sheriff = candidates[0]; notes.push({ k: 'sheriff', n: sheriff }); return dawn(); }
-        if (!candidates.length) { notes.push({ k: 'noSheriff' }); return dawn(); }
+        (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'sheriffCandidates', candidates: candidates.slice() });
+        if (candidates.length === 1) { sheriff = candidates[0]; notes.push({ k: 'sheriff', n: sheriff }); secret.log.push({ day: s.day, period: 'day', type: 'sheriffResult', sheriff }); return dawn(); }
+        if (!candidates.length) { notes.push({ k: 'noSheriff' }); secret.log.push({ day: s.day, period: 'day', type: 'sheriffResult', sheriff: 0 }); return dawn(); }
         return go('sheriffSay', { candidates, speakers: order(candidates, 0, 'asc') });
       }
       if (phase === 'sheriffSay') {
         const voters = alive.filter((n) => !s.candidates.includes(n));
-        if (!voters.length) { notes.push({ k: 'noSheriff' }); return dawn(); }
+        if (!voters.length) { notes.push({ k: 'noSheriff' }); (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'sheriffResult', sheriff: 0 }); return dawn(); }
         return go('sheriffVote', { voters, step: 's2' });
       }
       if (phase === 'sheriffVote') {
@@ -444,19 +484,23 @@ function judge(s, secret) {
         const top = Math.max(0, ...tally.values());
         const tied = [...tally].filter(([, v]) => v === top && top > 0).map(([n]) => n);
         notes.push({ k: 'votes', votes, sheriff: true });
-        if (tied.length === 1) { sheriff = tied[0]; notes.push({ k: 'sheriff', n: sheriff }); } else notes.push({ k: 'noSheriff' });
+        const sheriffWinner = tied.length === 1 ? tied[0] : 0;
+        (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'sheriffVote', votes: { ...votes }, abstain: s.voters.filter((n) => !votes[n]), sheriff: sheriffWinner });
+        if (sheriffWinner) { sheriff = sheriffWinner; notes.push({ k: 'sheriff', n: sheriff }); } else notes.push({ k: 'noSheriff' });
+        secret.log.push({ day: s.day, period: 'day', type: 'sheriffResult', sheriff: sheriffWinner });
         return dawn();
       }
       if (phase === 'badge') {
         const n = s.actors[0];
         const to = act(n).to;
-        if (ok(to) && to !== n) { sheriff = to; notes.push({ k: 'badge', n, to }); } else { sheriff = 0; notes.push({ k: 'tear', n }); }
+        if (ok(to) && to !== n) { sheriff = to; notes.push({ k: 'badge', n, to }); (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'badge', from: n, to }); }
+        else { sheriff = 0; notes.push({ k: 'tear', n }); (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'badge', from: n, to: 0 }); }
         return next();
       }
       if (phase === 'shoot') {
         const n = s.actors[0];
         const t = act(n).t;
-        if (ok(t) && t !== n) { notes.push({ k: 'shot', n, t }); die([[t, 'shot']]); }
+        if (ok(t) && t !== n) { notes.push({ k: 'shot', n, t }); (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'shoot', from: n, target: t, role: roles[n] }); die([[t, 'shot']]); }
         return next();
       }
       if (phase === 'last') return next();
@@ -479,7 +523,9 @@ function judge(s, secret) {
         const tied = [...tally].filter(([, v]) => v === top && top > 0).map(([n]) => n);
         const out = tied.length === 1 ? tied[0] : 0;
         notes.push({ k: 'votes', votes, out });
-        if (out && roles[out] === 'idiot' && !s.mute.includes(out)) {
+        const idiot = !!(out && roles[out] === 'idiot' && !s.mute.includes(out));
+        (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'vote', votes: { ...votes }, abstain: s.voters.filter((n) => !votes[n]), out, idiot });
+        if (idiot) {
           notes.push({ k: 'idiot', n: out });
           extra.mute = out;
           secret.queue.push({ k: 'night' });
@@ -499,6 +545,7 @@ function judge(s, secret) {
       const t = act.t;
       if (act.duel && r === 'knight' && !secret.knightUsed && ok(t) && t !== n) {
         secret.knightUsed = true;
+        (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'duel', from: n, target: t, wolf: isWolf(roles[t]) });
         if (isWolf(roles[t])) {
           notes.push({ k: 'duel', n, t, wolf: true });
           die([[t, 'duel']]);
@@ -514,6 +561,7 @@ function judge(s, secret) {
       }
       if (act.boom && r === 'whiteWolf' && !secret.booms.includes(n) && ok(t) && t !== n) {
         secret.booms.push(n);
+        (secret.log = secret.log || []).push({ day: s.day, period: 'day', type: 'boom', from: n, target: t });
         notes.push({ k: 'boom', n, t });
         die([[n, 'boom'], [t, 'boom']]);
         secret.queue.push({ k: 'night' });
