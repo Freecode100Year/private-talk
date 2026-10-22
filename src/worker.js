@@ -353,26 +353,21 @@ export class Room extends DurableObject {
   // room keeps what the lobby needs to list it again (src/lobby.js).
   async table(taken) {
     const t = await this.ctx.storage.get('table');
-    if (!t) return;
-    const lobby = this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby'));
-    await lobby.fetch('https://lobby/people', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, taken, info: t.info }) }).catch(() => {});
-    if (!taken) { await this.ctx.storage.delete(['table', 'judge', 'esc_judge']); await this.ctx.storage.deleteAlarm(); this.wolf = undefined; this.escape = undefined; }
+    if (t) {
+      const lobby = this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby'));
+      await lobby.fetch('https://lobby/people', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, taken, info: t.info }) }).catch(() => {});
+    }
+    // Everyone left (a public table or a private room): the table and the judge go too.
+    if (!taken) {
+      await this.ctx.storage.delete(['table', 'judge', 'esc_judge']); await this.ctx.storage.deleteAlarm();
+      this.wolf = undefined; this.escape = undefined; this.wolfSeats = 0; this.wolfStart = 0;
+    }
   }
 
   members(skip) {
     const peers = this.peers(skip);
     const book = this.book(peers);
     const list = peers.map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
-    if (!list.length) {
-      this.ctx.waitUntil((async () => {
-        await this.ctx.storage.delete(['table', 'judge', 'esc_judge']);
-        await this.ctx.storage.deleteAlarm();
-        this.wolf = undefined;
-        this.escape = undefined;
-        this.wolfSeats = 0;
-        this.wolfStart = 0;
-      })());
-    }
     this.ctx.waitUntil(this.table(list.length).then(() => this.judgeMembers(list)));
     this.broadcast({ type: 'members', members: list, host: this.host(peers), max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
   }
