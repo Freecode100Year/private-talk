@@ -1,5 +1,7 @@
 # 隐匿对话
 
+项目主页：https://freecode100year.github.io/private-talk/
+
 [English](README.en.md)
 
 **iPhone / iPad**：[添加本项目的 iOS 捷径「隐匿对话」](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)

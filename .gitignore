@@ -6,3 +6,4 @@ out/
 .env
 .env.previous
 dist/integrity.json
+_site/

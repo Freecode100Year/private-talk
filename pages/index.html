@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>隐匿对话 Private Talk | 匿名、临时、端对端加密的私密聊天室</title>
+  <meta name="description" content="只给知道暗号的人。聊完，轻装离开。无需注册、不用手机号、端对端加密、无审查、不记录日志的匿名私密聊天室。">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://freecode100year.github.io/private-talk/">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="brand">
+        <div class="brand-icon">🔑</div>
+        <div class="brand-text">
+          <div class="brand-title">隐匿对话 <span>Private Talk</span></div>
+          <div class="brand-sub">聊完不留痕 · 自由开源 v{{VERSION}}</div>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="#features" class="nav-item">特点</a>
+        <a href="#quickstart" class="nav-item">上手</a>
+        <a href="#privacy" class="nav-item">隐私</a>
+        <a href="#games" class="nav-item">游戏实测</a>
+        <a href="#download" class="nav-item">下载</a>
+        <a href="#deploy" class="nav-item">部署</a>
+        <a href="#verify" class="nav-item">校验</a>
+        <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" class="nav-item">GitHub 源码</a>
+        <a href="en/" class="lang-switch">English</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 1. 顶部 Hero 横幅与核心入口 -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-pill">
+        <span class="live-dot"></span>
+        <span>端对端加密 · 前向保密 · 抗量子安全 · 无审查</span>
+      </div>
+
+      <h1>
+        只给知道暗号的人。<br>
+        <span class="highlight">聊完，轻装离开。</span>
+      </h1>
+
+      <p class="hero-lead">
+        不要账号、不要手机号、不要昵称。在浏览器里完成加密，服务器只转发看不懂的密文，不保存消息，程序不写日志。打开网址、输入暗号，就在同一个房间。
+      </p>
+
+      <!-- 核心行动按钮：新手一眼看懂该点哪里 -->
+      <div class="hero-cta">
+        <a href="https://chat.freedom8964.com" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          立即使用（chat.freedom8964.com）
+        </a>
+        <a href="https://chat.nya.je" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+          备用站（chat.nya.je）
+        </a>
+      </div>
+
+      <div class="hero-quicklinks">
+        <a href="#download">下载离线包与客户端</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer">GitHub 源码</a> · 
+        <a href="https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0" target="_blank" rel="noopener noreferrer">iOS 快捷指令</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/README.md" target="_blank" rel="noopener noreferrer">说明书</a>
+      </div>
+
+      <!-- 横幅图 -->
+      <div class="hero-banner-wrapper">
+        <img src="img/banner.jpg" alt="隐匿对话 Private Talk 横幅" width="1280" height="853" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 四个特点卡片 -->
+  <section class="section section-alt" id="features">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Core Principles</div>
+        <h2 class="section-title">四个核心特点</h2>
+        <p class="section-desc">没有账号体系，没有多余负担。把通讯的控制权彻底交还给你。</p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <h3 class="card-title">隐匿</h3>
+          <p class="card-text">
+            不要账号、不要手机号、不要昵称。消息在浏览器里加密，服务器只转发看不懂的密文，不保存消息，程序不写日志。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3 class="card-title">简单</h3>
+          <p class="card-text">
+            打开网址、输入暗号，就在同一个房间。不用装 App，手机电脑都能用。聊完关掉网页就走。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🕊️</div>
+          <h3 class="card-title">不审查</h3>
+          <p class="card-text">
+            没有敏感词过滤、没有内容审核、没有举报和封号，也没有后门。服务器看不懂消息，也不按内容做任何判断；限制只有人数、发送频率和长度，用来防止被刷爆。
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h3 class="card-title">随处可部署</h3>
+          <p class="card-text">
+            Cloudflare 免费一键部署、一行 Docker、断网的局域网、不能上互联网的企业内网，甚至一部安卓手机开热点都能运行。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 30 秒上手三步 -->
+  <section class="section" id="quickstart">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Quick Start</div>
+        <h2 class="section-title">30 秒上手</h2>
+        <p class="section-desc">三步开启私密对话，随时随地，即用即走。</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <h3 class="step-title">输入暗号进入房间</h3>
+          <p class="step-text">
+            在浏览器打开 <code>https://chat.freedom8964.com/#你们的暗号</code>。如果直接打开首页，会为你自动生成一个无法猜中的长随机暗号。
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <h3 class="step-title">把网址发给朋友</h3>
+          <p class="step-text">
+            把包含暗号的链接发给朋友，或者告诉他们你们约定的暗号。邀请链接永不过期，暗号进入房间后会从地址栏抹除。
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <h3 class="step-title">进房畅聊，聊完即走</h3>
+          <p class="step-text">
+            打开同一个网址的人进入同一个房间（最多 25 人）。最早进房者是房主，人齐后可锁定房间。聊完关掉网页，房间彻底消失。
+          </p>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <strong>暗号使用提示：</strong>暗号可以用任何语言的文字和数字，不要符号。暗号越长越安全。详见 <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/user.md" target="_blank" rel="noopener noreferrer">用户使用手册</a>。
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 隐私与安全设计 -->
+  <section class="section section-alt" id="privacy">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Privacy & Security</div>
+        <h2 class="section-title">谁能看到什么</h2>
+        <p class="section-desc">透明坦诚的技术设计：每一层网络与角色能够看到什么、绝对看不到什么。</p>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>谁</th>
+              <th>能看到</th>
+              <th>看不到</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>服务器运营方</strong></td>
+              <td>你的 IP、上线时间、哪些连接在同一个房间</td>
+              <td>消息内容、暗号、你是谁</td>
+            </tr>
+            <tr>
+              <td><strong>网络旁观者</strong><br><small style="color:var(--text-dim)">（运营商、Wi-Fi 管理者）</small></td>
+              <td>你连了这个网站</td>
+              <td>内容、暗号、房间</td>
+            </tr>
+            <tr>
+              <td><strong>房间里的人</strong></td>
+              <td>消息，以及你的临时编号（1️⃣～🔟，之后 #11～#25）</td>
+              <td>你是谁、你的真实 IP</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">🔐 严格的加密与安全保证</h3>
+          <p class="card-text">
+            <strong>端对端加密</strong>：密钥由暗号在浏览器本地算出（PBKDF2 31 万次 → HKDF → AES-256-GCM）；消息补齐到固定几档长度，密文看不出一句话字数。<br><br>
+            <strong>前向保密与后量子安全</strong>：每人进房生成临时密钥，每条消息一把一次性钥匙，有人离开全体换钥匙；叠加抗量子的 ML-KEM-768（防「现在录下、以后用量子计算机解」）；每条消息带签名，别人冒用不了你的编号；侧栏显示 20 位安全码供核对。<br><br>
+            <strong>不留存、不留痕</strong>：没有账号、没有消息历史，程序不写日志。所有人离开后房间消失；不用 Cookie 和本地存储，页面禁止缓存，关闭时让浏览器清除本站数据。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">🛡️ 防篡改与安全设计</h3>
+          <p class="card-text">
+            <strong>安全发图片</strong>：在浏览器里压缩并自动抹去拍摄地点（GPS）等 EXIF 隐私，用一次性密钥加密随前向保密通道传输，服务器只见密文。<br><br>
+            <strong>防篡改与房主权限</strong>：发送人、时间、消息编号封在密文里，服务器无法改动；最早进入的人是房主，人到齐后可锁定房间、移出成员；房主离开由下一位自动接任。<br><br>
+            <strong>没有暗号进不来</strong>：服务器只认由暗号算出的进入凭证，只知道房间地址的人不能占座、锁房或发消息。暗号写在 <code>#</code> 后面，浏览器绝不会发给服务器。
+          </p>
+        </div>
+      </div>
+
+      <!-- 做不到的：如实写，不夸大 -->
+      <div class="danger-box">
+        <h4>⚠️ 做不到的（请务必知道，不夸大保护能力）</h4>
+        <ul>
+          <li><strong>知道暗号的人都能进来</strong>，也能听到以后的对话。暗号越短越容易被猜中，重要的谈话请务必使用无法猜中的长随机暗号。邀请链接不会过期。房间里有旧版本的成员时会退回没有前向保密的旧方式（页面会提示）。</li>
+          <li><strong>服务器能看到 IP</strong>。要隐藏 IP 地址，请配合可信的 VPN 或 Tor 代理使用。</li>
+          <li><strong>不能证明房间里的人是谁</strong>；对方可以截图、拍照或复制；输入法记录、被木马监控的设备超出网页能保护的范围。「清屏」只清你自己的屏幕。</li>
+          <li><strong>网页代码由服务器下发</strong>：部署者账号若被盗，代码可能被替换。可以用签名清单核对，但只针对某一个人的替换核对不出来；最稳妥是用安卓 App 或离线包。</li>
+        </ul>
+      </div>
+
+      <div class="notice-box" style="margin-top:20px;">
+        完整机制请参阅开源文档：<a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">隐私与安全设计文档 (docs/privacy.md)</a>。
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 游戏与实测截图墙 -->
+  <section class="section" id="games">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Encrypted Gaming & UI</div>
+        <h2 class="section-title">游戏与实测截图墙</h2>
+        <p class="section-desc">房间不仅是私密聊天室，也是加密游戏桌。程序或服务器当法官，人人都是玩家。点击任意图片可查看高清大图。</p>
+      </div>
+
+      <div class="grid-gallery">
+        <!-- 狼人杀夜晚狼人 -->
+        <a href="img/werewolf-night-wolf.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-night-wolf.webp" alt="狼人杀 · 狼人点头像确认" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            狼人杀 · 狼人点头像确认
+            <small>夜里狼人点头像选刀谁，确认后提交</small>
+          </div>
+        </a>
+
+        <!-- 预言家查验 -->
+        <a href="img/werewolf-night-seer.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-night-seer.webp" alt="预言家查验好人狼人" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            预言家查验
+            <small>查验结果只显示在预言家自己的屏幕上</small>
+          </div>
+        </a>
+
+        <!-- 女巫用药 -->
+        <a href="img/werewolf-night-witch.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-night-witch.webp" alt="女巫用药救人或下毒" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            女巫用药
+            <small>解药与毒药二选一，独立判断使用时机</small>
+          </div>
+        </a>
+
+        <!-- 竞选警长 -->
+        <a href="img/werewolf-sheriff.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-sheriff.webp" alt="狼人杀竞选警长" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            竞选警长
+            <small>上警、退警与警长投票，1.5 票归票权</small>
+          </div>
+        </a>
+
+        <!-- 按住身份牌 -->
+        <a href="img/werewolf-card.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-card.webp" alt="按住身份牌查看技能说明" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            按住身份牌
+            <small>技能说明和私下信息，松手即隐藏防窥</small>
+          </div>
+        </a>
+
+        <!-- 白天轮流发言 -->
+        <a href="img/werewolf-day.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-day.webp" alt="白天轮流发言" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            白天轮流发言
+            <small>程序自动倒计时与发言轮转，人人都是玩家</small>
+          </div>
+        </a>
+
+        <!-- 投票头像打勾 -->
+        <a href="img/werewolf-vote.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-vote.webp" alt="投票头像打勾放逐" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            投票头像打勾
+            <small>已经投票的人头像打勾，投完公布结果</small>
+          </div>
+        </a>
+
+        <!-- 对局复盘摊牌 -->
+        <a href="img/werewolf-end.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-end.webp" alt="对局复盘摊牌与流程回放" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            对局复盘摊牌
+            <small>胜负揭晓，摊开所有底牌与完整时间线</small>
+          </div>
+        </a>
+
+        <!-- 暗号潜伏 -->
+        <a href="img/undercover.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/undercover.webp" alt="暗号潜伏 4-8 人去中心化推理" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            暗号潜伏
+            <small>4–8 人无庄家洗牌发牌，谁也不知道谁是潜伏</small>
+          </div>
+        </a>
+
+        <!-- 密电逃脱 -->
+        <a href="img/escape.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/escape.webp" alt="密电逃脱 2-8 人合作解密码锁" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            密电逃脱
+            <small>2–8 人合作解三道密码锁，一人线索不够</small>
+          </div>
+        </a>
+
+        <!-- 密约交易所 -->
+        <a href="img/pact.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/pact.webp" alt="密约交易所 囚徒困境与加密纸条" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            密约交易所
+            <small>2–8 人博弈，可递交只有彼此可见的加密纸条</small>
+          </div>
+        </a>
+
+        <!-- 秘密任务 -->
+        <a href="img/mission.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/mission.webp" alt="秘密任务 暗中引导对方说出你的词" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            秘密任务
+            <small>3–8 人暗度陈仓，诱导别人说出秘密词汇</small>
+          </div>
+        </a>
+
+        <!-- 快速找一桌 -->
+        <a href="img/modes-lobby.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/modes-lobby.webp" alt="首页快速找一桌与大厅玩法" width="360" height="740" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            快速选玩法与大厅
+            <small>快速找一桌与陌生人匹配，私密房间永不上榜</small>
+          </div>
+        </a>
+
+        <!-- 狼人杀选板子 -->
+        <a href="img/werewolf-boards.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/werewolf-boards.webp" alt="狼人杀支持 23 种板子与 19 种身份" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            狼人杀选板子
+            <small>支持 23 种板子、19 种身份与内置规则手册</small>
+          </div>
+        </a>
+
+        <!-- 发图片 -->
+        <a href="img/picture.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/picture.webp" alt="端对端加密发图，自动抹除 EXIF" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            发图片（已去掉 EXIF）
+            <small>前端自动剥离拍摄 GPS，一次性密钥加密传输</small>
+          </div>
+        </a>
+
+        <!-- 电脑版房间 -->
+        <a href="img/room-desktop.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="img/room-desktop.webp" alt="电脑版宽屏大界面" width="1366" height="860" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            电脑版房间
+            <small>双栏自适应大屏布局，宽敞舒适，大号安全码</small>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. 下载 -->
+  <section class="section section-alt" id="download">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Downloads & Clients</div>
+        <h2 class="section-title">下载客户端与离线运行包</h2>
+        <p class="section-desc">当前发布版本：<code>v{{VERSION}}</code>。免装 App 亦可网页直连；下载离线包可实现断网或内网自建运行。</p>
+      </div>
+
+      <div class="grid-3">
+        <!-- iOS 捷径 -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-ios">Apple iOS / iPadOS</span>
+            <h3 class="dl-title">iOS 捷径「隐匿对话」</h3>
+            <div class="dl-meta">快捷指令 · 免装 App · 一键直达</div>
+            <p class="dl-desc">
+              添加到 iPhone / iPad 快捷指令，在桌面一键进入私密房间。
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{IOS_SHORTCUT}}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+              添加 iOS 捷径
+            </a>
+          </div>
+        </div>
+
+        <!-- 安卓联网版 APK -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-apk">Android Online</span>
+            <h3 class="dl-title">安卓联网版 APK</h3>
+            <div class="dl-meta">0.9 MB · 网页内置 · 极速启动</div>
+            <p class="dl-desc">
+              轻量 APK，网页代码装在手机里，不用每次从服务器下载；聊天仍经过线上服务器。
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{APK_ONLINE}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+              下载联网版 APK
+            </a>
+            <div class="dl-sublinks">
+              <a href="{{APK_ONLINE_TAG}}" target="_blank" rel="noopener noreferrer">说明与 SHA-256 校验值</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 安卓离线版 APK -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-apk">Android Offline</span>
+            <h3 class="dl-title">安卓离线版 APK</h3>
+            <div class="dl-meta">58 MB · arm64 · 免互联网热点服务器</div>
+            <p class="dl-desc">
+              内置完整 Node.js 聊天服务器。一部手机开启 Wi-Fi 热点，身边朋友连接热点即可在无互联网环境下畅聊！
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{APK_OFFLINE}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+              下载离线版 APK
+            </a>
+            <div class="dl-sublinks">
+              <a href="{{APK_OFFLINE_TAG}}" target="_blank" rel="noopener noreferrer">说明与 SHA-256 校验值</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 电脑/服务器离线包 -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Desktop & Server</span>
+            <h3 class="dl-title">电脑 / 服务器离线包</h3>
+            <div class="dl-meta">Windows · macOS · Linux</div>
+            <p class="dl-desc">
+              自带 Node.js 运行时，免安装依赖。U 盘拷入解压双击 <code>start-lan</code> 即可在断网局域网或内网运行，自带 HTTPS 证书。
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{RELEASES_LATEST}}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              前往 GitHub Releases 下载
+            </a>
+          </div>
+        </div>
+
+        <!-- Docker 镜像 -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Container</span>
+            <h3 class="dl-title">Docker 容器部署</h3>
+            <div class="dl-meta">ghcr.io / Docker Compose 一行跑</div>
+            <p class="dl-desc">
+              提供标准 Docker 镜像与自动带有 HTTPS 证书的 Docker Compose 配置文件，适合 VPS、家用 NAS 或私有云。
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{RELEASES_LATEST}}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              查看 Releases 与 Compose
+            </a>
+          </div>
+        </div>
+
+        <!-- 源码与 Release 归档 -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Open Source</span>
+            <h3 class="dl-title">完整源代码</h3>
+            <div class="dl-meta">MIT 自由许可 · 无保留开源</div>
+            <p class="dl-desc">
+              无任何后门，无外部统计，代码清晰透明。你可以自由分发、审计、修改和自建。
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              访问 GitHub 仓库
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. 自己部署 -->
+  <section class="section" id="deploy">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Self-Hosting Guide</div>
+        <h2 class="section-title">自己部署</h2>
+        <p class="section-desc">基于 MIT 许可证，任何人都可以免费部署自己的一份，不需要我们同意。根据你的环境选择最适合的方式：</p>
+      </div>
+
+      <div class="grid-3">
+        <!-- Cloudflare -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">推荐 · 零成本免服务器</div>
+            <h3 class="deploy-title">Cloudflare 一键部署</h3>
+            <p class="deploy-desc">
+              利用 Cloudflare 免费 Workers 与 Durable Objects 额度，一键几分钟搭建专属暗号节点，全球高速访问。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/cloudflare.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读 Cloudflare 指南 →
+          </a>
+        </div>
+
+        <!-- VPS -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">推荐 · 独立掌控</div>
+            <h3 class="deploy-title">VPS 独立服务器</h3>
+            <p class="deploy-desc">
+              拥有境外 VPS 和域名，通过 <code>./pt setup 你的域名</code> 一键配置 Docker + 自动 HTTPS 证书，支持平滑升级与回退。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/vps.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读 VPS 部署指南 →
+          </a>
+        </div>
+
+        <!-- Docker -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">极速 · 容器化</div>
+            <h3 class="deploy-title">Docker 容器部署</h3>
+            <p class="deploy-desc">
+              一行命令拉取运行官方镜像，支持 Caddy 自动配置反向代理与 HTTPS，提供完整 compose 编排配置。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/vps.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读 Docker 部署指南 →
+          </a>
+        </div>
+
+        <!-- 局域网 -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">纯离线 · 活动现场</div>
+            <h3 class="deploy-title">断网局域网 (LAN)</h3>
+            <p class="deploy-desc">
+              断网的局域网或会议现场，使用自带 Node.js 的离线包运行 <code>start-lan</code>，自带自签名的 HTTPS 证书。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/lan.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读局域网指南 →
+          </a>
+        </div>
+
+        <!-- 企业内网 -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">高隔离 · 内网安全</div>
+            <h3 class="deploy-title">企业内部网络 (Enterprise)</h3>
+            <p class="deploy-desc">
+              专为无法连接互联网的企业内网设计，不依赖外网；一个实例即可，更新会先试运行、可一键回退。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/enterprise.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读企业内网指南 →
+          </a>
+        </div>
+
+        <!-- 安卓热点 -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">超轻便 · 一机搞定</div>
+            <h3 class="deploy-title">安卓手机热点 (Hotspot)</h3>
+            <p class="deploy-desc">
+              只有一部安卓手机也能当服务器！使用 Termux 或离线版 APK 开热点，身边设备连上热点即可直接聊天。
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/android.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            阅读安卓热点指南 →
+          </a>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <strong>更多运行方案：</strong>
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/home.md" target="_blank" rel="noopener noreferrer">家用电脑 / NAS / Cloudflare Tunnel</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/tailscale.md" target="_blank" rel="noopener noreferrer">Tailscale 私人内网</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/cloud.md" target="_blank" rel="noopener noreferrer">云平台托管 (Render / Railway / Fly.io)</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/troubleshooting.md" target="_blank" rel="noopener noreferrer">故障排查手册</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. 校验 -->
+  <section class="section section-alt" id="verify">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Cryptographic Verification</div>
+        <h2 class="section-title">完整性校验</h2>
+        <p class="section-desc">任何人都可以核对线上网页与发布包未被运营商或中间人劫持修改。</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">🔍 网页签名清单校验</h3>
+          <p class="card-text">
+            网站附带签名的文件清单（<code>dist/integrity.json</code>），任何人都能使用项目开源核对脚本比对正在运行的线上网页代码，确认每一个文件与发布时完全一致：
+          </p>
+          <pre><code>node scripts/verify-site.mjs https://chat.freedom8964.com</code></pre>
+          <p class="card-text">
+            详见源码：<a href="https://github.com/Freecode100Year/private-talk/blob/main/scripts/verify-site.mjs" target="_blank" rel="noopener noreferrer">scripts/verify-site.mjs</a>。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">✍️ 发布包签名与哈希校验</h3>
+          <p class="card-text">
+            每次发布的离线包和 Docker 包都附带 SHA-256 校验值和发布密钥的签名（公钥是 <code>server/release-key.pem</code>），更新程序签名不对就拒绝安装；安卓 APK 的校验值写在各自的发布页。
+          </p>
+          <pre><code># 校验发布包或查看 Release 签名
+https://github.com/Freecode100Year/private-talk/releases</code></pre>
+          <p class="card-text">
+            前往查看：<a href="https://github.com/Freecode100Year/private-talk/releases" target="_blank" rel="noopener noreferrer">GitHub Releases 发布页</a>。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. 页脚 -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-title">隐匿对话 Private Talk</div>
+          <p>只给知道暗号的人。聊完，轻装离开。<br>无账号 · 端对端加密 · 不审查 · 随处可运行。</p>
+          <p>基于 <a href="https://github.com/Freecode100Year/private-talk/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT 许可证</a> 开源。</p>
+        </div>
+
+        <div>
+          <div class="footer-title">在线服务</div>
+          <ul class="footer-links">
+            <li><a href="https://chat.freedom8964.com" target="_blank" rel="noopener noreferrer">主站 (Cloudflare)</a></li>
+            <li><a href="https://chat.nya.je" target="_blank" rel="noopener noreferrer">备用站 (VPS)</a></li>
+            <li><a href="{{IOS_SHORTCUT}}" target="_blank" rel="noopener noreferrer">iOS 快捷指令</a></li>
+            <li><a href="#download">安卓 APK 下载</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">说明与文档</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/README.md" target="_blank" rel="noopener noreferrer">说明书 (docs/manual)</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">隐私与安全设计</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/troubleshooting.md" target="_blank" rel="noopener noreferrer">故障排查</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/reference.md" target="_blank" rel="noopener noreferrer">技术参考</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">语言与代码</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer">GitHub 仓库</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/releases" target="_blank" rel="noopener noreferrer">版本发布 (Releases)</a></li>
+            <li><a href="en/">English 英文版</a></li>
+            <li><span style="color:var(--gold);">简体中文（当前）</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>本项目不使用 Cookie、不使用第三方统计、不使用外部 CDN，不存储任何聊天记录。</p>
+        <p>© Freecode100Year. Released under the MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Private Talk | Anonymous, Ephemeral, End-to-End Encrypted Chat</title>
+  <meta name="description" content="Only for those who know the passphrase. Talk, then leave without a trace. No account, no phone number, end-to-end encrypted, uncensored, zero logs.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <link rel="canonical" href="https://freecode100year.github.io/private-talk/en/">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+  <!-- Header & Nav -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="brand">
+        <div class="brand-icon">🔑</div>
+        <div class="brand-text">
+          <div class="brand-title">Private Talk <span>(隐匿对话)</span></div>
+          <div class="brand-sub">Leave without a trace · Open Source v{{VERSION}}</div>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="#features" class="nav-item">Features</a>
+        <a href="#quickstart" class="nav-item">Quickstart</a>
+        <a href="#privacy" class="nav-item">Privacy</a>
+        <a href="#games" class="nav-item">Screenshots</a>
+        <a href="#download" class="nav-item">Downloads</a>
+        <a href="#deploy" class="nav-item">Deploy</a>
+        <a href="#verify" class="nav-item">Verify</a>
+        <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" class="nav-item">GitHub</a>
+        <a href="../" class="lang-switch">中文</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 1. Top Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-pill">
+        <span class="live-dot"></span>
+        <span>End-to-End Encrypted · Forward Secrecy · Post-Quantum Safe · No Censorship</span>
+      </div>
+
+      <h1>
+        Only for those who know the passphrase.<br>
+        <span class="highlight">Talk, then leave without a trace.</span>
+      </h1>
+
+      <p class="hero-lead">
+        No accounts, no phone numbers, no nicknames. Messages are encrypted inside your browser; the server only passes on ciphertext it cannot read, keeps no messages, and writes no logs. Open the link, type the passphrase, and enter your room.
+      </p>
+
+      <!-- Main Action Buttons -->
+      <div class="hero-cta">
+        <a href="https://chat.freedom8964.com" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          Start Chatting (chat.freedom8964.com)
+        </a>
+        <a href="https://chat.nya.je" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+          Backup Server (chat.nya.je)
+        </a>
+      </div>
+
+      <div class="hero-quicklinks">
+        <a href="#download">Download Apps & Offline Packages</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer">GitHub Source</a> · 
+        <a href="https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0" target="_blank" rel="noopener noreferrer">iOS Shortcut</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/README.md" target="_blank" rel="noopener noreferrer">User Manual</a>
+      </div>
+
+      <!-- Banner Image -->
+      <div class="hero-banner-wrapper">
+        <img src="../img/banner.jpg" alt="Private Talk Banner" width="1280" height="853" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Four Feature Cards -->
+  <section class="section section-alt" id="features">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Core Principles</div>
+        <h2 class="section-title">Four Core Principles</h2>
+        <p class="section-desc">No accounts, no friction. Privacy by technical design, not by promises.</p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <h3 class="card-title">Private</h3>
+          <p class="card-text">
+            No account, no phone number, no nickname. Messages are encrypted in the browser; the server only passes on ciphertext it cannot read, keeps no messages and writes no logs.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3 class="card-title">Simple</h3>
+          <p class="card-text">
+            Open the address, type the passphrase, and you are in the same room. No app to install; works across phones and computers.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🕊️</div>
+          <h3 class="card-title">No Censorship</h3>
+          <p class="card-text">
+            No keyword filters, no moderation, no reporting or banning, no back doors. The server cannot read messages and judges nothing by content. Limits exist only on room size, rate and length to prevent abuse.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h3 class="card-title">Runs Anywhere</h3>
+          <p class="card-text">
+            One-click on Cloudflare's free tier, one Docker command, an offline LAN, an intranet with no internet, even a single Android phone acting as a Wi-Fi hotspot server.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. In 30 Seconds -->
+  <section class="section" id="quickstart">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Quick Start</div>
+        <h2 class="section-title">In 30 Seconds</h2>
+        <p class="section-desc">Three simple steps to start a secure conversation anytime, anywhere.</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <h3 class="step-title">Enter with your passphrase</h3>
+          <p class="step-text">
+            Open <code>https://chat.freedom8964.com/#your-passphrase</code>. Opening the home page directly generates a random passphrase nobody can guess.
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <h3 class="step-title">Share the address with friends</h3>
+          <p class="step-text">
+            Send the address or the agreed passphrase to your friends. Links do not expire, and the passphrase is wiped from the address bar upon entry.
+          </p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <h3 class="step-title">Chat freely, then close the tab</h3>
+          <p class="step-text">
+            Everyone opening the same address joins the same room (up to 25 people). The host can lock the room. When everyone leaves, the room vanishes.
+          </p>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <strong>Passphrase Advice:</strong> A passphrase may use letters and digits of any language, without symbols. The longer, the safer. See the <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/user.md" target="_blank" rel="noopener noreferrer">User Manual</a>.
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. What Stays Private & What It Cannot Do -->
+  <section class="section section-alt" id="privacy">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Privacy & Security</div>
+        <h2 class="section-title">What Stays Private</h2>
+        <p class="section-desc">Transparent security: exactly what each layer of the network can and cannot observe.</p>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Who</th>
+              <th>Can see</th>
+              <th>Cannot see</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>The server operator</strong></td>
+              <td>Your IP address, when you are online, which connections share a room</td>
+              <td>Messages, the passphrase, who you are</td>
+            </tr>
+            <tr>
+              <td><strong>Someone watching the network</strong><br><small style="color:var(--text-dim)">(ISP, Wi-Fi admin)</small></td>
+              <td>That you connected to this site</td>
+              <td>Content, passphrase, room</td>
+            </tr>
+            <tr>
+              <td><strong>People in the room</strong></td>
+              <td>The messages, and your seat number (1️⃣–🔟, then #11–#25)</td>
+              <td>Who you are, your IP address</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">🔐 End-to-End Encryption & PFS</h3>
+          <p class="card-text">
+            <strong>End-to-End Encryption</strong>: Keys come from the passphrase in the browser (PBKDF2 310,000 rounds → HKDF → AES-256-GCM). Messages are padded to fixed sizes before encryption so ciphertexts do not reveal length.<br><br>
+            <strong>Forward Secrecy & Post-Quantum</strong>: Every participant creates an ephemeral key pair; every message uses a one-time key; when someone leaves, everyone rotates keys. Pairwise keys integrate ML-KEM-768 against future quantum decryption. Each message is signed, preventing seat impersonation, and a 20-digit safety code allows verification in person or by phone.<br><br>
+            <strong>Nothing Kept, Few Traces</strong>: No accounts, no message history, no server logs. The room disappears when empty. No cookies, no local storage, caching is disabled, and the browser is instructed to clear site data upon closing.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">🛡️ Tamper-Proof & Access Control</h3>
+          <p class="card-text">
+            <strong>Encrypted Pictures</strong>: Compressed in browser, stripping GPS location and camera EXIF metadata, encrypted with one-time keys inside forward-secret frames.<br><br>
+            <strong>Tamper Resistance & Host Control</strong>: Sender id, timestamp and counter are sealed inside ciphertext; the earliest entrant is the host, who can lock the room or remove disruptive participants.<br><br>
+            <strong>No Passphrase, No Entry</strong>: The server requires an access hash derived from the passphrase; knowing the room address alone cannot seat a connection, lock the room, or post. The passphrase is in the URL hash fragment and is never transmitted over the network.
+          </p>
+        </div>
+      </div>
+
+      <!-- What it cannot do -->
+      <div class="danger-box">
+        <h4>⚠️ What It Cannot Do (Please read carefully)</h4>
+        <ul>
+          <li><strong>Anyone with the passphrase can enter</strong> and read subsequent messages. Short passphrases can be guessed; use random passphrases for anything sensitive. Invitation links do not expire. Rooms with older client versions will fall back to legacy encryption without forward secrecy (the page displays a notification).</li>
+          <li><strong>The server sees IP addresses</strong>. To hide your IP address, use a VPN you trust or Tor.</li>
+          <li><strong>It cannot prove who is in the room</strong>; other participants can take screenshots, take photos, or copy text. Third-party keyboards and compromised devices are beyond what any web page can protect. "Clear screen" only clears your own display.</li>
+          <li><strong>The web page is delivered by the server</strong>: If the operator's account is compromised, the page code could be modified. A signed integrity manifest catches global modifications, but targeted attacks require the Android App or offline packages where code is pre-packaged locally.</li>
+        </ul>
+      </div>
+
+      <div class="notice-box" style="margin-top:20px;">
+        For full security analysis, see <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">Privacy & Security Design (docs/privacy.md)</a>.
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Screenshots & Games Gallery -->
+  <section class="section" id="games">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Encrypted Gaming & UI</div>
+        <h2 class="section-title">Games & UI Gallery</h2>
+        <p class="section-desc">More than just chat: rooms double as party game tables: the program or the server is the judge, so everyone plays. Click any image for full size.</p>
+      </div>
+
+      <div class="grid-gallery">
+        <!-- Werewolf night wolves -->
+        <a href="../img/werewolf-night-wolf.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-night-wolf.webp" alt="Werewolf wolves confirm kill" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Werewolf: Wolves Night
+            <small>At night the wolves tap an avatar to pick a target</small>
+          </div>
+        </a>
+
+        <!-- Werewolf seer -->
+        <a href="../img/werewolf-night-seer.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-night-seer.webp" alt="Seer role check" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Werewolf: Seer Check
+            <small>The result shows only on the seer's own screen</small>
+          </div>
+        </a>
+
+        <!-- Werewolf witch -->
+        <a href="../img/werewolf-night-witch.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-night-witch.webp" alt="Witch potions" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Werewolf: Witch Potions
+            <small>Decide whether to save the victim or brew poison</small>
+          </div>
+        </a>
+
+        <!-- Sheriff election -->
+        <a href="../img/werewolf-sheriff.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-sheriff.webp" alt="Sheriff election" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Sheriff Election
+            <small>Campaigning, withdrawals, and 1.5x tiebreak votes</small>
+          </div>
+        </a>
+
+        <!-- Role card -->
+        <a href="../img/werewolf-card.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-card.webp" alt="Holding role card" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Role Card Peek
+            <small>Hold to see role abilities and secret data; release to hide</small>
+          </div>
+        </a>
+
+        <!-- Daytime speeches -->
+        <a href="../img/werewolf-day.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-day.webp" alt="Daytime speeches" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Daytime Speeches
+            <small>Automated turns and timers; everyone gets to play</small>
+          </div>
+        </a>
+
+        <!-- Voting checkmark -->
+        <a href="../img/werewolf-vote.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-vote.webp" alt="Voting checkmark" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Exile Voting
+            <small>Voters get a tick on their avatar; results when all have voted</small>
+          </div>
+        </a>
+
+        <!-- Game review -->
+        <a href="../img/werewolf-end.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-end.webp" alt="Game review and replay" width="720" height="1480" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Game Review
+            <small>All identities revealed with full chronological action log</small>
+          </div>
+        </a>
+
+        <!-- Undercover -->
+        <a href="../img/undercover.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/undercover.webp" alt="Undercover deduction game" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Undercover
+            <small>4–8 players, decentralized dealerless shuffle and deal</small>
+          </div>
+        </a>
+
+        <!-- Cipher escape -->
+        <a href="../img/escape.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/escape.webp" alt="Cipher escape puzzle" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Cipher Escape
+            <small>2–8 players collaborate to crack three combination locks</small>
+          </div>
+        </a>
+
+        <!-- Pact exchange -->
+        <a href="../img/pact.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/pact.webp" alt="Pact exchange game" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Pact Exchange
+            <small>2–8 players prisoner's dilemma with encrypted private notes</small>
+          </div>
+        </a>
+
+        <!-- Secret mission -->
+        <a href="../img/mission.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/mission.webp" alt="Secret mission game" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Secret Mission
+            <small>3–8 players coaxing others to speak assigned secret words</small>
+          </div>
+        </a>
+
+        <!-- Quick play lobby -->
+        <a href="../img/modes-lobby.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/modes-lobby.webp" alt="Quick play modes lobby" width="360" height="740" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Quick Play Lobby
+            <small>Find a table with strangers; private rooms stay hidden</small>
+          </div>
+        </a>
+
+        <!-- Werewolf boards -->
+        <a href="../img/werewolf-boards.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/werewolf-boards.webp" alt="Werewolf boards selection" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            23 Werewolf Boards
+            <small>19 unique roles, detailed rules, from 6 to 12 players</small>
+          </div>
+        </a>
+
+        <!-- Picture sharing -->
+        <a href="../img/picture.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/picture.webp" alt="Secure picture sharing" width="780" height="1688" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Encrypted Pictures
+            <small>GPS and EXIF metadata automatically stripped in browser</small>
+          </div>
+        </a>
+
+        <!-- Desktop room -->
+        <a href="../img/room-desktop.webp" target="_blank" rel="noopener noreferrer" class="shot-card">
+          <div class="shot-img-wrap">
+            <img src="../img/room-desktop.webp" alt="Desktop room interface" width="1366" height="860" loading="lazy">
+          </div>
+          <div class="shot-caption">
+            Desktop View
+            <small>Spacious dual-column layout with instant safety code display</small>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Downloads -->
+  <section class="section section-alt" id="download">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Downloads & Clients</div>
+        <h2 class="section-title">Downloads & Offline Packages</h2>
+        <p class="section-desc">Current release: <code>v{{VERSION}}</code>. Works without installation directly in any modern browser, or download packages for offline usage.</p>
+      </div>
+
+      <div class="grid-3">
+        <!-- iOS Shortcut -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-ios">Apple iOS / iPadOS</span>
+            <h3 class="dl-title">iOS Shortcut "Private Talk"</h3>
+            <div class="dl-meta">Apple Shortcuts · No App Needed</div>
+            <p class="dl-desc">
+              Add directly to iPhone or iPad Shortcuts to open a private room from your home screen in one tap.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{IOS_SHORTCUT}}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+              Add iOS Shortcut
+            </a>
+          </div>
+        </div>
+
+        <!-- Android Online APK -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-apk">Android Online</span>
+            <h3 class="dl-title">Android Online APK</h3>
+            <div class="dl-meta">0.9 MB · Website Built-in · Instant</div>
+            <p class="dl-desc">
+              Lightweight Android application with the web page built in, so it is not downloaded from the server each time; chats still go through the online server.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{APK_ONLINE}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+              Download Online APK
+            </a>
+            <div class="dl-sublinks">
+              <a href="{{APK_ONLINE_TAG}}" target="_blank" rel="noopener noreferrer">Release notes & SHA-256</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Android Offline APK -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-apk">Android Offline</span>
+            <h3 class="dl-title">Android Offline APK</h3>
+            <div class="dl-meta">58 MB · arm64 · Hotspot Server</div>
+            <p class="dl-desc">
+              Complete standalone server for Android. Turn on your mobile Wi-Fi hotspot, and your phone becomes an offline chat relay for nearby friends.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{APK_OFFLINE}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+              Download Offline APK
+            </a>
+            <div class="dl-sublinks">
+              <a href="{{APK_OFFLINE_TAG}}" target="_blank" rel="noopener noreferrer">Release notes & SHA-256</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop & Server Offline -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Desktop & Server</span>
+            <h3 class="dl-title">Standalone Offline Bundles</h3>
+            <div class="dl-meta">Windows · macOS · Linux</div>
+            <p class="dl-desc">
+              Bundled with Node.js runtime. Extract to a USB drive and execute <code>start-lan</code> for air-gapped secure local communications with auto-generated HTTPS.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{RELEASES_LATEST}}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              Get Latest Releases
+            </a>
+          </div>
+        </div>
+
+        <!-- Docker -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Container</span>
+            <h3 class="dl-title">Docker Deployment</h3>
+            <div class="dl-meta">ghcr.io / Docker Compose</div>
+            <p class="dl-desc">
+              Standard Docker container images and Caddy-enabled reverse proxy compose setups for VPS, home servers, and local NAS appliances.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="{{RELEASES_LATEST}}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              View Compose & Images
+            </a>
+          </div>
+        </div>
+
+        <!-- Source Code -->
+        <div class="dl-card">
+          <div class="dl-card-head">
+            <span class="dl-badge dl-badge-pkg">Open Source</span>
+            <h3 class="dl-title">Full Source Code</h3>
+            <div class="dl-meta">MIT Licensed · Auditable</div>
+            <p class="dl-desc">
+              No telemetry, no tracking, completely open and verifiable. You are free to run, audit, modify, and redistribute.
+            </p>
+          </div>
+          <div class="dl-actions">
+            <a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+              Browse GitHub Repository
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Deploy Your Own -->
+  <section class="section" id="deploy">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Self-Hosting Guide</div>
+        <h2 class="section-title">Run Your Own Server</h2>
+        <p class="section-desc">Under the MIT License, anyone may host their own instance for free without asking permission. Choose the best method for your setup:</p>
+      </div>
+
+      <div class="grid-3">
+        <!-- Cloudflare -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Recommended · Zero Cost</div>
+            <h3 class="deploy-title">Cloudflare One-Click</h3>
+            <p class="deploy-desc">
+              Deploy on Cloudflare's free tier Workers and Durable Objects in minutes. No physical server or maintenance required.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/cloudflare.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read Cloudflare Guide →
+          </a>
+        </div>
+
+        <!-- VPS -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Recommended · Full Control</div>
+            <h3 class="deploy-title">VPS with Docker</h3>
+            <p class="deploy-desc">
+              Use your own VPS and domain: run <code>./pt setup your.domain</code> for automatic HTTPS certificates, upgrades, and one-command rollback.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/vps.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read VPS Guide →
+          </a>
+        </div>
+
+        <!-- Docker -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Containerized · Clean</div>
+            <h3 class="deploy-title">Docker Compose</h3>
+            <p class="deploy-desc">
+              Deploy the official pre-built container image with isolated runtime and automatic HTTPS reverse proxy via Caddy.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/vps.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read Docker Guide →
+          </a>
+        </div>
+
+        <!-- Offline LAN -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Air-gapped · Events</div>
+            <h3 class="deploy-title">Offline LAN Mode</h3>
+            <p class="deploy-desc">
+              For events, workshops, or completely disconnected networks. Run <code>start-lan</code> from the bundle with its own self-signed HTTPS certificate.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/lan.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read LAN Guide →
+          </a>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Enterprise · Internal</div>
+            <h3 class="deploy-title">Enterprise Intranet</h3>
+            <p class="deploy-desc">
+              Isolated enterprise networks with zero internet access, with no internet dependency; run a single instance, updates are trial-run first and can be rolled back.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/enterprise.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read Enterprise Guide →
+          </a>
+        </div>
+
+        <!-- Android Hotspot -->
+        <div class="deploy-card">
+          <div>
+            <div class="deploy-tag">Mobile Only · Hotspot</div>
+            <h3 class="deploy-title">Android Phone Hotspot</h3>
+            <p class="deploy-desc">
+              Host the entire chat server from an Android smartphone via Termux or the offline APK; everyone nearby connects over Wi-Fi.
+            </p>
+          </div>
+          <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/android.md" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-small">
+            Read Android Guide →
+          </a>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <strong>Additional deployment setups:</strong>
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/home.md" target="_blank" rel="noopener noreferrer">Home NAS & Cloudflare Tunnel</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/tailscale.md" target="_blank" rel="noopener noreferrer">Tailscale VPN</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/cloud.md" target="_blank" rel="noopener noreferrer">Cloud PaaS (Render / Railway / Fly.io)</a> · 
+        <a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/troubleshooting.md" target="_blank" rel="noopener noreferrer">Troubleshooting</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. Verification -->
+  <section class="section section-alt" id="verify">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Cryptographic Verification</div>
+        <h2 class="section-title">Cryptographic Verification</h2>
+        <p class="section-desc">Anyone can verify that the running web page and release packages have not been tampered with.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 class="card-title">🔍 Web Manifest Verification</h3>
+          <p class="card-text">
+            Each deployed site serves a signed integrity manifest (<code>dist/integrity.json</code>). You can verify any running instance against its cryptographic release signature:
+          </p>
+          <pre><code>node scripts/verify-site.mjs https://chat.freedom8964.com</code></pre>
+          <p class="card-text">
+            Script source: <a href="https://github.com/Freecode100Year/private-talk/blob/main/scripts/verify-site.mjs" target="_blank" rel="noopener noreferrer">scripts/verify-site.mjs</a>.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">✍️ Package Signatures & Hashes</h3>
+          <p class="card-text">
+            Every offline and Docker package in a release comes with SHA-256 checksums and a signature by the release key (public key: <code>server/release-key.pem</code>); the updater refuses a package whose signature does not match. Android APK checksums are on their release pages.
+          </p>
+          <pre><code># Check release hashes and signatures
+https://github.com/Freecode100Year/private-talk/releases</code></pre>
+          <p class="card-text">
+            View releases: <a href="https://github.com/Freecode100Year/private-talk/releases" target="_blank" rel="noopener noreferrer">GitHub Releases Page</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-title">Private Talk (隐匿对话)</div>
+          <p>Only for those who know the passphrase. Talk, then leave without a trace.<br>No accounts · End-to-end encrypted · Uncensored · Runs anywhere.</p>
+          <p>Released under the <a href="https://github.com/Freecode100Year/private-talk/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>.</p>
+        </div>
+
+        <div>
+          <div class="footer-title">Live Services</div>
+          <ul class="footer-links">
+            <li><a href="https://chat.freedom8964.com" target="_blank" rel="noopener noreferrer">Primary (Cloudflare)</a></li>
+            <li><a href="https://chat.nya.je" target="_blank" rel="noopener noreferrer">Backup Server (VPS)</a></li>
+            <li><a href="{{IOS_SHORTCUT}}" target="_blank" rel="noopener noreferrer">iOS Shortcut</a></li>
+            <li><a href="#download">Android APKs</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">Documentation</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/README.md" target="_blank" rel="noopener noreferrer">Manual (docs/manual)</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">Privacy & Security Design</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/manual/troubleshooting.md" target="_blank" rel="noopener noreferrer">Troubleshooting</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/blob/main/docs/reference.md" target="_blank" rel="noopener noreferrer">Reference</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-title">Source & Language</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/Freecode100Year/private-talk" target="_blank" rel="noopener noreferrer">GitHub Repository</a></li>
+            <li><a href="https://github.com/Freecode100Year/private-talk/releases" target="_blank" rel="noopener noreferrer">Releases</a></li>
+            <li><a href="../">中文 (Chinese)</a></li>
+            <li><span style="color:var(--gold);">English (Current)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>No cookies, no external fonts or scripts, no analytics tracking, no server logs.</p>
+        <p>© Freecode100Year. Released under the MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
