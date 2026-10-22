@@ -34,7 +34,7 @@ await tap(J, '#roomTools');
 await J.waitForTimeout(400);
 ok((await J.locator('#gameHint').innerText()).includes(`房间现在 ${N} 人`), 'the note under the start buttons says how many are here and how many each game needs');
 // The rules, from the drawer: every game and board has some, all in words.
-await J.locator('#rulesButton').scrollIntoViewIfNeeded();
+await J.locator('#rulesButton').scrollIntoViewIfNeeded().catch(() => {});
 ok((await tap(J, '#rulesButton'))?.ok, 'the rules button can be tapped');
 await J.waitForFunction(() => document.getElementById('rulesDialog').open);
 const ids = await J.locator('#rulesPick option').evaluateAll((o) => o.map((x) => x.value));
@@ -51,7 +51,7 @@ ok(!(await J.evaluate(() => document.getElementById('rulesDialog').open)), 'the 
 
 // Starting from the drawer closes it, so the panel is not covered.
 await J.selectOption('#wwBoard', process.env.TAP_BOARD || 'b9guard');
-await J.locator('#wwStart').scrollIntoViewIfNeeded();
+await J.locator('#wwStart').scrollIntoViewIfNeeded().catch(() => {}); // re-rendered when the board changes
 ok((await tap(J, '#wwStart'))?.ok, 'the start button can be tapped');
 for (const p of pages) await p.waitForFunction(() => !document.getElementById('gamePanel').hidden, null, { timeout: 20000 });
 await J.waitForTimeout(500);
