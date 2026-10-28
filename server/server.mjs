@@ -325,7 +325,7 @@ function enter(ws, roomId, ip, resume, htmlRoom = false) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true, lobby: true });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: !htmlRoom, lobby: !htmlRoom });
   members(room);
   lobby.people(roomId, room.peers.size);
   judgeMembers(room, roomId);
@@ -452,7 +452,7 @@ server.on('upgrade', (req, socket, head) => {
   // Only a page that knows the passphrase can show the access value.
   const proto = parseProtocols(req.headers['sec-websocket-protocol']);
   accessMatches(m[2], proto.access).then((ok) => {
-    if (!proto.ok || !ok) return reject('403 Forbidden');
+    if (htmlRoom && (!proto.ok || !ok)) return reject('403 Forbidden');
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (!proto.ok || !ok) return ws.close(CLOSE_DENIED, 'no access');
       enter(ws, htmlRoom ? `hr:${m[2]}` : m[2], clientIP(req), proto.resume, htmlRoom);

@@ -16,6 +16,7 @@ export async function derive(master) {
 }
 export function relayOrigin(s) {
   const u = new URL(s);
+  if (!/^(?:[a-z0-9.-]+|\[[0-9a-f:]+\])$/.test(u.hostname)) throw Error('中继主机名含不安全字符');
   if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || !['ws:','wss:'].includes(u.protocol)) throw Error('中继必须是精确的 WS/WSS 源');
   if (u.protocol === 'ws:' && !['localhost','127.0.0.1','[::1]'].includes(u.hostname)) throw Error('远程中继必须使用 WSS');
   return u.origin;

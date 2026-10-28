@@ -14,7 +14,7 @@ function emit(kind,value){
 function connect(){
  if(session.stopped)return;
  const ws=new WebSocket(`${config.relay}/hr/${config.roomId}`,['pt2',`a${hex(session.d.access)}`,...(session.resume?[`r${session.resume}`]:[])]);session.ws=ws;
- ws.onmessage=e=>{try{const m=JSON.parse(e.data);session.run(()=>session.incoming(m));}catch{status('中继数据格式错误');}};
+ ws.onmessage=e=>{if(typeof e.data!=='string'||e.data.length>7000)return;try{const m=JSON.parse(e.data);session.run(()=>session.incoming(m));}catch{status('中继数据格式错误');}};
  ws.onopen=()=>{session.backoff=1000;session.lastPong=Date.now();status('已连接中继，正在验证成员密钥…');};
  ws.onerror=()=>status('WSS 握手失败可能是网络、Origin、鉴权或证书信任问题（含自签名证书）。建议使用有效证书；可先访问对应 HTTPS 地址检查信任，但不能保证所有浏览器允许 WSS。请勿关闭证书校验。');
  ws.onclose=e=>{

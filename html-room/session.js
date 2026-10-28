@@ -5,28 +5,32 @@ export const memoryStorage = () => new Map();
 // Explicit injection for tests only; no browser persistence API is used.
 export class Session {
   constructor(derived, config, {storage=memoryStorage(),emit=()=>{}}={}) {
-    Object.assign(this,{d:derived,config,store:storage,emit,deviceId:hex(random(16)),present:[],seen:new Map(),own:new Map(),queued:[],receipts:[],received:new Map(),group:null,ws:null,serial:Promise.resolve()});
+    Object.assign(this,{d:derived,config,store:storage,emit,deviceId:hex(random(16)),present:[],pins:new Map(),seen:new Map(),own:new Map(),queued:[],receipts:[],received:new Map(),group:null,ws:null,serial:Promise.resolve()});
+    this.store.set('deviceId',this.deviceId);
   }
-  run(fn) { this.serial=this.serial.then(fn).catch(()=>this.emit('notice','收到无法验证的数据，已忽略。'));return this.serial; }
-  send(frame) { if(this.ws?.readyState===1)this.ws.send(JSON.stringify(frame)); }
+  run(fn) { this.serial=this.serial.then(()=>{if(!this.stopped)return fn();}).catch(()=>this.emit('notice','收到无法验证的数据，已忽略。'));return this.serial; }
+  send(frame) { if(!this.stopped && this.ws?.readyState===1)this.ws.send(JSON.stringify(frame)); }
   async announce(hello=false) {
     if(!this.group)return;
-    for(const text of await this.group.announceAll(this.group.owed(this.present),hello))this.send({type:'key',...await sealAnnouncement(this.d,text)});
+    const owed=this.group.owed(this.present);
+    if(!hello && !owed.length)return;
+    for(const text of await this.group.announceAll(owed,hello))this.send({type:'key',...await sealAnnouncement(this.d,text)});
   }
-  ready() { return this.group && this.present.length>1 && this.group.ready(this.present,true) && this.group.quantumSafe(this.present); }
+  ready() { return !this.stopped && this.group && this.present.length>1 && this.group.ready(this.present,true) && this.group.quantumSafe(this.present); }
   async incoming(m) {
+    if(this.stopped)return;
     if(m.type==='pong'){this.lastPong=Date.now();return;}
     if(m.type==='wait'){this.nextSend=Date.now()+Math.min(30000,Math.max(1000,m.ms||6000));return;}
     if(m.type==='hello') {
       this.resume=m.resume;
-      if(!this.group || this.group.me!==m.you){this.group=await Group.create(this.d.key,this.d.bind,m.you);this.own.clear();this.present=[];}
+      if(!this.group || this.group.me!==m.you){this.group=await Group.create(this.d.key,this.d.bind,m.you);this.own.clear();this.received.clear();this.receipts=[];this.present=[];}
       await this.announce(true);return;
     }
     if(!this.group)return;
     if(m.type==='members') {
       if(!Array.isArray(m.members) || m.members.some(n=>!Number.isInteger(n)||n<1||n>25))return;
       const left=this.present.filter(n=>!m.members.includes(n));
-      for(const n of left)this.group.forget(n);
+      for(const n of left){this.group.forget(n);for(const key of this.received.keys())if(key.startsWith(`${n}|`))this.received.delete(key);}
       this.present=m.members;
       if(left.length)await this.group.rekey();
       await this.announce(true);this.emit('presence',this.present.length);await this.update();return;
@@ -40,9 +44,11 @@ export class Session {
     if(m.type==='key') {
       const a=checkKeys(await openAnnouncement(this.d,m),m,this.seen);
       if(!a || a.v!==32 || !a.spk)return;
-      const prior=this.group.peers.get(m.from);
-      if(prior && prior.spk!==a.spk){this.halt();this.emit('fatal','成员签名身份发生变化，请通过独立渠道核实并重新打开文件。');return;}
-      const p=await this.group.receive(a,m.from);
+      const pinned=this.pins.get(m.from);
+      const p=await this.group.receive(a,m.from); // verifies ECDSA before pinning
+      if(!p)return;
+      if(pinned && pinned!==p.spk){this.halt();this.emit('fatal','成员签名身份发生变化，请通过独立渠道核实并重新打开文件。');return;}
+      this.pins.set(m.from,p.spk);
       if(p?.lost)p.sent=-1;
       await this.announce();await this.update();return;
     }
@@ -71,6 +77,7 @@ export class Session {
     await this.flush();
   }
   queue(text) {
+    if(this.stopped)return false;
     text=checkMessage(text);if(!text || this.queued.length>=20)return false;
     const id=hex(random(8));this.queued.push({id,text});this.emit('message',{id,from:'我',text});this.emit('delivery',{id,text:'排队中'});
     this.run(()=>this.flush());return true;

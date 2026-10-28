@@ -61,7 +61,7 @@ export default {
     if (htmlRoom ? !htmlRoomOrigin(request.headers.get('Origin'), url.origin) : request.headers.get('Origin') !== url.origin) return plain(403, 'forbidden');
     // Only a page that knows the passphrase can show the access value.
     const proto = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
-    if (!proto.ok || !(await accessMatches(m[2], proto.access))) return refuse(CLOSE_DENIED, 'no access');
+    if (!proto.ok || !(await accessMatches(m[2], proto.access))) return htmlRoom ? plain(403, 'forbidden') : refuse(CLOSE_DENIED, 'no access');
     // Joins per address per minute, counted in memory at the edge and never
     // written anywhere: enough to stop a script opening rooms in bulk.
     if (env.JOIN_LIMIT) {
@@ -122,7 +122,7 @@ export class Room extends DurableObject {
     const mine = token();
     server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent, htmlRoom });
     this.saveBook(r.book, this.peers());
-    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION, seen: true, files: true, lobby: true }));
+    server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION, seen: true, files: !htmlRoom, lobby: !htmlRoom }));
     this.members();
     return new Response(null, { status: 101, webSocket: client, headers: WS_HEADERS });
   }
