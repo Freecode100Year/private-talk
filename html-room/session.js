@@ -5,7 +5,7 @@ export const memoryStorage = () => new Map();
 // Explicit injection for tests only; no browser persistence API is used.
 export class Session {
   constructor(derived, config, {storage=memoryStorage(),emit=()=>{}}={}) {
-    Object.assign(this,{d:derived,config,store:storage,emit,deviceId:hex(random(16)),present:[],seen:new Map(),own:new Map(),queued:[],receipts:[],group:null,ws:null,serial:Promise.resolve()});
+    Object.assign(this,{d:derived,config,store:storage,emit,deviceId:hex(random(16)),present:[],seen:new Map(),own:new Map(),queued:[],receipts:[],received:new Map(),group:null,ws:null,serial:Promise.resolve()});
   }
   run(fn) { this.serial=this.serial.then(fn).catch(()=>this.emit('notice','收到无法验证的数据，已忽略。'));return this.serial; }
   send(frame) { if(this.ws?.readyState===1)this.ws.send(JSON.stringify(frame)); }
@@ -15,6 +15,8 @@ export class Session {
   }
   ready() { return this.group && this.present.length>1 && this.group.ready(this.present,true) && this.group.quantumSafe(this.present); }
   async incoming(m) {
+    if(m.type==='pong'){this.lastPong=Date.now();return;}
+    if(m.type==='wait'){this.nextSend=Date.now()+Math.min(30000,Math.max(1000,m.ms||6000));return;}
     if(m.type==='hello') {
       this.resume=m.resume;
       if(!this.group || this.group.me!==m.you){this.group=await Group.create(this.d.key,this.d.bind,m.you);this.own.clear();this.present=[];}
@@ -45,6 +47,8 @@ export class Session {
       await this.announce();await this.update();return;
     }
     if(!['msg','seen'].includes(m.type) || !m.h)return;
+    const receiptKey=`${m.from}|${m.h}`, prior=this.received.get(receiptKey);
+    if(prior){if(m.type==='msg' && prior.iv===m.iv && prior.ct===m.ct && this.receipts.length<100)this.receipts.push([m.from,m.h]);return;}
     const opened=await this.group.open(m,m.from);
     if(!opened.signed || this.group.peers.get(m.from)?.v!==32)return;
     if(m.type==='seen') {
@@ -57,6 +61,7 @@ export class Session {
     } else {
       const got=checkEnvelope(opened.text,m,this.seen);
       if(!got || got.g || got.f)return;
+      this.received.set(receiptKey,{iv:m.iv,ct:m.ct});while(this.received.size>200)this.received.delete(this.received.keys().next().value);
       this.emit('message',{id:got.id,from:m.from,text:got.text});
       if(this.receipts.length<100)this.receipts.push([m.from,m.h]);
     }
@@ -87,6 +92,12 @@ export class Session {
     }
     for(const [id,t] of this.seen)if(Date.now()-t>1200000)this.seen.delete(id);
     while(this.seen.size>4096)this.seen.delete(this.seen.keys().next().value);
+  }
+  async retryPending(){
+    for(const own of this.own.values()){
+      if(!own.echo && Date.now()-own.at>8000 && (own.retries??0)<3){this.send(own.frame);own.at=Date.now();own.retries=(own.retries??0)+1;}
+      if(!own.echo && (own.retries??0)>=3)this.emit('delivery',{id:own.id,text:'中继提交未确认，请核实后重发'});
+    }
   }
   halt(){this.stopped=true;clearTimeout(this.retry);clearInterval(this.tick);this.ws?.close(4000);}
 }
