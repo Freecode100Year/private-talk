@@ -1,3 +1,4 @@
+import { htmlRoomOrigin, checkHtmlRoomFrame } from './html-room.js';
 // 隐匿对话 relay on Cloudflare. Each room is a Durable Object that only
 // forwards encrypted messages between the people connected to it. It never
 // stores anything: no history, no names, no keys. Rooms are addressed by a
@@ -50,23 +51,24 @@ export default {
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       return env.LOBBY.get(env.LOBBY.idFromName('lobby')).fetch('https://lobby/' + (request.method === 'GET' ? 'list' : 'create'), { method: 'POST', headers: { 'X-IP': ip }, body: request.method === 'POST' ? (await request.text()).slice(0, 600) : '' });
     }
-    const m = url.pathname.match(/^\/ws\/([0-9a-f]+)$/);
+    const m = url.pathname.match(/^\/(ws|hr)\/([0-9a-f]+)$/);
     if (!m) return env.ASSETS.fetch(request);
-    if (!ROOM_ID.test(m[1])) return plain(400, 'bad room');
+    if (!ROOM_ID.test(m[2])) return plain(400, 'bad room');
+    const htmlRoom = m[1] === 'hr';
     if (request.headers.get('Upgrade') !== 'websocket') return plain(426, 'websocket only');
     // Stops other web pages from connecting through a visitor's browser.
     // Programs outside a browser can send any Origin they like.
-    if (request.headers.get('Origin') !== url.origin) return plain(403, 'forbidden');
+    if (htmlRoom ? !htmlRoomOrigin(request.headers.get('Origin'), url.origin) : request.headers.get('Origin') !== url.origin) return plain(403, 'forbidden');
     // Only a page that knows the passphrase can show the access value.
     const proto = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
-    if (!proto.ok || !(await accessMatches(m[1], proto.access))) return refuse(CLOSE_DENIED, 'no access');
+    if (!proto.ok || !(await accessMatches(m[2], proto.access))) return refuse(CLOSE_DENIED, 'no access');
     // Joins per address per minute, counted in memory at the edge and never
     // written anywhere: enough to stop a script opening rooms in bulk.
     if (env.JOIN_LIMIT) {
       const { success } = await env.JOIN_LIMIT.limit({ key: request.headers.get('CF-Connecting-IP') || 'unknown' });
       if (!success) return refuse(CLOSE_BUSY, 'too many joins');
     }
-    return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(request);
+    return env.ROOMS.get(env.ROOMS.idFromName(htmlRoom ? `hr:${m[2]}` : m[2])).fetch(request);
   }
 };
 
@@ -99,6 +101,7 @@ export class Room extends DurableObject {
       await this.ctx.storage.put('table', await request.json());
       return plain(204);
     }
+    const htmlRoom = new URL(request.url).pathname.startsWith('/hr/');
     const { resume } = parseProtocols(request.headers.get('Sec-WebSocket-Protocol'));
     const peers = this.peers();
     const inUse = new Map(peers.map((ws) => { const a = ws.deserializeAttachment(); return [a.n, a.resume]; }));
@@ -117,7 +120,7 @@ export class Room extends DurableObject {
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     const mine = token();
-    server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent });
+    server.serializeAttachment({ n: r.n, seq, resume: mine, book: r.book, window: 0, count: 0, sent, htmlRoom });
     this.saveBook(r.book, this.peers());
     server.send(JSON.stringify({ type: 'hello', you: r.n, now: Date.now(), resume: mine, v: WIRE_VERSION, seen: true, files: true, lobby: true }));
     this.members();
@@ -131,7 +134,7 @@ export class Room extends DurableObject {
   async webSocketMessage(ws, raw) {
     const a = ws.deserializeAttachment();
     if (!a || a.done) return;
-    const r = checkFrame(raw, a);
+    const r = (a.htmlRoom ? checkHtmlRoomFrame : checkFrame)(raw, a);
     ws.serializeAttachment(a);
     if (!r) return;
     if (r.close) return ws.close(...r.close);
@@ -405,7 +408,7 @@ export class Room extends DurableObject {
     const peers = this.peers(skip);
     const book = this.book(peers);
     const list = peers.map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y);
-    this.ctx.waitUntil(this.table(list.length).then(() => this.judgeMembers(list)));
+    if (!peers.some(ws => ws.deserializeAttachment()?.htmlRoom) && !skip?.deserializeAttachment()?.htmlRoom) this.ctx.waitUntil(this.table(list.length).then(() => this.judgeMembers(list)));
     this.broadcast({ type: 'members', members: list, host: this.host(peers), max: MAX_MEMBERS, locked: book.locked, away: awayNumbers(book) }, skip);
   }
 

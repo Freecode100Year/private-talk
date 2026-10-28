@@ -19,3 +19,11 @@ test('HTML Room config escaping, relay whitelist and fixed executable hash', asy
  await assert.rejects(render({...c,relay:'wss://evil.example'},['wss://relay.example']));
  await assert.rejects(render({...c,relay:'wss://relay.example/</script>'},['wss://relay.example']));
 });
+import { htmlRoomOrigin, checkHtmlRoomFrame } from '../src/html-room.js';
+import { accessMatches } from '../src/rules.js';
+test('HTML Room route policy isolates Origins and drops game frames', async()=>{
+ assert.ok(htmlRoomOrigin('null','https://relay.example'));assert.ok(htmlRoomOrigin('https://relay.example','https://relay.example'));
+ for(const o of [null,'https://evil.example','http://relay.example','https://relay.example/'])assert.equal(htmlRoomOrigin(o,'https://relay.example'),false);
+ for(const type of ['table','lobby','ref','file','lock','remove'])assert.equal(checkHtmlRoomFrame(JSON.stringify({type}),{}),null);
+ const c=await makeConfig('wss://relay.example');const d=await unlock(c);assert.ok(await accessMatches(c.roomId,Buffer.from(d.access).toString('hex')));assert.equal(await accessMatches('0'.repeat(64),Buffer.from(d.access).toString('hex')),false);
+});
