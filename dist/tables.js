@@ -9,9 +9,9 @@ export const PUBLIC = /^pub(?:([a-z0-9]{1,12})-([a-z0-9]{16})|(spy|ld|tr|sm|ww)(
 
 // Seats for each game that can be played at a public table: [min, max, usual].
 // Werewolf at a public table is judged by the server (src/judge.js).
-export const GAMES = { ww: [6, 12, 9], spy: [4, 8, 6], ld: [2, 8, 4], tr: [2, 8, 4], sm: [3, 8, 5] };
+export const GAMES = { gd: [4, 4, 4], mj: [4, 4, 4], ww: [6, 12, 9], spy: [4, 8, 6], ld: [2, 8, 4], tr: [2, 8, 4], sm: [3, 8, 5] };
 // Minutes a game usually takes, for the cards.
-export const MINUTES = { ww: '20–40', spy: '10–15', ld: '10–20', esc: '≤12', tr: '7', sm: '8' };
+export const MINUTES = { gd: '15–30', mj: '10–20', ww: '20–40', spy: '10–15', ld: '10–20', esc: '≤12', tr: '7', sm: '8' };
 
 // { mode, game, seats } of a public passphrase, or null (a private room).
 export function tableOf(pass) {

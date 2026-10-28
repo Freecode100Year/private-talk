@@ -88,3 +88,10 @@ cd private-talk-docker && ./pt setup chat.example.com
 ## Licence
 
 [MIT](LICENSE).
+
+
+## Public card tables (2.23)
+
+Guandan and Mahjong · Blood Battle Basics are four-player public modes. Choose a game under Quick Play; a full table starts automatically. The server deals and judges, sending each seat only its own hand and public information. The separate chat encryption channel is preserved; public table passphrases remain public and anyone may join. No accounts or persistent player profiles are added.
+
+Mahjong uses a deliberately simplified ruleset: 108 suited tiles, missing suit, pong/kong/wins and continued play after wins; no exchange-three, kong payments or end-of-wall penalties. Each win scores one base point. See the in-table rules. These modes are not offered in private rooms.

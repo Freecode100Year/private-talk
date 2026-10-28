@@ -1,0 +1,20 @@
+.card-table-host { min-width: 0; padding: 12px; }
+.card-table-host h3 { margin: 4px 0 12px; font-size: 1.25rem; }
+.card-privacy { font-size: .82rem; opacity: .78; line-height: 1.5; }
+.card-table-status, .card-table-seats, .card-table-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.card-table-status { justify-content: space-between; }
+.card-seat { padding: 8px; border: 1px solid #64748b; border-radius: 8px; }
+.card-seat.active { border-color: #22d3ee; background: #164e63; }
+.card-hand { display: flex; flex-wrap: wrap; gap: 5px; padding: 12px 0; max-width: 100%; }
+.table-card { min-width: 44px; min-height: 58px; padding: 8px 5px; border: 2px solid #94a3b8; border-radius: 6px; color: #172033; background: #f8fafc; font-size: 1.12rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.table-card.red { color: #b91c1c; }
+.table-card.selected { border-color: #0891b2; background: #cffafe; box-shadow: 0 0 0 2px #22d3ee; transform: translateY(-4px); }
+.card-public { overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
+.card-public p, .card-table-host details p { line-height: 1.6; white-space: pre-wrap; }
+.card-table-host details { margin: 12px 0; }
+.card-error { min-height: 1.3em; color: #fda4af; }
+.card-table-actions button { min-height: 44px; }
+.card-table-actions select { max-width: 100%; min-height: 44px; }
+@media (max-width: 600px) { .card-table-host { padding: 8px; } .table-card { min-width: 40px; min-height: 52px; font-size: 1rem; } .card-hand { gap: 5px; } }
+
+.table-card.kong-choice { border-style: dashed; border-color: #a16207; }

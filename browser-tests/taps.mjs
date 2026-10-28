@@ -137,6 +137,7 @@ while (!ended && Date.now() - start < 12 * 60000) {
 
       // Tap confirm button using touchscreen
       const okHit = await tap(p, '#wwConfirmOk');
+      if (!okHit?.ok) misses.push(`${i}: confirmation → ${okHit?.on || 'missing'}`);
       if (okHit?.ok) {
         taps++;
       }
