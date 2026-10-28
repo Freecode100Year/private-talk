@@ -1,0 +1,2924 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; media-src 'none'; img-src 'none'; font-src 'none'; connect-src __PT_CONNECT_SRC__; style-src 'sha256-uYWw4CqsQrzZ2AzIdNrpxho7syPttx/5chKJkOuwcxs='; script-src 'sha256-aEz2U7OZg8GUWP4h+zC9d+YITKT7eTrYkf6FPRkdtJE='">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐匿对话 · 房间</title>
+<style>:root {
+  --bg: #f4f2ee; --card: #ffffff; --ink: #1d1b18; --muted: #6b665e; --line: #e2ddd4;
+  --accent: #2f5d50; --accent-ink: #ffffff; --mine: #e5efe9; --warn-bg: #fff3df; --warn-ink: #7a4a00; --bad: #a33a2b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161514; --card: #201f1d; --ink: #ece8e1; --muted: #a39d93; --line: #34312d;
+    --accent: #7fb7a4; --accent-ink: #10201b; --mine: #243630; --warn-bg: #3a2c13; --warn-ink: #f3cf8f; --bad: #f0907f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+[hidden] { display: none !important; }
+#pt-boot, .card { max-width: 34rem; margin: 2rem auto; padding: 1.25rem 1.25rem 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+#pt-boot p { margin: 0 0 .75rem; }
+h1 { font-size: 1.25rem; margin: 0 0 .75rem; overflow-wrap: anywhere; }
+p { margin: 0 0 .75rem; }
+.fine { color: var(--muted); font-size: .85rem; }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: .6rem .75rem; font-size: .9rem; }
+.note { color: var(--muted); font-size: .85rem; border-left: 3px solid var(--line); padding-left: .6rem; }
+input, textarea {
+  width: 100%; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: .6rem .7rem;
+}
+input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  font: inherit; cursor: pointer; border: 0; border-radius: 8px; padding: .6rem 1rem;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+}
+button:disabled { opacity: .55; cursor: progress; }
+button.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 400; padding: .35rem .8rem; }
+form.card input { margin-bottom: .75rem; }
+form.card button { width: 100%; margin-bottom: .75rem; }
+label { display: block; font-size: .9rem; margin: 0 0 .3rem; }
+.row { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.row input { margin: 0; flex: 1; }
+.row button { width: auto; margin: 0; flex: none; }
+.out { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; background: var(--bg); padding: .5rem; border-radius: 8px; }
+
+.room { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 48rem; margin: 0 auto; padding: .75rem 1rem; gap: .5rem; }
+.room header .top { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.room header h1 { margin: 0; }
+.status { color: var(--muted); font-size: .85rem; }
+.status.ok { color: var(--accent); }
+.room > .warn, .room > .note { margin: 0; }
+.side { font-size: .9rem; }
+.side summary { cursor: pointer; color: var(--muted); }
+.members { list-style: none; padding: 0; margin: .5rem 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.members li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: .1rem .6rem; }
+.safety { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; overflow-wrap: anywhere; }
+.log { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: .5rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: .5rem; }
+.log li { max-width: 85%; }
+.log .sys { align-self: center; max-width: 100%; text-align: center; color: var(--muted); font-size: .8rem; }
+.msg { align-self: flex-start; background: var(--bg); border-radius: 12px; padding: .4rem .7rem; display: flex; flex-direction: column; }
+.msg.mine { align-self: flex-end; background: var(--mine); }
+.msg .meta { font-size: .75rem; color: var(--muted); }
+.msg .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg .state { font-size: .72rem; color: var(--muted); text-align: right; }
+.msg[data-state="all"] .state { color: var(--accent); }
+.msg[data-state="failed"] .state { color: var(--bad); }
+.compose { display: flex; gap: .5rem; align-items: flex-end; }
+.compose textarea { resize: none; flex: 1; }
+.compose button { flex: none; }
+</style>
+</head>
+<body>
+<div id="pt-boot"><p>正在打开加密聊天室……</p><p>如果这段文字一直不消失，说明当前打开方式不能运行本页面。请用系统浏览器（Chrome、Edge、Firefox、Safari）打开这个文件；如果仍然不行，请向房间创建者索取网页版链接。</p></div>
+<script id="pt-room-config" type="application/json">__PT_ROOM_CONFIG__</script>
+<script>(() => {
+'use strict';
+const __m = Object.create(null);
+__m["crypto.js"] = (() => {
+// End-to-end encryption. Everything is derived from the passphrase in the
+// browser: one slow PBKDF2 step (to make guessing costly), then HKDF splits
+// the result into two unrelated secrets:
+//   access  shown to the relay to be let in; the room address is its SHA-256,
+//           so the relay can check it but cannot work it out from the address
+//   key     the AES-256-GCM message key, which never leaves the browser
+//   bind    salt for protocol v3's short-lived keys (group.js)
+// Knowing the access value does not help find the key, and neither reveals
+// the passphrase.
+const enc = new TextEncoder();
+const ITERATIONS = 310000;
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+
+async function deriveRoom(pass) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  const master = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode('private-talk/v2'), iterations: ITERATIONS, hash: 'SHA-256' }, base, 256);
+  const hkdf = await crypto.subtle.importKey('raw', master, 'HKDF', false, ['deriveBits', 'deriveKey']);
+  const info = (label) => ({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc.encode(label) });
+  const access = await crypto.subtle.deriveBits(info('private-talk/v2/access'), hkdf, 256);
+  const roomId = hex(await crypto.subtle.digest('SHA-256', access));
+  const key = await crypto.subtle.deriveKey(info('private-talk/v2/key'), hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  // Salt for the v3 pairwise keys (group.js), so they belong to this room.
+  const bind = new Uint8Array(await crypto.subtle.deriveBits(info('private-talk/v3/bind'), hkdf, 256));
+  return { roomId, access: hex(access), key, bind };
+}
+
+const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+// Before sealing, every message is padded up to the next of a few fixed sizes
+// (ISO/IEC 7816-4: one 0x80 byte, then zeros), so the ciphertext shows only a
+// size class, not how long the message is. Sealed text is JSON and never ends
+// in 0x80 or 0x00, so unpadded messages from older pages still read correctly.
+const BUCKETS = [256, 512, 1024, 2048, 4096];
+
+function pad(bytes) {
+  const size = BUCKETS.find((b) => b > bytes.length) ?? bytes.length + 1;
+  const out = new Uint8Array(size);
+  out.set(bytes);
+  out[bytes.length] = 0x80;
+  return out;
+}
+
+function unpad(bytes) {
+  let end = bytes.length - 1;
+  while (end >= 0 && bytes[end] === 0) end--;
+  return end >= 0 && bytes[end] === 0x80 ? bytes.subarray(0, end) : bytes;
+}
+
+async function seal(key, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pad(enc.encode(text)));
+  return { iv: toB64(iv), ct: toB64(ct) };
+}
+
+async function open(key, { iv, ct }) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv) }, key, fromB64(ct));
+  return new TextDecoder().decode(unpad(new Uint8Array(pt)));
+}
+
+return { deriveRoom, BUCKETS, pad, unpad, seal, open };
+})();
+__m["vendor/mlkem.js"] = (() => {
+// ML-KEM-768 (FIPS 203) from @noble/post-quantum 0.7.1 and @noble/hashes,
+// bundled with esbuild for Chrome 83 (the Android 10 WebView). MIT License,
+// Copyright (c) 2024 Paul Miller (https://paulmillr.com). Rebuild: scripts/build-mlkem.sh
+// Not independently audited: private-talk uses it only next to ECDH (see group.js).
+// node_modules/@noble/hashes/_u64.js
+var U32_MASK64 = /* @__PURE__ */ (() => BigInt(2 ** 32 - 1))();
+var _32n = /* @__PURE__ */ BigInt(32);
+function fromBig(n, le = false) {
+  if (le)
+    return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
+  return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
+}
+function split(lst, le = false) {
+  const len = lst.length;
+  let Ah = new Uint32Array(len);
+  let Al = new Uint32Array(len);
+  for (let i = 0; i < len; i++) {
+    const { h, l } = fromBig(lst[i], le);
+    [Ah[i], Al[i]] = [h, l];
+  }
+  return [Ah, Al];
+}
+
+// node_modules/@noble/hashes/utils.js
+function isBytes(a) {
+  return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
+}
+var atitle = (title) => title ? `"${title}" ` : "";
+function anumber(n, title = "") {
+  if (typeof n !== "number")
+    throw new TypeError(atitle(title) + "expected number, got " + typeof n);
+  if (!Number.isSafeInteger(n) || n < 0)
+    throw new RangeError(atitle(title) + "expected integer >= 0, got " + n);
+  return n;
+}
+function abool(value, title = "") {
+  if (typeof value !== "boolean")
+    throw new TypeError(atitle(title) + "expected boolean, got type=" + typeof value);
+  return value;
+}
+function abytes(value, length, title = "") {
+  if (isBytes(value) && (length === void 0 || value.length === length))
+    return value;
+  if (length !== void 0)
+    anumber(length, "length");
+  const bytes = isBytes(value);
+  const ofLen = length !== void 0 ? ` of length ${length}` : "";
+  const got = bytes ? `length=${value.length}` : `type=${typeof value}`;
+  const message = atitle(title) + "expected Uint8Array" + ofLen + ", got " + got;
+  if (!bytes)
+    throw new TypeError(message);
+  throw new RangeError(message);
+}
+var aobject = (value, label) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError((label === "object" ? "" : `"${label}" `) + "expected object, got type=" + typeof value);
+};
+var aopts = (value, label) => {
+  aobject(value, label);
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null)
+    throw new TypeError(`"${label}" expected plain object`);
+  if (Object.prototype.hasOwnProperty.call(value, "__proto__"))
+    throw new TypeError(`"${label}.__proto__" is not allowed`);
+};
+function aexists(instance, checkFinished = true) {
+  if (instance.destroyed)
+    throw new Error("hash was destroyed");
+  if (checkFinished && instance.finished)
+    throw new Error("digest() was already called");
+}
+function aoutput(out, instance) {
+  abytes(out, void 0, "output");
+  const min = instance.outputLen;
+  if (!(out.length >= min)) {
+    throw new RangeError('"output" expected length >= ' + min);
+  }
+}
+function u32(arr) {
+  return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
+}
+function clean(...arrays) {
+  for (let i = 0; i < arrays.length; i++) {
+    arrays[i].fill(0);
+  }
+}
+var isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
+function byteSwap(word) {
+  return word << 24 & 4278190080 | word << 8 & 16711680 | word >>> 8 & 65280 | word >>> 24 & 255;
+}
+function byteSwap32(arr) {
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = byteSwap(arr[i]);
+  }
+  return arr;
+}
+var swap32IfBE = isLE ? (u) => u : byteSwap32;
+function checkOpts(defaults, opts2, title = "opts") {
+  aopts(defaults, "defaults");
+  if (opts2 !== void 0)
+    aopts(opts2, title);
+  const merged = Object.assign(/* @__PURE__ */ Object.create(null), defaults, opts2);
+  return merged;
+}
+function createHasher(hashCons, info = {}) {
+  if (typeof hashCons !== "function")
+    throw new TypeError('"hashCons" expected function, got type=' + typeof hashCons);
+  info = checkOpts({}, info, "info");
+  const hashC = (msg, opts2) => hashCons(opts2).update(msg).digest();
+  const tmp = hashCons(void 0);
+  hashC.outputLen = tmp.outputLen;
+  hashC.blockLen = tmp.blockLen;
+  hashC.canXOF = tmp.canXOF;
+  hashC.create = (opts2) => hashCons(opts2);
+  Object.assign(hashC, info);
+  return Object.freeze(hashC);
+}
+function randomBytes(bytesLength = 32) {
+  anumber(bytesLength, "bytesLength");
+  const cr = typeof globalThis === "object" ? globalThis.crypto : null;
+  if (typeof (cr == null ? void 0 : cr.getRandomValues) !== "function")
+    throw new Error("crypto.getRandomValues must be defined");
+  if (bytesLength > 65536)
+    throw new RangeError(`"bytesLength" expected <= 65536, got ${bytesLength}`);
+  return cr.getRandomValues(new Uint8Array(bytesLength));
+}
+var oidNist = (suffix) => ({
+  // Current NIST hashAlgs suffixes used here fit in one DER subidentifier octet.
+  // Larger suffix values would need base-128 OID encoding and a different length byte.
+  oid: Uint8Array.from([6, 9, 96, 134, 72, 1, 101, 3, 4, 2, suffix])
+});
+
+// node_modules/@noble/hashes/sha3.js
+var _0n = BigInt(0);
+var _1n = BigInt(1);
+var _2n = BigInt(2);
+var _7n = BigInt(7);
+var _256n = BigInt(256);
+var _0x71n = BigInt(113);
+var SHA3_PI = [];
+var SHA3_ROTL = [];
+var _SHA3_IOTA = [];
+for (let round = 0, R = _1n, x = 1, y = 0; round < 24; round++) {
+  [x, y] = [y, (2 * x + 3 * y) % 5];
+  SHA3_PI.push(2 * (5 * y + x));
+  SHA3_ROTL.push((round + 1) * (round + 2) / 2 % 64);
+  let t = _0n;
+  for (let j = 0; j < 7; j++) {
+    R = (R << _1n ^ (R >> _7n) * _0x71n) % _256n;
+    if (R & _2n)
+      t ^= _1n << (_1n << BigInt(j)) - _1n;
+  }
+  _SHA3_IOTA.push(t);
+}
+var IOTAS = split(_SHA3_IOTA, true);
+var SHA3_IOTA_H = IOTAS[0];
+var SHA3_IOTA_L = IOTAS[1];
+var rotlSH = (h, l, s) => h << s | l >>> 32 - s;
+var rotlSL = (h, l, s) => l << s | h >>> 32 - s;
+var rotlBH = (h, l, s) => l << s - 32 | h >>> 64 - s;
+var rotlBL = (h, l, s) => h << s - 32 | l >>> 64 - s;
+var rotlH = (h, l, s) => s > 32 ? rotlBH(h, l, s) : rotlSH(h, l, s);
+var rotlL = (h, l, s) => s > 32 ? rotlBL(h, l, s) : rotlSL(h, l, s);
+var B = new Uint32Array(5 * 2);
+function keccakP(s, rounds = 24) {
+  if (!(s instanceof Uint32Array))
+    throw new TypeError('"s" expected Uint32Array(50), got type=' + typeof s);
+  if (s.length !== 50)
+    throw new RangeError('"s" expected Uint32Array(50), got length=' + s.length);
+  anumber(rounds, "rounds");
+  if (rounds < 1 || rounds > 24)
+    throw new Error('"rounds" expected integer 1..24');
+  for (let round = 24 - rounds; round < 24; round++) {
+    for (let x = 0; x < 10; x++)
+      B[x] = s[x] ^ s[x + 10] ^ s[x + 20] ^ s[x + 30] ^ s[x + 40];
+    for (let x = 0; x < 10; x += 2) {
+      const idx1 = (x + 8) % 10;
+      const idx0 = (x + 2) % 10;
+      const B0 = B[idx0];
+      const B1 = B[idx0 + 1];
+      const Th = rotlH(B0, B1, 1) ^ B[idx1];
+      const Tl = rotlL(B0, B1, 1) ^ B[idx1 + 1];
+      for (let y = 0; y < 50; y += 10) {
+        s[x + y] ^= Th;
+        s[x + y + 1] ^= Tl;
+      }
+    }
+    let curH = s[2];
+    let curL = s[3];
+    for (let t = 0; t < 24; t++) {
+      const shift = SHA3_ROTL[t];
+      const Th = rotlH(curH, curL, shift);
+      const Tl = rotlL(curH, curL, shift);
+      const PI = SHA3_PI[t];
+      curH = s[PI];
+      curL = s[PI + 1];
+      s[PI] = Th;
+      s[PI + 1] = Tl;
+    }
+    for (let y = 0; y < 50; y += 10) {
+      const b0 = s[y], b1 = s[y + 1], b2 = s[y + 2], b3 = s[y + 3];
+      s[y] ^= ~s[y + 2] & s[y + 4];
+      s[y + 1] ^= ~s[y + 3] & s[y + 5];
+      s[y + 2] ^= ~s[y + 4] & s[y + 6];
+      s[y + 3] ^= ~s[y + 5] & s[y + 7];
+      s[y + 4] ^= ~s[y + 6] & s[y + 8];
+      s[y + 5] ^= ~s[y + 7] & s[y + 9];
+      s[y + 6] ^= ~s[y + 8] & b0;
+      s[y + 7] ^= ~s[y + 9] & b1;
+      s[y + 8] ^= ~b0 & b2;
+      s[y + 9] ^= ~b1 & b3;
+    }
+    s[0] ^= SHA3_IOTA_H[round];
+    s[1] ^= SHA3_IOTA_L[round];
+  }
+  clean(B);
+}
+var Keccak = class _Keccak {
+  state;
+  pos = 0;
+  posOut = 0;
+  finished = false;
+  state32;
+  destroyed = false;
+  blockLen;
+  suffix;
+  outputLen;
+  canXOF;
+  enableXOF = false;
+  rounds;
+  // NOTE: we accept arguments in bytes instead of bits here.
+  constructor(blockLen, suffix, outputLen, enableXOF = false, rounds = 24) {
+    anumber(blockLen, "blockLen");
+    anumber(suffix, "suffix");
+    anumber(rounds, "rounds");
+    abool(enableXOF, "enableXOF");
+    this.blockLen = blockLen;
+    this.suffix = suffix;
+    this.outputLen = outputLen;
+    this.enableXOF = enableXOF;
+    this.canXOF = enableXOF;
+    this.rounds = rounds;
+    anumber(outputLen, "outputLen");
+    if (!(0 < blockLen && blockLen < 200))
+      throw new Error('"blockLen" must be 1..199');
+    this.state = new Uint8Array(200);
+    this.state32 = u32(this.state);
+  }
+  clone() {
+    return this._cloneInto();
+  }
+  keccak() {
+    swap32IfBE(this.state32);
+    keccakP(this.state32, this.rounds);
+    swap32IfBE(this.state32);
+    this.posOut = 0;
+    this.pos = 0;
+  }
+  update(data) {
+    aexists(this);
+    abytes(data);
+    const { blockLen, state, state32 } = this;
+    const len = data.length;
+    const canUseU32 = blockLen % 4 === 0 && data.byteOffset % 4 === 0;
+    const blockLen32 = blockLen / 4;
+    const data32 = canUseU32 && len >= blockLen ? u32(data) : void 0;
+    for (let pos = 0; pos < len; ) {
+      if (data32 !== void 0 && this.pos === 0 && pos % 4 === 0 && len - pos >= blockLen) {
+        for (let i = 0, o = pos / 4; i < blockLen32; i++)
+          state32[i] ^= data32[o + i];
+        pos += blockLen;
+        this.pos = blockLen;
+        this.keccak();
+        continue;
+      }
+      const take = Math.min(blockLen - this.pos, len - pos);
+      for (let i = 0; i < take; i++)
+        state[this.pos++] ^= data[pos++];
+      if (this.pos === blockLen)
+        this.keccak();
+    }
+    return this;
+  }
+  finish() {
+    if (this.finished)
+      return;
+    this.finished = true;
+    const { state, suffix, pos, blockLen } = this;
+    state[pos] ^= suffix;
+    if ((suffix & 128) !== 0 && pos === blockLen - 1)
+      this.keccak();
+    state[blockLen - 1] ^= 128;
+    this.keccak();
+  }
+  writeInto(out) {
+    aexists(this, false);
+    abytes(out);
+    this.finish();
+    const bufferOut = this.state;
+    const { blockLen } = this;
+    for (let pos = 0, len = out.length; pos < len; ) {
+      if (this.posOut >= blockLen)
+        this.keccak();
+      const take = Math.min(blockLen - this.posOut, len - pos);
+      out.set(bufferOut.subarray(this.posOut, this.posOut + take), pos);
+      this.posOut += take;
+      pos += take;
+    }
+    return out;
+  }
+  xofInto(out) {
+    if (!this.enableXOF)
+      throw new Error("XOF is not enabled");
+    return this.writeInto(out);
+  }
+  xof(bytes) {
+    anumber(bytes);
+    return this.xofInto(new Uint8Array(bytes));
+  }
+  digestInto(out) {
+    aoutput(out, this);
+    if (this.finished)
+      throw new Error("digest() was already called");
+    this.writeInto(out.length === this.outputLen ? out : out.subarray(0, this.outputLen));
+    this.destroy();
+  }
+  digest() {
+    const out = new Uint8Array(this.outputLen);
+    this.digestInto(out);
+    return out;
+  }
+  destroy() {
+    this.destroyed = true;
+    clean(this.state);
+  }
+  _cloneInto(to) {
+    const { blockLen, suffix, outputLen, rounds, enableXOF } = this;
+    to || (to = new _Keccak(blockLen, suffix, outputLen, enableXOF, rounds));
+    to.blockLen = blockLen;
+    to.state32.set(this.state32);
+    to.pos = this.pos;
+    to.posOut = this.posOut;
+    to.finished = this.finished;
+    to.rounds = rounds;
+    to.suffix = suffix;
+    to.outputLen = outputLen;
+    to.enableXOF = enableXOF;
+    to.canXOF = this.canXOF;
+    to.destroyed = this.destroyed;
+    return to;
+  }
+};
+var genKeccak = (suffix, blockLen, outputLen, info = {}) => createHasher(() => new Keccak(blockLen, suffix, outputLen), info);
+var sha3_256 = /* @__PURE__ */ genKeccak(
+  6,
+  136,
+  32,
+  /* @__PURE__ */ oidNist(8)
+);
+var sha3_512 = /* @__PURE__ */ genKeccak(
+  6,
+  72,
+  64,
+  /* @__PURE__ */ oidNist(10)
+);
+var genShake = (suffix, blockLen, outputLen, info = {}) => createHasher((opts2 = {}) => {
+  opts2 = checkOpts({}, opts2);
+  return new Keccak(blockLen, suffix, opts2.dkLen === void 0 ? outputLen : opts2.dkLen, true);
+}, info);
+var shake128 = /* @__PURE__ */ genShake(31, 168, 16, /* @__PURE__ */ oidNist(11));
+var shake256 = /* @__PURE__ */ genShake(31, 136, 32, /* @__PURE__ */ oidNist(12));
+
+// node_modules/@noble/curves/utils.js
+/*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
+function aobject2(value, title = "object") {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError(title === "object" ? "expected valid options object" : `"${title}" expected object, got type=${typeof value}`);
+  return value;
+}
+function validateObject(object, fields = {}, optFields = {}, title = "object") {
+  aobject2(object, title);
+  aobject2(fields, "fields");
+  aobject2(optFields, "optFields");
+  function checkField(fieldName, expectedType, isOpt) {
+    const label = title === "object" ? `param "${String(fieldName)}"` : `"${title}.${String(fieldName)}"`;
+    const val = object[fieldName];
+    if (!Object.prototype.hasOwnProperty.call(object, fieldName) && (isOpt ? val !== void 0 : expectedType !== "function")) {
+      throw new TypeError(`${label} is invalid: expected own property`);
+    }
+    if (isOpt && val === void 0)
+      return;
+    const current = typeof val;
+    if (current !== expectedType || val === null)
+      throw new TypeError(`${label} is invalid: expected ${expectedType}, got ${current}`);
+  }
+  const iter = (f, isOpt) => Object.entries(f).forEach(([k, v]) => checkField(k, v, isOpt));
+  iter(fields, false);
+  iter(optFields, true);
+}
+
+// node_modules/@noble/curves/abstract/fft.js
+function checkU32(n, title = "n") {
+  if (typeof n !== "number")
+    throw new TypeError(`wrong u32 integer "${title}": expected number, got type=${typeof n}`);
+  if (!Number.isSafeInteger(n) || n < 0 || n > 4294967295)
+    throw new RangeError(`wrong u32 integer "${title}": expected 0..4294967295, got ${n}`);
+  return n;
+}
+function isPowerOfTwo(x) {
+  checkU32(x, "x");
+  return (x & x - 1) === 0 && x !== 0;
+}
+function reverseBits(n, bits) {
+  checkU32(n);
+  if (typeof bits !== "number")
+    throw new TypeError('"bits" expected number, got type=' + typeof bits);
+  if (!Number.isSafeInteger(bits) || bits < 0 || bits > 32)
+    throw new Error(`expected integer 0 <= bits <= 32, got ${bits}`);
+  let reversed = 0;
+  for (let i = 0; i < bits; i++, n >>>= 1)
+    reversed = reversed << 1 | n & 1;
+  return reversed >>> 0;
+}
+function log2(n) {
+  checkU32(n);
+  return 31 - Math.clz32(n);
+}
+function bitReversalInplace(values) {
+  if (!values || typeof values !== "object" || typeof values.length !== "number")
+    throw new TypeError('"values" expected array-like, got type=' + typeof values);
+  const n = values.length;
+  if (!isPowerOfTwo(n))
+    throw new Error("expected positive power-of-two length, got " + n);
+  const bits = log2(n);
+  for (let i = 0; i < n; i++) {
+    const j = reverseBits(i, bits);
+    if (i < j) {
+      const tmp = values[i];
+      values[i] = values[j];
+      values[j] = tmp;
+    }
+  }
+  return values;
+}
+var FFTCore = (F2, coreOpts) => {
+  validateObject(coreOpts, { N: "number", roots: "object", dit: "boolean" }, { invertButterflies: "boolean", skipStages: "number", brp: "boolean" }, "coreOpts");
+  const { N: N2, roots, dit, invertButterflies = false, skipStages = 0, brp = true } = coreOpts;
+  checkU32(N2, "coreOpts.N");
+  const bits = log2(N2);
+  if (!isPowerOfTwo(N2))
+    throw new Error("FFT: Polynomial size should be power of two");
+  checkU32(skipStages, "coreOpts.skipStages");
+  const maxSkipStages = bits === 0 ? 0 : bits - 1;
+  if (skipStages > maxSkipStages)
+    throw new Error(`FFT: wrong skipStages: expected 0 <= skipStages <= ${maxSkipStages}`);
+  if (roots.length !== N2)
+    throw new Error(`FFT: wrong roots length: expected ${N2}, got ${roots.length}`);
+  const isDit = dit !== invertButterflies;
+  return (values) => {
+    if (values.length !== N2)
+      throw new Error("FFT: wrong Polynomial length");
+    if (dit && brp)
+      bitReversalInplace(values);
+    for (let i = 0, g = 1; i < bits - skipStages; i++) {
+      const s = dit ? i + 1 + skipStages : bits - i;
+      const m = 1 << s;
+      const m2 = m >> 1;
+      const stride = N2 >> s;
+      for (let k = 0; k < N2; k += m) {
+        for (let j = 0, grp = g++; j < m2; j++) {
+          const rootPos = invertButterflies ? dit ? N2 - grp : grp : j * stride;
+          const i0 = k + j;
+          const i1 = k + j + m2;
+          const omega = roots[rootPos];
+          const b = values[i1];
+          const a = values[i0];
+          if (isDit) {
+            const t = F2.mul(b, omega);
+            values[i0] = F2.add(a, t);
+            values[i1] = F2.sub(a, t);
+          } else if (invertButterflies) {
+            values[i0] = F2.add(b, a);
+            values[i1] = F2.mul(F2.sub(b, a), omega);
+          } else {
+            values[i0] = F2.add(a, b);
+            values[i1] = F2.mul(F2.sub(a, b), omega);
+          }
+        }
+      }
+    }
+    if (!dit && brp)
+      bitReversalInplace(values);
+    return values;
+  };
+};
+
+// node_modules/@noble/post-quantum/utils.js
+/*! noble-post-quantum - MIT License (c) 2024 Paul Miller (paulmillr.com) */
+var abytesDoc = abytes;
+var randomBytes2 = randomBytes;
+function aarray2(item, title, inner = () => {
+}) {
+  if (!Array.isArray(item))
+    throw new TypeError(`"${title}" expected array, got type=${typeof item}`);
+  for (let i = 0; i < item.length; i++)
+    inner(item[i], `${title}[${i}]`);
+  return item;
+}
+function equalBytes(a, b) {
+  a = abytes(a);
+  b = abytes(b);
+  if (a.length !== b.length)
+    return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++)
+    diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+function copyBytes(bytes) {
+  return new Uint8Array(abytes(bytes));
+}
+function splitCoder(label, ...lengths) {
+  const getLength = (c) => typeof c === "number" ? c : c.bytesLen;
+  const bytesLen = lengths.reduce((sum, a) => sum + getLength(a), 0);
+  return {
+    bytesLen,
+    encode: (bufs) => {
+      const res = new Uint8Array(bytesLen);
+      for (let i = 0, pos = 0; i < lengths.length; i++) {
+        const c = lengths[i];
+        const l = getLength(c);
+        const b = typeof c === "number" ? bufs[i] : c.encode(bufs[i]);
+        abytes(b, l, label);
+        res.set(b, pos);
+        if (typeof c !== "number")
+          b.fill(0);
+        pos += l;
+      }
+      return res;
+    },
+    decode: (buf) => {
+      abytes(buf, bytesLen, label);
+      const res = [];
+      for (const c of lengths) {
+        const l = getLength(c);
+        const b = buf.subarray(0, l);
+        res.push(typeof c === "number" ? b : c.decode(b));
+        buf = buf.subarray(l);
+      }
+      return res;
+    }
+  };
+}
+function vecCoder(c, vecLen) {
+  const coder = c;
+  const bytesLen = vecLen * coder.bytesLen;
+  return {
+    bytesLen,
+    encode: (u) => {
+      const uArr = aarray2(u, "u");
+      if (uArr.length !== vecLen)
+        throw new RangeError(`vecCoder.encode: wrong length=${uArr.length}. Expected: ${vecLen}`);
+      const res = new Uint8Array(bytesLen);
+      for (let i = 0, pos = 0; i < uArr.length; i++) {
+        const b = coder.encode(uArr[i]);
+        res.set(b, pos);
+        b.fill(0);
+        pos += b.length;
+      }
+      return res;
+    },
+    decode: (a) => {
+      abytes(a, bytesLen);
+      const r = [];
+      for (let i = 0; i < a.length; i += coder.bytesLen)
+        r.push(coder.decode(a.subarray(i, i + coder.bytesLen)));
+      return r;
+    }
+  };
+}
+function cleanBytes(...list) {
+  for (const t of list) {
+    if (Array.isArray(t))
+      for (const b of t)
+        b.fill(0);
+    else
+      t.fill(0);
+  }
+}
+function getMask(bits) {
+  anumber(bits, "bits");
+  if (bits > 32)
+    throw new RangeError('"bits" expected <= 32, got ' + bits);
+  return bits === 32 ? 4294967295 : ~(-1 << bits) >>> 0;
+}
+
+// node_modules/@noble/post-quantum/_crystals.js
+/*! noble-post-quantum - MIT License (c) 2024 Paul Miller (paulmillr.com) */
+var genCrystals = (opts2) => {
+  const { newPoly, N: N2, Q: Q2, F: F2, ROOT_OF_UNITY: ROOT_OF_UNITY2, brvBits, isKyber } = opts2;
+  const mod = (a, modulo = Q2) => {
+    const result = a % modulo | 0;
+    return (result >= 0 ? result | 0 : modulo + result | 0) | 0;
+  };
+  const smod = (a, modulo = Q2) => {
+    const r = mod(a, modulo) | 0;
+    return (r > modulo >> 1 ? r - modulo | 0 : r) | 0;
+  };
+  function getZettas() {
+    const out = newPoly(N2);
+    for (let i = 0; i < N2; i++) {
+      const b = reverseBits(i, brvBits);
+      const p = BigInt(ROOT_OF_UNITY2) ** BigInt(b) % BigInt(Q2);
+      out[i] = Number(p) | 0;
+    }
+    return out;
+  }
+  const nttZetas = getZettas();
+  const inv = (_a) => {
+    throw new Error("not implemented");
+  };
+  const field = isKyber ? {
+    add: (a, b) => {
+      const r = a + b | 0;
+      return r >= Q2 ? r - Q2 | 0 : r;
+    },
+    sub: (a, b) => {
+      const r = a - b | 0;
+      return r < 0 ? r + Q2 | 0 : r;
+    },
+    mul: (a, b) => mod((a | 0) * (b | 0)) | 0,
+    inv
+  } : {
+    add: (a, b) => mod((a | 0) + (b | 0)) | 0,
+    sub: (a, b) => mod((a | 0) - (b | 0)) | 0,
+    mul: (a, b) => mod((a | 0) * (b | 0)) | 0,
+    inv
+  };
+  const nttOpts = {
+    N: N2,
+    roots: nttZetas,
+    invertButterflies: true,
+    skipStages: isKyber ? 1 : 0,
+    brp: false
+  };
+  const dif = FFTCore(field, { dit: false, ...nttOpts });
+  const dit = FFTCore(field, { dit: true, ...nttOpts });
+  const NTT = {
+    encode: (r) => {
+      return dif(r);
+    },
+    decode: (r) => {
+      dit(r);
+      for (let i = 0; i < r.length; i++)
+        r[i] = mod(F2 * r[i]);
+      return r;
+    }
+  };
+  const bitsCoder = (d, c) => {
+    for (let i = 0, bufLen = 0; i < N2; i++) {
+      bufLen += d;
+      if (bufLen > 32)
+        getMask(bufLen);
+      bufLen %= 8;
+    }
+    const mask = getMask(d);
+    const bytesLen = d * (N2 / 8);
+    return {
+      bytesLen,
+      encode: (poly_) => {
+        const poly = poly_;
+        const r = new Uint8Array(bytesLen);
+        for (let i = 0, buf = 0, bufLen = 0, pos = 0; i < poly.length; i++) {
+          buf |= (c.encode(poly[i]) & mask) << bufLen;
+          bufLen += d;
+          for (; bufLen >= 8; bufLen -= 8, buf >>= 8)
+            r[pos++] = buf & 255;
+        }
+        return r;
+      },
+      decode: (bytes) => {
+        const r = newPoly(N2);
+        for (let i = 0, buf = 0, bufLen = 0, pos = 0; i < bytes.length; i++) {
+          buf |= bytes[i] << bufLen;
+          bufLen += 8;
+          for (; bufLen >= d; bufLen -= d, buf >>= d)
+            r[pos++] = c.decode(buf & mask);
+        }
+        return r;
+      }
+    };
+  };
+  return {
+    mod,
+    smod,
+    nttZetas,
+    NTT: {
+      encode: (r) => NTT.encode(r),
+      decode: (r) => NTT.decode(r)
+    },
+    bitsCoder
+  };
+};
+var createXofShake = (shake) => (seed, blockLen) => {
+  if (!blockLen)
+    blockLen = shake.blockLen;
+  const _seed = new Uint8Array(seed.length + 2);
+  _seed.set(seed);
+  const seedLen = seed.length;
+  const buf = new Uint8Array(blockLen);
+  let h = shake.create({});
+  let calls = 0;
+  let xofs = 0;
+  return {
+    stats: () => ({ calls, xofs }),
+    get: (x, y) => {
+      _seed[seedLen + 0] = x;
+      _seed[seedLen + 1] = y;
+      h.destroy();
+      h = shake.create({}).update(_seed);
+      calls++;
+      return () => {
+        xofs++;
+        return h.xofInto(buf);
+      };
+    },
+    clean: () => {
+      h.destroy();
+      cleanBytes(buf, _seed);
+    }
+  };
+};
+var XOF128 = /* @__PURE__ */ createXofShake(shake128);
+
+// node_modules/@noble/post-quantum/ml-kem.js
+/*! noble-post-quantum - MIT License (c) 2024 Paul Miller (paulmillr.com) */
+var N = 256;
+var Q = 3329;
+var F = 3303;
+var ROOT_OF_UNITY = 17;
+var crystals = /* @__PURE__ */ genCrystals({
+  N,
+  Q,
+  F,
+  ROOT_OF_UNITY,
+  newPoly: (n) => new Uint16Array(n),
+  brvBits: 7,
+  isKyber: true
+});
+var PARAMS = /* @__PURE__ */ (() => Object.freeze({
+  512: Object.freeze({ N, Q, K: 2, ETA1: 3, ETA2: 2, du: 10, dv: 4, RBGstrength: 128 }),
+  768: Object.freeze({ N, Q, K: 3, ETA1: 2, ETA2: 2, du: 10, dv: 4, RBGstrength: 192 }),
+  1024: Object.freeze({ N, Q, K: 4, ETA1: 2, ETA2: 2, du: 11, dv: 5, RBGstrength: 256 })
+}))();
+var compress = (d) => {
+  if (d >= 12)
+    return { encode: (i) => i, decode: (i) => i >= Q ? i - Q : i };
+  const a = 2 ** (d - 1);
+  return {
+    // This only matches standalone Compress_d after bitsCoder masks the result into Z_(2^d).
+    encode: (i) => ((i << d) + Q / 2) / Q,
+    // const decompress = (i: number) => round((Q / 2 ** d) * i);
+    decode: (i) => i * Q + a >>> d
+  };
+};
+var byteCoder = (d) => crystals.bitsCoder(d, d === 12 ? { encode: (i) => i, decode: (i) => i >= Q ? i - Q : i } : { encode: (i) => i, decode: (i) => i });
+var polyCoder = (d) => d === 12 ? byteCoder(12) : crystals.bitsCoder(d, compress(d));
+function polyAdd(a_, b_) {
+  const a = a_;
+  const b = b_;
+  for (let i = 0; i < N; i++) {
+    const r = a[i] + b[i];
+    a[i] = r >= Q ? r - Q : r;
+  }
+}
+function polySub(a_, b_) {
+  const a = a_;
+  const b = b_;
+  for (let i = 0; i < N; i++) {
+    const r = a[i] - b[i];
+    a[i] = r < 0 ? r + Q : r;
+  }
+}
+function BaseCaseMultiply(a0, a1, b0, b1, zeta) {
+  const c0 = crystals.mod(crystals.mod(a1 * b1) * zeta + a0 * b0);
+  const c1 = crystals.mod(a0 * b1 + a1 * b0);
+  return { c0, c1 };
+}
+function MultiplyNTTs(f_, g_) {
+  const f = f_;
+  const g = g_;
+  for (let i = 0; i < N / 2; i++) {
+    let z = crystals.nttZetas[64 + (i >> 1)];
+    if (i & 1)
+      z = -z;
+    const { c0, c1 } = BaseCaseMultiply(f[2 * i + 0], f[2 * i + 1], g[2 * i + 0], g[2 * i + 1], z);
+    f[2 * i + 0] = c0;
+    f[2 * i + 1] = c1;
+  }
+  return f;
+}
+function SampleNTT(xof_) {
+  const xof = xof_;
+  const r = new Uint16Array(N);
+  for (let j = 0; j < N; ) {
+    const b = xof();
+    if (b.length % 3)
+      throw new Error("SampleNTT: unaligned block");
+    for (let i = 0; j < N && i + 3 <= b.length; i += 3) {
+      const d1 = (b[i + 0] >> 0 | b[i + 1] << 8) & 4095;
+      const d2 = (b[i + 1] >> 4 | b[i + 2] << 4) & 4095;
+      if (d1 < Q)
+        r[j++] = d1;
+      if (j < N && d2 < Q)
+        r[j++] = d2;
+    }
+  }
+  return r;
+}
+var sampleCBDBytes = (buf, eta) => {
+  const r = new Uint16Array(N);
+  const b32 = u32(buf);
+  swap32IfBE(b32);
+  let len = 0;
+  for (let i = 0, p = 0, bb = 0, t0 = 0; i < b32.length; i++) {
+    let b = b32[i];
+    for (let j = 0; j < 32; j++) {
+      bb += b & 1;
+      b >>= 1;
+      len += 1;
+      if (len === eta) {
+        t0 = bb;
+        bb = 0;
+      } else if (len === 2 * eta) {
+        r[p++] = crystals.mod(t0 - bb);
+        bb = 0;
+        len = 0;
+      }
+    }
+  }
+  swap32IfBE(b32);
+  if (len)
+    throw new Error(`sampleCBD: leftover bits: ${len}`);
+  return r;
+};
+function sampleCBD(PRF_, seed, nonce, eta) {
+  const PRF = PRF_;
+  return sampleCBDBytes(PRF(eta * N / 4, seed, nonce), eta);
+}
+var genKPKE = (opts_) => {
+  const opts2 = opts_;
+  const { K, PRF, XOF, HASH512, ETA1, ETA2, du, dv } = opts2;
+  const poly1 = polyCoder(1);
+  const polyV = polyCoder(dv);
+  const polyU = polyCoder(du);
+  const publicCoder = splitCoder("publicKey", vecCoder(polyCoder(12), K), 32);
+  const secretCoder = vecCoder(polyCoder(12), K);
+  const cipherCoder = splitCoder("ciphertext", vecCoder(polyU, K), polyV);
+  const seedCoder = splitCoder("seed", 32, 32);
+  const encryptCore = (tHat, getA, msg, seed) => {
+    const rHat = [];
+    for (let i = 0; i < K; i++)
+      rHat.push(crystals.NTT.encode(sampleCBD(PRF, seed, i, ETA1)));
+    const tmp2 = new Uint16Array(N);
+    const u = [];
+    for (let i = 0; i < K; i++) {
+      const e1 = sampleCBD(PRF, seed, K + i, ETA2);
+      const tmp = new Uint16Array(N);
+      for (let j = 0; j < K; j++) {
+        const aij = getA(i, j);
+        polyAdd(tmp, MultiplyNTTs(aij, rHat[j]));
+      }
+      polyAdd(e1, crystals.NTT.decode(tmp));
+      u.push(e1);
+      polyAdd(tmp2, MultiplyNTTs(tHat[i], rHat[i]));
+      cleanBytes(tmp);
+    }
+    const e2 = sampleCBD(PRF, seed, 2 * K, ETA2);
+    polyAdd(e2, crystals.NTT.decode(tmp2));
+    const v = poly1.decode(msg);
+    polyAdd(v, e2);
+    cleanBytes(tHat, rHat, tmp2, e2);
+    return cipherCoder.encode([u, v]);
+  };
+  return {
+    secretCoder,
+    lengths: {
+      secretKey: secretCoder.bytesLen,
+      publicKey: publicCoder.bytesLen,
+      cipherText: cipherCoder.bytesLen
+    },
+    keygen: (seed) => {
+      abytesDoc(seed, 32, "seed");
+      const seedDst = new Uint8Array(33);
+      seedDst.set(seed);
+      seedDst[32] = K;
+      const seedHash = HASH512(seedDst);
+      const [rho, sigma] = seedCoder.decode(seedHash);
+      const sHat = [];
+      const tHat = [];
+      for (let i = 0; i < K; i++)
+        sHat.push(crystals.NTT.encode(sampleCBD(PRF, sigma, i, ETA1)));
+      const x = XOF(rho);
+      for (let i = 0; i < K; i++) {
+        const e = crystals.NTT.encode(sampleCBD(PRF, sigma, K + i, ETA1));
+        for (let j = 0; j < K; j++) {
+          const aji = SampleNTT(x.get(j, i));
+          polyAdd(e, MultiplyNTTs(aji, sHat[j]));
+        }
+        tHat.push(e);
+      }
+      x.clean();
+      const res = {
+        publicKey: publicCoder.encode([tHat, rho]),
+        secretKey: secretCoder.encode(sHat)
+      };
+      cleanBytes(rho, sigma, sHat, tHat, seedDst, seedHash);
+      return res;
+    },
+    encrypt: (publicKey, msg, seed) => {
+      const [tHat, rho] = publicCoder.decode(publicKey);
+      const x = XOF(rho);
+      const res = encryptCore(tHat, (i, j) => SampleNTT(x.get(i, j)), msg, seed);
+      x.clean();
+      return res;
+    },
+    // Expands the full Â matrix (public data derived from rho) once, so repeated encryptions
+    // against the same ek skip the K² SampleNTT XOF expansions. Cached polys are copied per
+    // call because encryptCore mutates its inputs in place.
+    prepare: (publicKey) => {
+      const [tHat, rho] = publicCoder.decode(publicKey);
+      const x = XOF(rho);
+      const A = [];
+      for (let i = 0; i < K; i++)
+        for (let j = 0; j < K; j++)
+          A.push(SampleNTT(x.get(i, j)));
+      x.clean();
+      return {
+        encrypt: (msg, seed) => encryptCore(tHat.map((p) => p.slice()), (i, j) => A[i * K + j].slice(), msg, seed),
+        clean: () => cleanBytes(tHat, A)
+      };
+    },
+    decrypt: (cipherText, privateKey) => {
+      const [u, v] = cipherCoder.decode(cipherText);
+      const sk = secretCoder.decode(privateKey);
+      const tmp = new Uint16Array(N);
+      for (let i = 0; i < K; i++)
+        polyAdd(tmp, MultiplyNTTs(sk[i], crystals.NTT.encode(u[i])));
+      polySub(v, crystals.NTT.decode(tmp));
+      const res = poly1.encode(v);
+      cleanBytes(tmp, sk, u, v);
+      return res;
+    }
+  };
+};
+function createKyber(opts2) {
+  const rawOpts = opts2;
+  const KPKE = genKPKE(rawOpts);
+  const { HASH256, HASH512, KDF } = rawOpts;
+  const { secretCoder: KPKESecretCoder, lengths } = KPKE;
+  const secretCoder = splitCoder("secretKey", lengths.secretKey, lengths.publicKey, 32, 32);
+  const msgLen = 32;
+  const seedLen = 64;
+  const validateModulus = (publicKey, fn) => {
+    const eke = publicKey.subarray(0, 384 * rawOpts.K);
+    const ek = KPKESecretCoder.encode(KPKESecretCoder.decode(copyBytes(eke)));
+    const ok = equalBytes(ek, eke);
+    cleanBytes(ek);
+    if (!ok)
+      throw new Error(`ML-KEM.${fn}: wrong publicKey modulus`);
+  };
+  const kemLengths = Object.freeze({
+    ...lengths,
+    seed: 64,
+    msg: msgLen,
+    msgRand: msgLen,
+    secretKey: secretCoder.bytesLen
+  });
+  return Object.freeze({
+    info: Object.freeze({ type: "ml-kem" }),
+    lengths: kemLengths,
+    keygen: (seed) => {
+      const ownSeed = seed === void 0;
+      const s = ownSeed ? randomBytes2(seedLen) : seed;
+      let sk;
+      let publicKeyHash;
+      try {
+        abytesDoc(s, seedLen, "seed");
+        const keys = KPKE.keygen(s.subarray(0, 32));
+        const publicKey = keys.publicKey;
+        sk = keys.secretKey;
+        publicKeyHash = HASH256(publicKey);
+        const secretKey = secretCoder.encode([sk, publicKey, publicKeyHash, s.subarray(32)]);
+        return {
+          publicKey,
+          secretKey
+        };
+      } finally {
+        if (sk !== void 0)
+          cleanBytes(sk);
+        if (publicKeyHash !== void 0)
+          cleanBytes(publicKeyHash);
+        if (ownSeed)
+          cleanBytes(s);
+      }
+    },
+    getPublicKey: (secretKey) => {
+      const [_sk, publicKey, _publicKeyHash, _z] = secretCoder.decode(secretKey);
+      return Uint8Array.from(publicKey);
+    },
+    encapsulate: (publicKey, msg) => {
+      const ownMsg = msg === void 0;
+      const m = ownMsg ? randomBytes2(msgLen) : msg;
+      let kr;
+      try {
+        abytesDoc(publicKey, lengths.publicKey, "publicKey");
+        abytesDoc(m, msgLen, "message");
+        validateModulus(publicKey, "encapsulate");
+        kr = HASH512.create().update(m).update(HASH256(publicKey)).digest();
+        const cipherText = KPKE.encrypt(publicKey, m, kr.subarray(32, 64));
+        return {
+          cipherText,
+          sharedSecret: kr.subarray(0, 32)
+        };
+      } finally {
+        if (kr !== void 0)
+          cleanBytes(kr.subarray(32));
+        if (ownMsg)
+          cleanBytes(m);
+      }
+    },
+    decapsulate: (cipherText, secretKey) => {
+      abytesDoc(secretKey, secretCoder.bytesLen, "secretKey");
+      abytesDoc(cipherText, lengths.cipherText, "cipherText");
+      const k768 = secretCoder.bytesLen - 96;
+      const start = k768 + 32;
+      const test = HASH256(secretKey.subarray(k768 / 2, start));
+      if (!equalBytes(test, secretKey.subarray(start, start + 32)))
+        throw new Error("invalid secretKey: hash check failed");
+      const [sk, publicKey, publicKeyHash, z] = secretCoder.decode(secretKey);
+      const msg = KPKE.decrypt(cipherText, sk);
+      const kr = HASH512.create().update(msg).update(publicKeyHash).digest();
+      const Khat = kr.subarray(0, 32);
+      const cipherText2 = KPKE.encrypt(publicKey, msg, kr.subarray(32, 64));
+      const isValid = equalBytes(cipherText, cipherText2);
+      const Kbar = KDF.create({ dkLen: 32 }).update(z).update(cipherText).digest();
+      cleanBytes(msg, cipherText2, kr.subarray(32), !isValid ? Khat : Kbar);
+      return isValid ? Khat : Kbar;
+    },
+    /**
+     * Experimental prototype: pre-expand a public key so repeated encapsulate/decapsulate
+     * against the same key skip re-validation, H(ek), t̂ decoding and the K² SampleNTT
+     * XOF expansions of Â. Only public data is cached; see {@link KEMPrepared}.
+     */
+    prepare: (publicKey) => {
+      abytesDoc(publicKey, lengths.publicKey, "publicKey");
+      validateModulus(publicKey, "prepare");
+      const ek = copyBytes(publicKey);
+      const publicKeyHash = HASH256(ek);
+      const cached = KPKE.prepare(ek);
+      return Object.freeze({
+        publicKey: ek,
+        encapsulate: (msg) => {
+          const ownMsg = msg === void 0;
+          const m = ownMsg ? randomBytes2(msgLen) : msg;
+          let kr;
+          try {
+            abytesDoc(m, msgLen, "message");
+            kr = HASH512.create().update(m).update(publicKeyHash).digest();
+            const cipherText = cached.encrypt(m, kr.subarray(32, 64));
+            return {
+              cipherText,
+              sharedSecret: kr.subarray(0, 32)
+            };
+          } finally {
+            if (kr !== void 0)
+              cleanBytes(kr.subarray(32));
+            if (ownMsg)
+              cleanBytes(m);
+          }
+        },
+        decapsulate: (cipherText, secretKey) => {
+          abytesDoc(secretKey, secretCoder.bytesLen, "secretKey");
+          abytesDoc(cipherText, lengths.cipherText, "cipherText");
+          const [sk, ekEmbedded, storedHash, z] = secretCoder.decode(secretKey);
+          if (!equalBytes(ekEmbedded, ek) || !equalBytes(storedHash, publicKeyHash))
+            throw new Error("ML-KEM.decapsulate: secretKey does not match prepared publicKey");
+          const msg = KPKE.decrypt(cipherText, sk);
+          const kr = HASH512.create().update(msg).update(publicKeyHash).digest();
+          const Khat = kr.subarray(0, 32);
+          const cipherText2 = cached.encrypt(msg, kr.subarray(32, 64));
+          const isValid = equalBytes(cipherText, cipherText2);
+          const Kbar = KDF.create({ dkLen: 32 }).update(z).update(cipherText).digest();
+          cleanBytes(msg, cipherText2, kr.subarray(32), !isValid ? Khat : Kbar);
+          return isValid ? Khat : Kbar;
+        },
+        clean: cached.clean
+      });
+    }
+  });
+}
+function shakePRF(dkLen, key, nonce) {
+  return shake256.create({ dkLen }).update(key).update(new Uint8Array([nonce])).digest();
+}
+var opts = /* @__PURE__ */ (() => ({
+  HASH256: sha3_256,
+  HASH512: sha3_512,
+  KDF: shake256,
+  XOF: XOF128,
+  PRF: shakePRF
+}))();
+var mk = (params) => createKyber({
+  ...opts,
+  ...params
+});
+var ml_kem768 = /* @__PURE__ */ (() => mk(PARAMS[768]))();
+
+
+return { ml_kem768 };
+})();
+__m["group.js"] = (() => {
+// Protocol v3: forward secrecy and rekeying on top of the passphrase key.
+//
+// With v2 alone, one passphrase means one key for ever: whoever learns the
+// passphrase later can read every message recorded before, and someone who
+// leaves keeps a key that still works. v3 adds keys that exist only while
+// people are in the room:
+//
+//   1. On entering, each page makes two key pairs (P-256: every browser has
+//      it, including the Android 7–10 WebViews the apps run in): an ECDSA
+//      signing key that stays for the visit, and an ECDH key that is replaced
+//      at every rekey. It tells the room both public halves, signed, in an
+//      announcement sealed with the passphrase key, so the relay can neither
+//      read nor forge it.
+//   2. Any two members turn their ECDH keys into a pairwise key (ECDH, then
+//      HKDF salted with a value from the passphrase).
+//   3. Each member has a sending chain: a random 32-byte chain key, handed to
+//      each of the others under the pairwise key. Every message is sealed with
+//      the next key from the chain (an HMAC step), and the step before is
+//      thrown away, so a key taken later does not open earlier messages.
+//   4. Every message is also signed with the sender's signing key. Everyone
+//      holds everyone's chain, so without the signature any member could
+//      write in someone else's name, given a relay that labels it so.
+//   5. When anyone leaves, drops or is taken out, and in any case every
+//      REKEY_MESSAGES messages or REKEY_MS, a member starts a new chain and a
+//      new ECDH key, and hands the chain only to those still there. Someone
+//      who copied this page's keys once loses the thread at the next rekey,
+//      unless they keep copying.
+//
+// The key pairs exist only in this page's memory. Once everyone has left,
+// the recorded traffic cannot be opened even with the passphrase: that would
+// take a private key that no longer exists anywhere.
+//
+// The safety code is made from everyone's signing keys. Read out over another
+// channel (a call, in person), equal codes mean everyone sees the same
+// people. It is 20 digits, about 66 bits: short codes can be matched by an
+// attacker trying key after key (a 6-digit one in about a million tries).
+//
+// Version 3.2 adds ML-KEM-768 (FIPS 203) to the pairwise keys, against
+// "record now, decrypt later": someone who records the relay's traffic today
+// and learns the passphrase later (a seized phone) could, with a quantum
+// computer, recover the ECDH keys from the announcements and so every chain.
+// Each page makes an ML-KEM key pair for the visit and announces its public
+// half (signed, like the rest). For each pair of 3.2 members, the one with the
+// lower number encapsulates a secret to the other and sends the ciphertext
+// with its first wrap for them; both then mix that secret into the pairwise
+// key along with the ECDH result. It is a hybrid: the ML-KEM code is not
+// independently audited, so it is only ever added to ECDH, never used alone.
+// Breaking the pairwise key takes breaking both. 3.1 pages are given, and
+// read, wraps without it.
+//
+// Version 3.0 (2.4–2.6) had no signing key and kept one ECDH key per visit.
+// Its pages still read 3.1 messages (the signature sits at the end of the
+// sealed text, where they ignore it); a 3.1 page tells them apart by the
+// missing signing key and, unless the room allows older versions, does not
+// accept their unsigned messages.
+const { pad, unpad } = __m["crypto.js"];
+const { ml_kem768 } = __m["vendor/mlkem.js"];
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const ECDH = { name: 'ECDH', namedCurve: 'P-256' };
+const ECDSA = { name: 'ECDSA', namedCurve: 'P-256' };
+const SIGN = { name: 'ECDSA', hash: 'SHA-256' };
+const MAX_SKIP = 2000;        // the most messages one member's chain may jump ahead
+const REKEY_MESSAGES = 100;   // a member starts a new chain after this many messages
+const REKEY_MS = 10 * 60 * 1000; // or after this long
+// A chain position handed to a member is kept this long, so the chain can be
+// handed again from there if the announcement was lost (the member asks).
+// Older positions are forgotten: that is the forward secrecy.
+const RESEND_MS = 60 * 1000;
+// The ECDH key changes at a rekey at most this often (people coming and going
+// quickly would otherwise replace it faster than wraps can catch up), and the
+// last few are kept this long for wraps still on their way.
+const ROTATE_MS = 20 * 1000;
+const OLD_ECDH = 4;
+// An announcement (padded, sealed) must fit one relay frame: the relay takes
+// up to 4112 bytes of ciphertext, the largest padding size is 4096.
+const ANNOUNCE_BYTES = 4000;
+const KPK = 1580, KCT = 1452; // base64 lengths of an ML-KEM-768 public key and ciphertext
+const HEADER = /^(\d{1,9})\.(\d{1,9})$/;
+const B64 = /^[A-Za-z0-9+/]+={0,2}$/;
+// The signature at the end of a signed message: ,"s":"<base64>"}
+const SIGNED = /,"s":"([A-Za-z0-9+/]{86}==)"\}$/;
+
+const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+
+async function hmac(keyBytes, byte) {
+  const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, new Uint8Array([byte])));
+}
+
+// One step of a sending chain: the message key for this position and the
+// chain key for the next one.
+async function step(ck) {
+  return { mk: await hmac(ck, 1), next: await hmac(ck, 2) };
+}
+
+async function aes(raw, usage) {
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, usage);
+}
+
+async function sealWith(key, bytes, aad) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(aad) }, key, bytes);
+  return { iv: toB64(iv), ct: toB64(ct) };
+}
+
+async function openWith(key, { iv, ct }, aad) {
+  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv), additionalData: enc.encode(aad) }, key, fromB64(ct)));
+}
+
+const concat = (a, b) => { const out = new Uint8Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; };
+
+async function newEcdh() {
+  const pair = await crypto.subtle.generateKey(ECDH, false, ['deriveBits']);
+  return { pair, epk: toB64(await crypto.subtle.exportKey('raw', pair.publicKey)) };
+}
+
+// What an announcement's signature covers.
+const announced = (a) => `pt31a|${a.from}|${a.id}|${a.t}|${a.epk}|${a.hello ? 1 : 0}|${JSON.stringify(a.w)}`;
+
+// A member's view of the room's v3 keys. me is this page's member number,
+// key the passphrase key (crypto.js) and bind the passphrase-derived salt for
+// pairwise keys.
+class Group {
+  static async create(key, bind, me) {
+    const g = new Group();
+    g.key = key;
+    g.bind = bind;
+    g.me = me;
+    g.signing = await crypto.subtle.generateKey(ECDSA, false, ['sign', 'verify']);
+    g.spk = toB64(await crypto.subtle.exportKey('raw', g.signing.publicKey));
+    g.kem = ml_kem768.keygen();
+    g.kpk = toB64(g.kem.publicKey);
+    g.ecdh = await newEcdh();
+    g.ecdhSince = Date.now();
+    g.oldEcdh = []; // the ones before, newest first: [{ ecdh, until }], for wraps already on their way
+    // n → { epk, spk, verify, wraps: Map(own epk → pairwise key), recv: { epoch, ck, c } | null,
+    //       prev: the chain before, sent: epoch handed to them, v: 30, 31 or 32,
+    //       kpk: their ML-KEM key, ss: the pair's ML-KEM secret, kc: its ciphertext
+    //       while it is this page's to send, kcIn: the one taken in, pqIn: their
+    //       chain came under a key with ML-KEM }
+    g.peers = new Map();
+    g.changed = [];   // numbers whose signing key changed while they stayed (see takeChanged)
+    await g.rekey(0);
+    return g;
+  }
+
+  get epk() { return this.ecdh.epk; }
+
+  // A new sending chain and ECDH key, to be handed to everyone still here.
+  async rekey(epoch = this.mine.epoch + 1, now = Date.now()) {
+    if (this.mine && now - this.ecdhSince >= ROTATE_MS) {
+      this.oldEcdh = [{ ecdh: this.ecdh, until: now + RESEND_MS }, ...this.oldEcdh].slice(0, OLD_ECDH);
+      this.ecdh = await newEcdh();
+      this.ecdhSince = now;
+    }
+    this.oldEcdh = this.oldEcdh.filter((o) => o.until > now);
+    this.mine = { epoch, ck: crypto.getRandomValues(new Uint8Array(32)), c: 0, since: now, handed: new Map() };
+    for (const p of this.peers.values()) { p.sent = -1; p.gotAt = null; }
+  }
+
+  // Whether this page's chain is due for a scheduled rekey.
+  due(now = Date.now()) {
+    return this.mine.c >= REKEY_MESSAGES || now - this.mine.since >= REKEY_MS;
+  }
+
+  forget(n) {
+    this.peers.delete(n);
+  }
+
+  // The pairwise key between one of this page's ECDH keys and a member's;
+  // pq: with the pair's ML-KEM secret mixed in (3.2).
+  async pairKey(own, p, pq = false) {
+    const id = pq ? `${own.epk}|${p.kcIn ?? p.kc}` : own.epk;
+    if (p.wraps.has(id)) return p.wraps.get(id);
+    const pub = await crypto.subtle.importKey('raw', fromB64(p.epk), ECDH, false, []);
+    const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: pub }, own.pair.privateKey, 256));
+    const hkdf = await crypto.subtle.importKey('raw', pq ? concat(shared, p.ss) : shared, 'HKDF', false, ['deriveKey']);
+    const info = enc.encode(`private-talk/${pq ? 'v3.2' : 'v3'}/pair|${[own.epk, p.epk].sort().join('|')}`);
+    const k = await crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: this.bind, info }, hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    p.wraps.set(id, k);
+    return k;
+  }
+
+  // Whether this page's wraps for member n use ML-KEM, and whether it can
+  // wrap for them yet: with a 3.2 member of a higher number, this page makes
+  // the secret; with a lower one it waits for theirs.
+  pqFor(n, p) {
+    // A 3.1 page; or a lower number whose ML-KEM key never arrived, which
+    // should not happen (it goes with hello), but must not stall the room.
+    if (p.v !== 32 || (this.me < n && !p.kpk)) return { pq: false, can: true };
+    if (!p.ss && this.me < n) {
+      const { cipherText, sharedSecret } = ml_kem768.encapsulate(fromB64(p.kpk));
+      p.ss = sharedSecret;
+      p.kc = toB64(cipherText);
+    }
+    return { pq: true, can: !!p.ss };
+  }
+
+  // Members (other than this page) known to run v3 whose copy of this page's
+  // current chain has not been sent yet.
+  owed(present) {
+    return present.filter((n) => n !== this.me && this.peers.has(n) && this.peers.get(n).sent !== this.mine.epoch);
+  }
+
+  // The plain text of a key announcement: this page's public keys, and its
+  // current chain wrapped for each member in `to`, signed. hello asks
+  // everyone to answer with theirs. The caller seals it with the passphrase key.
+  // Members this page cannot wrap for yet (see pqFor) are left out and stay owed.
+  async announce(to, hello, now = Date.now()) {
+    return (await this.announceAll(to, hello, now, Infinity))[0];
+  }
+
+  // The same, split into as many announcements as it takes for each to fit a
+  // relay frame (ANNOUNCE_BYTES). The first one carries hello.
+  async announceAll(to, hello, now = Date.now(), budget = ANNOUNCE_BYTES) {
+    const m = this.mine;
+    for (const [c, h] of m.handed) if (now - h.at > RESEND_MS) m.handed.delete(c);
+    // The ML-KEM public key goes along when someone may still need it: on
+    // hello, and while a lower-numbered 3.2 member has not sent its secret.
+    const lower = [...this.peers].some(([n, p]) => n < this.me && p.kpk && !p.ss);
+    const withKpk = hello || lower;
+    const out = [];
+    let w = {}, size = 0, first = true;
+    const flush = async () => {
+      // q marks a 3.2 page (signed with the rest, unlike v); k its ML-KEM key.
+      const ws = withKpk && first ? { q: 1, k: this.kpk, ...w } : { q: 1, ...w };
+      const a = { kind: 'keys', v: 32, from: this.me, id: hex(crypto.getRandomValues(new Uint8Array(8))), t: now, epk: this.epk, spk: this.spk, hello: !!hello && first, w: ws };
+      a.sig = toB64(await crypto.subtle.sign(SIGN, this.signing.privateKey, enc.encode(announced(a))));
+      out.push(JSON.stringify(a));
+      w = {}; size = 0; first = false;
+    };
+    const base = () => 430 + (withKpk && first ? KPK + 8 : 0);
+    for (const n of to) {
+      const p = this.peers.get(n);
+      if (!p) continue;
+      const { pq, can } = this.pqFor(n, p);
+      if (!can) continue;
+      // Handed again (they asked): from where they got it first, if kept.
+      const again = p.gotAt != null && m.handed.has(p.gotAt);
+      const c = again ? p.gotAt : m.c;
+      const ck = again ? m.handed.get(c).ck : m.ck;
+      if (!again) { p.gotAt = c; if (!m.handed.has(c)) m.handed.set(c, { ck, at: now }); }
+      const body = enc.encode(JSON.stringify({ e: m.epoch, ck: toB64(ck), c }));
+      const entry = pq
+        ? { ...(await sealWith(await this.pairKey(this.ecdh, p, true), body, `pt32w|${this.me}|${n}|${p.epk}`)), q: 1, ...(p.kc && { kc: p.kc }) }
+        : await sealWith(await this.pairKey(this.ecdh, p), body, `pt3w|${this.me}|${n}|${p.epk}`);
+      const cost = JSON.stringify(entry).length + 8;
+      if (Object.keys(w).length && base() + size + cost > budget) await flush();
+      w[n] = entry;
+      size += cost;
+      p.sent = this.mine.epoch;
+    }
+    if (first || Object.keys(w).length) await flush();
+    return out;
+  }
+
+  // Takes in another member's announcement (already opened with the
+  // passphrase key and checked like a message: sender, age, not seen before).
+  // Throws when a signature does not check out.
+  async receive(a, from) {
+    if (!a || a.kind !== 'keys' || a.from !== from || from === this.me) return null;
+    if (typeof a.epk !== 'string' || !B64.test(a.epk) || a.epk.length > 120 || !a.w || typeof a.w !== 'object') return null;
+    const v31 = typeof a.spk === 'string';
+    let verify = null;
+    if (v31) {
+      if (!B64.test(a.spk) || a.spk.length > 120 || typeof a.sig !== 'string') throw new Error('bad announcement');
+      const old = this.peers.get(from);
+      verify = old?.spk === a.spk ? old.verify : await crypto.subtle.importKey('raw', fromB64(a.spk), ECDSA, false, ['verify']);
+      if (!(await crypto.subtle.verify(SIGN, verify, fromB64(a.sig), enc.encode(announced(a))))) throw new Error('bad signature');
+    }
+    let p = this.peers.get(from);
+    if (p && (p.spk ?? null) !== (v31 ? a.spk : null)) {
+      // The same number, still here, with another signing key: a reloaded
+      // page would have come back under a new number, so say so.
+      if (p.spk) this.changed.push(from);
+      p = null;
+    }
+    if (!p) {
+      p = { epk: a.epk, spk: v31 ? a.spk : null, verify, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: v31 ? 31 : 30, kpk: null, ss: null, kc: null, kcIn: null, pqIn: false };
+      this.peers.set(from, p);
+    } else if (p.epk !== a.epk) {
+      // A rekey on their side: wraps from now on use the new key.
+      if (v31) { p.epk = a.epk; p.wraps = new Map(); }
+      else { p = { epk: a.epk, spk: null, verify: null, wraps: new Map(), recv: null, prev: null, sent: -1, gotAt: null, v: 30 }; this.peers.set(from, p); }
+    }
+    // A 3.2 member's ML-KEM key, signed with the rest (it sits in w, which
+    // 3.1 pages pass over). A new one for the same signing key starts over.
+    // Found out late (a 3.2 page wraps without ML-KEM until it knows): hand
+    // the chain again, with it.
+    if (v31 && a.w.q === 1 && p.v !== 32) { p.v = 32; p.sent = -1; }
+    if (v31 && typeof a.w.k === 'string' && a.w.k.length === KPK && B64.test(a.w.k) && a.w.k !== p.kpk) {
+      Object.assign(p, { kpk: a.w.k, ss: null, kc: null, kcIn: null, v: 32 });
+      p.wraps = new Map();
+    }
+    const wrapped = a.w[this.me];
+    if (wrapped && typeof wrapped.iv === 'string' && typeof wrapped.ct === 'string') {
+      const pq = wrapped.q === 1;
+      // Only 3.2 pages make such wraps (a lower number may never need to
+      // announce its ML-KEM key to this page).
+      if (pq && v31) p.v = 32;
+      // Their secret for this pair (they have the lower number), once.
+      if (pq && from < this.me && typeof wrapped.kc === 'string' && wrapped.kc !== p.kcIn && wrapped.kc.length === KCT && B64.test(wrapped.kc)) {
+        p.ss = ml_kem768.decapsulate(fromB64(wrapped.kc), this.kem.secretKey);
+        p.kcIn = wrapped.kc;
+      }
+      // Made for this page's current ECDH key, or the one before when it was
+      // sent before our last rekey reached them.
+      const target = [this.ecdh, ...this.oldEcdh.map((o) => o.ecdh)];
+      let body = null;
+      if (!pq || p.ss) {
+        for (const own of target) {
+          try { body = JSON.parse(dec.decode(await openWith(await this.pairKey(own, p, pq), wrapped, `${pq ? 'pt32w' : 'pt3w'}|${from}|${this.me}|${own.epk}`))); break; } catch {}
+        }
+      }
+      // They have this page's secret (their wrap opened with it): no need to
+      // send it again.
+      if (body && pq && this.me < from) p.kc = null;
+      // Made for a key this page no longer has: the caller asks for it again.
+      p.lost = !body;
+      const ck = body ? fromB64(body.ck) : new Uint8Array(0);
+      if (body && Number.isInteger(body.e) && Number.isInteger(body.c) && body.c >= 0 && ck.length === 32 && (!p.recv || body.e > p.recv.epoch)) {
+        // The chain before stays readable too: a message sealed with it may
+        // still be on its way (sent before this announcement, read after).
+        p.prev = p.recv;
+        p.recv = { epoch: body.e, ck, c: body.c };
+        p.pqIn = pq;
+      } else if (body && pq && p.recv && body.e === p.recv.epoch) {
+        // The same chain handed again, now under ML-KEM.
+        p.pqIn = true;
+      }
+    }
+    // A page that asks again (it came back after a drop) gets this page's
+    // chain again too; owed() then lists it.
+    if (a.hello) p.sent = -1;
+    return p;
+  }
+
+  // Numbers whose signing key changed under them since the last call.
+  takeChanged() {
+    const out = this.changed;
+    this.changed = [];
+    return out;
+  }
+
+  // Whether every other member present can read a v3 message from this page;
+  // strict: and all of them run 3.1 (so they sign what they send).
+  ready(present, strict = false) {
+    return present.every((n) => n === this.me || (this.peers.get(n)?.sent === this.mine.epoch && (!strict || this.peers.get(n).v >= 31)));
+  }
+
+  // Whether every key between this page and the others present has ML-KEM
+  // in it (all run 3.2, and the secrets have arrived).
+  quantumSafe(present) {
+    return present.every((n) => n === this.me || (this.peers.get(n)?.v === 32 && this.peers.get(n).ss && this.peers.get(n).pqIn));
+  }
+
+  // Members present that run 3.0 (no signatures).
+  older(present) {
+    return present.filter((n) => n !== this.me && this.peers.get(n)?.v === 30);
+  }
+
+  // A short secret for one member only, inside a message everyone receives
+  // (game cards and votes, game.js): sealed with a key from the pair's ML-KEM
+  // secret, which stays the same for the visit, so it does not depend on
+  // which ECDH keys either side has at the moment. Needs that secret (both
+  // pages 3.2); label ties it to its purpose.
+  async pairSecret(n, label) {
+    const p = this.peers.get(n);
+    if (!p?.ss) throw new Error('no pair secret');
+    const hkdf = await crypto.subtle.importKey('raw', p.ss, 'HKDF', false, ['deriveKey']);
+    const info = enc.encode(`private-talk/v3.2/for|${label}|${Math.min(n, this.me)}|${Math.max(n, this.me)}`);
+    return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: this.bind, info }, hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  async sealFor(n, text, label) {
+    return sealWith(await this.pairSecret(n, label), enc.encode(text), `pt32f|${this.me}|${n}|${label}`);
+  }
+
+  async openFrom(from, sealed, label) {
+    return dec.decode(await openWith(await this.pairSecret(from, label), sealed, `pt32f|${from}|${this.me}|${label}`));
+  }
+
+  // Seals the plain text with the next key from this page's chain and signs
+  // it. Returns the frame fields { iv, ct, h }.
+  async seal(text) {
+    const m = this.mine; // a rekey while this runs starts a new object
+    const h = `${m.epoch}.${m.c}`;
+    const { mk, next } = await step(m.ck);
+    m.ck = next;
+    m.c++;
+    const sig = toB64(await crypto.subtle.sign(SIGN, this.signing.privateKey, enc.encode(`pt31m|${this.me}|${h}|${text}`)));
+    const signed = `${text.slice(0, -1)},"s":"${sig}"}`;
+    return { ...(await sealWith(await aes(mk, ['encrypt']), pad(enc.encode(signed)), `pt3|${this.me}|${h}`)), h };
+  }
+
+  // Opens a v3 message from member `from`. Returns { text, missed, signed },
+  // where missed counts that member's messages skipped over (never delivered)
+  // and signed says the sender's signature checked out (false: a 3.0 page),
+  // or throws if it cannot be opened or carries a bad signature.
+  async open(msg, from) {
+    const m = HEADER.exec(msg.h ?? '');
+    const p = this.peers.get(from);
+    if (!m || !p?.recv) throw new Error('no key');
+    const epoch = Number(m[1]), c = Number(m[2]);
+    const which = epoch === p.recv.epoch ? 'recv' : epoch === p.prev?.epoch ? 'prev' : null;
+    const r = p[which];
+    if (!which || c < r.c || c - r.c > MAX_SKIP) throw new Error('out of step');
+    let ck = r.ck;
+    for (let i = r.c; i < c; i++) ck = (await step(ck)).next;
+    const { mk, next } = await step(ck);
+    let text = dec.decode(unpad(await openWith(await aes(mk, ['decrypt']), msg, `pt3|${from}|${msg.h}`)));
+    let signed = false;
+    const s = SIGNED.exec(text);
+    if (p.v >= 31) {
+      // A 3.1 sender signs every message; one without is not theirs.
+      if (!s) throw new Error('unsigned');
+      text = `${text.slice(0, s.index)}}`;
+      if (!(await crypto.subtle.verify(SIGN, p.verify, fromB64(s[1]), enc.encode(`pt31m|${from}|${msg.h}|${text}`)))) throw new Error('bad signature');
+      signed = true;
+    }
+    p[which] = { epoch, ck: next, c: c + 1 };
+    return { text, missed: c - r.c, signed };
+  }
+
+  // The safety code: 20 digits in four groups, from everyone's signing keys
+  // (3.0 members, who have none, by their ECDH key). It changes when people
+  // come or go, not at rekeys.
+  async safetyCode(present) {
+    const id = (n) => (n === this.me ? this.spk : this.peers.get(n)?.spk ?? this.peers.get(n)?.epk ?? '?');
+    const keys = present.map((n) => `${n}:${id(n)}`).sort().join('|');
+    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(`private-talk/v3.1/safety|${hex(this.bind)}|${keys}`)));
+    let x = 0n;
+    for (const b of d.subarray(0, 12)) x = (x << 8n) | BigInt(b);
+    return (x % 10n ** 20n).toString().padStart(20, '0').replace(/(\d{5})(?=\d)/g, '$1 ');
+  }
+}
+
+return { MAX_SKIP, REKEY_MESSAGES, REKEY_MS, RESEND_MS, ROTATE_MS, ANNOUNCE_BYTES, HEADER, step, Group };
+})();
+__m["state.js"] = (() => {
+// Rules shared by the page and the tests.
+const MAX_MEMBERS = 25;
+const MAX_TEXT_CHARS = 500;
+const MAX_TEXT_BYTES = 2048;
+const SHORT_PASSPHRASE = 8; // shorter ones work, with a warning
+const SEND_GAP_SECONDS = 6;
+const SEND_BURST = 3; // as src/rules.js: a few in a row, then one per SEND_GAP_SECONDS
+
+// The passphrase is the only credential: whoever knows it is in the room, and
+// it is also what the messages are encrypted with. It may be as short as one
+// character: letters and digits of any script (Chinese, Latin, Cyrillic,
+// Arabic, Bengali…), with the combining marks those scripts need, and the
+// zero-width (non-)joiners some keyboards put inside words. No symbols,
+// punctuation, spaces or emoji, and it must start with a letter or digit.
+// NFKC folds full-width letters and digits from Chinese input methods into
+// plain ones, so ＡＢ１ and AB1 open the same room. Simplified and traditional
+// forms of a character are different characters, and so different rooms.
+const MAX_PASSPHRASE = 64;
+
+// Errors carry a code, so the page can show them in the reader's language.
+const coded = (code, message) => Object.assign(new Error(message), { code });
+
+function checkPassphrase(input) {
+  const pass = input.normalize('NFKC').trim();
+  if (!pass) throw coded('empty', '请输入房间暗号');
+  if (/^pub[a-z0-9]{2,12}-[a-z0-9]{16}$/.test(pass)) return pass;
+  if (!/^[\p{L}\p{N}][\p{L}\p{M}\p{N}\u200C\u200D]*$/u.test(pass)) throw coded('chars', '房间暗号只能用文字和数字（任何语言都行），不能用符号或空格');
+  if (Array.from(pass).length > MAX_PASSPHRASE) throw coded('long', `房间暗号最多 ${MAX_PASSPHRASE} 个字`);
+  return pass;
+}
+
+function isShortPassphrase(pass) {
+  return Array.from(pass).length < SHORT_PASSPHRASE;
+}
+
+// The passphrase travels after "#", which browsers never send to the server.
+// Chinese is percent-encoded so the link survives chat apps that would cut it
+// at the first non-ASCII character; browsers show it decoded again.
+function roomLink(origin, pass) {
+  return `${origin}/#${encodeURIComponent(pass)}`;
+}
+
+function passphraseFromHash(hash) {
+  try {
+    return checkPassphrase(decodeURIComponent(hash.replace(/^#/, '')));
+  } catch {
+    return null;
+  }
+}
+
+// checkMessage returns the text to send, or null when it is empty or too long.
+function checkMessage(text) {
+  const clean = text.trim();
+  if (!clean) return null;
+  if (Array.from(clean).length > MAX_TEXT_CHARS) return null;
+  if (new TextEncoder().encode(clean).byteLength > MAX_TEXT_BYTES) return null;
+  return clean;
+}
+
+// Visitors are numbered 1️⃣ to 🔟, then #11 to #25: there are no keycap emoji
+// past ten, and circled numbers are too small to read in running text.
+const BADGES = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+
+function badge(n) {
+  return BADGES[n - 1] ?? `#${n}`;
+}
+
+function visitorName(n, you) {
+  return n === you ? `${badge(n)} 我` : badge(n);
+}
+
+// randomPassphrase makes a 22-character passphrase, about 128 bits: far
+// beyond guessing. Letters and digits only, minus look-alikes (I, O, l, 0, 1),
+// so it also survives being read aloud or retyped.
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+function randomPassphrase(length = 22) {
+  const out = [];
+  const limit = 256 - (256 % ALPHABET.length); // keep every symbol equally likely
+  while (out.length < length) {
+    for (const b of crypto.getRandomValues(new Uint8Array(length * 2))) {
+      if (b < limit && out.length < length) out.push(ALPHABET[b % ALPHABET.length]);
+    }
+  }
+  return out.join('');
+}
+
+// roomCode is what the page shows instead of the passphrase, so a screenshot
+// of the room does not give the room away. Everyone in the same room sees the
+// same code.
+function roomCode(roomId) {
+  return roomId.slice(0, 4).toUpperCase();
+}
+
+// A message's sender, id and time travel inside the encryption. The relay
+// labels each message with who sent it; the page shows a message only when
+// that label matches the sealed one, it has not seen the id before, and the
+// message is recent by this device's own clock. That stops an ordinary relay
+// fault, and a tampering relay from relabelling messages or replaying ones
+// older than ten minutes. It does not stop a member who knows the passphrase
+// from working with the relay to impersonate someone: everyone in the room
+// holds the same key.
+const MAX_SKEW = 10 * 60 * 1000;
+const ID = /^[0-9a-f]{16}$/;
+
+// g: a game event (game.js) riding along; text is then what older pages show.
+// q: quick reaction emoji (0–5, since 2.21).
+function envelope(from, text, now = Date.now(), g, f, q) {
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+  const hasQ = Number.isInteger(q) && q >= 0 && q <= 5;
+  return JSON.stringify({ from, id, t: now, text, ...(g && { g }), ...(f && { f }), ...(hasQ && { q }) });
+}
+
+// seen remembers message ids (not their text) for as long as a message could
+// still pass the age check, for the whole time the page is open.
+function newSeen() {
+  return new Map();
+}
+
+// checkEnvelope returns { text, id, g, f, q } or null (g: a game event, f: a
+// picture's key (picture.js), q: quick reaction emoji 0–5, if any). now is the receiving device's
+// clock, or the server's when this device's is known to be wrong.
+function checkEnvelope(plain, relayed, seen, now = Date.now()) {
+  let e;
+  try { e = JSON.parse(plain); } catch { return null; }
+  if (!e || typeof e !== 'object' || typeof e.text !== 'string' || typeof e.id !== 'string' || !ID.test(e.id)) return null;
+  if (!Number.isInteger(e.from) || e.from < 1 || e.from > MAX_MEMBERS || e.from !== relayed.from) return null;
+  if (!Number.isFinite(e.t) || !Number.isFinite(relayed.at)) return null;
+  if (Math.abs(now - e.t) > MAX_SKEW || Math.abs(relayed.at - e.t) > MAX_SKEW) return null;
+  const hasQ = Number.isInteger(e.q) && e.q >= 0 && e.q <= 5;
+  if (hasQ) {
+    if (e.text !== '' && checkMessage(e.text) !== e.text) return null;
+  } else {
+    if (checkMessage(e.text) !== e.text) return null;
+  }
+  for (const [id, t] of seen) if (Math.abs(now - t) > 2 * MAX_SKEW) seen.delete(id);
+  if (seen.has(e.id)) return null;
+  seen.set(e.id, e.t);
+  const g = e.g && typeof e.g === 'object' && !Array.isArray(e.g) ? e.g : undefined;
+  const f = e.f && typeof e.f === 'object' && !Array.isArray(e.f) ? e.f : undefined;
+  const q = hasQ ? e.q : undefined;
+  return { text: e.text, id: e.id, g, f, q };
+}
+
+// checkKeys is checkEnvelope for v3 key announcements (group.js), and with
+// kind 'seen' for delivery receipts: the sealed sender must be the relayed
+// one, not too old, not seen before. Returns the object or null.
+function checkKeys(plain, relayed, seen, now = Date.now(), kind = 'keys') {
+  let a;
+  try { a = JSON.parse(plain); } catch { return null; }
+  if (!a || typeof a !== 'object' || a.kind !== kind || typeof a.id !== 'string' || !ID.test(a.id)) return null;
+  if (!Number.isInteger(a.from) || a.from !== relayed.from || !Number.isFinite(a.t) || Math.abs(now - a.t) > MAX_SKEW) return null;
+  if (seen.has(a.id)) return null;
+  seen.set(a.id, a.t);
+  return a;
+}
+
+// joinsAndLeaves compares two member lists.
+function joinsAndLeaves(before, after) {
+  return {
+    joined: after.filter((n) => !before.includes(n)),
+    left: before.filter((n) => !after.includes(n))
+  };
+}
+
+return { MAX_MEMBERS, MAX_TEXT_CHARS, MAX_TEXT_BYTES, SHORT_PASSPHRASE, SEND_GAP_SECONDS, SEND_BURST, MAX_PASSPHRASE, checkPassphrase, isShortPassphrase, roomLink, passphraseFromHash, checkMessage, BADGES, badge, visitorName, randomPassphrase, roomCode, MAX_SKEW, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves };
+})();
+__m["hr-core.js"] = (() => {
+// HTML Room (hr1): where the room's keys come from when the room is a file.
+// Everything inside the room is protocol v3.2 (group.js): this module only
+// turns a 256-bit Master Secret into the values that protocol needs, checks
+// room configurations, locks a secret under an opening passphrase, seals the
+// two kinds of frame that use the room key, and fills the HTML template.
+// The rules are in docs/html-room/protocol.md, which this follows exactly.
+// No DOM, no network: the builder, the browser page and the tests share it.
+const { pad, unpad } = __m["crypto.js"];
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+const VERSION = 1;
+const LABELS = {
+  access: 'private-talk/html-room/v1/access',
+  key: 'private-talk/html-room/v1/key',
+  bind: 'private-talk/html-room/v1/bind',
+  lock: 'private-talk/html-room/v1/lock',
+  frame: 'private-talk/html-room/v1/frame'
+};
+const MAX_NAME = 40;
+const MAX_RELAYS = 4;
+const MAX_RELAY_CHARS = 200;
+const MAX_CONFIG_BYTES = 4096;
+const LOCK_ITERATIONS = 600000;
+const MIN_ITERATIONS = 100000;
+const MAX_ITERATIONS = 5000000;
+const MIN_PASS_CHARS = 8;
+const KDF = 'PBKDF2-SHA-256';
+const FRAGMENT_PREFIX = '#hr1=';
+
+// ---- encodings --------------------------------------------------------------
+
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+const toB64 = (buf) => { let s = ''; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b); return btoa(s); };
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const toB64url = (buf) => toB64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function fromB64url(s) {
+  if (typeof s !== 'string' || !/^[A-Za-z0-9_-]*$/.test(s) || s.length % 4 === 1) throw new Error('bad base64url');
+  const std = s.replace(/-/g, '+').replace(/_/g, '/');
+  return fromB64(std + '='.repeat((4 - (std.length % 4)) % 4));
+}
+const b64urlOf = (len) => new RegExp(`^[A-Za-z0-9_-]{${Math.ceil((len * 4) / 3)}}$`);
+const SECRET_RE = b64urlOf(32);   // 43 characters
+const SALT_RE = b64urlOf(16);     // 22
+const IV_RE = b64urlOf(12);       // 16
+const CT_RE = b64urlOf(48);       // 64
+
+// ---- safe JSON for the configuration block (type application/json) ---------
+
+// JSON with every character that could end or confuse the script block
+// written as an escape. The result parses to exactly the same value.
+function safeJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/\//g, '\\u002F')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+// ---- configuration ------------------------------------------------------------
+
+// Characters a room name may not hold: controls (C0, C1), line and paragraph
+// separators, bidirectional controls, the byte order mark.
+const BAD_NAME = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+
+// A relay address as the configuration gives it: wss:// anywhere, or ws://
+// on this machine only. Returns { origin, base } or null. base is the
+// address the room path goes under (an ENTRY_PATH deployment has a prefix).
+function checkRelay(s) {
+  if (typeof s !== 'string' || !s || s.length > MAX_RELAY_CHARS) return null;
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  if (!(u.protocol === 'wss:' || (u.protocol === 'ws:' && local))) return null;
+  if (u.username || u.password || u.search || u.hash || s.includes('?') || s.includes('#')) return null;
+  if (u.pathname !== '/' && !/^\/[A-Za-z0-9_-]{1,64}\/$/.test(u.pathname)) return null;
+  // What CSP's connect-src gets: nothing that could end the directive.
+  if (!/^wss?:\/\/[a-z0-9.\-[\]:]+$/.test(u.origin)) return null;
+  return { origin: u.origin, base: u.origin + u.pathname };
+}
+
+function relaySocketUrl(relay, roomId) {
+  const r = checkRelay(relay);
+  if (!r) throw new Error('bad relay');
+  return `${r.base}hr/${roomId}`;
+}
+
+const sameKeys = (o, keys) => {
+  const k = Object.keys(o);
+  return k.length === keys.length && keys.every((x) => Object.prototype.hasOwnProperty.call(o, x));
+};
+
+// Errors carry a code (for tests) and a message in Chinese (for the page).
+const CONFIG_ERRORS = {
+  json: '房间配置无法读取：文件可能已损坏。',
+  size: '房间配置过长：文件可能已被改动。',
+  shape: '房间配置格式不正确：文件可能已被改动。',
+  version: '这个房间文件的版本与本页面不兼容，请向房间创建者索取新文件。',
+  name: '房间名称不符合要求。',
+  relays: '房间配置中的中继地址无效。',
+  secret: '房间密钥格式不正确：文件可能已损坏。',
+  lock: '口令保护信息格式不正确：文件可能已损坏。'
+};
+const fail = (code) => ({ ok: false, code, message: CONFIG_ERRORS[code] });
+
+// checkConfig validates a parsed configuration against protocol.md §2.2.
+// Returns { ok: true, config } with a fresh copy, or { ok: false, code, message }.
+function checkConfig(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return fail('shape');
+  if (c.v !== VERSION) return fail(Number.isInteger(c.v) || typeof c.v === 'string' ? 'version' : 'shape');
+  const locked = Object.prototype.hasOwnProperty.call(c, 'lock');
+  if (!sameKeys(c, ['v', 'name', 'relays', locked ? 'lock' : 'secret'])) return fail('shape');
+  if (typeof c.name !== 'string' || c.name.length > MAX_NAME || BAD_NAME.test(c.name)) return fail('name');
+  if (!Array.isArray(c.relays) || c.relays.length < 1 || c.relays.length > MAX_RELAYS) return fail('relays');
+  if (!c.relays.every((r) => checkRelay(r)) || new Set(c.relays).size !== c.relays.length) return fail('relays');
+  if (locked) {
+    const l = c.lock;
+    if (!l || typeof l !== 'object' || Array.isArray(l) || !sameKeys(l, ['kdf', 'iter', 'salt', 'iv', 'ct'])) return fail('lock');
+    if (l.kdf !== KDF || !Number.isInteger(l.iter) || l.iter < MIN_ITERATIONS || l.iter > MAX_ITERATIONS) return fail('lock');
+    if (!SALT_RE.test(l.salt) || !IV_RE.test(l.iv) || !CT_RE.test(l.ct)) return fail('lock');
+    return { ok: true, config: { v: 1, name: c.name, relays: [...c.relays], lock: { ...l } } };
+  }
+  if (!SECRET_RE.test(c.secret ?? '')) return fail('secret');
+  return { ok: true, config: { v: 1, name: c.name, relays: [...c.relays], secret: c.secret } };
+}
+
+function parseConfigText(text) {
+  if (typeof text !== 'string') return fail('json');
+  if (enc.encode(text).length > MAX_CONFIG_BYTES * 2) return fail('size'); // escapes can double it
+  let c;
+  try { c = JSON.parse(text); } catch { return fail('json'); }
+  const r = checkConfig(c);
+  if (r.ok && enc.encode(JSON.stringify(r.config)).length > MAX_CONFIG_BYTES) return fail('size');
+  return r;
+}
+
+// ---- key derivation -----------------------------------------------------------
+
+function newSecret() {
+  return crypto.getRandomValues(new Uint8Array(32));
+}
+
+// deriveHrRoom turns the 32-byte Master Secret into what the rest of the
+// page needs: { roomId, access, key, bind }, with key a non-extractable
+// AES-256-GCM key. Same shape as crypto.js deriveRoom.
+async function deriveHrRoom(ms) {
+  if (!(ms instanceof Uint8Array) || ms.length !== 32) throw new Error('bad secret');
+  const hkdf = await crypto.subtle.importKey('raw', ms, 'HKDF', false, ['deriveBits', 'deriveKey']);
+  const info = (label) => ({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: enc.encode(label) });
+  const access = new Uint8Array(await crypto.subtle.deriveBits(info(LABELS.access), hkdf, 256));
+  const roomId = hex(await crypto.subtle.digest('SHA-256', access));
+  const key = await crypto.subtle.deriveKey(info(LABELS.key), hkdf, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  const bind = new Uint8Array(await crypto.subtle.deriveBits(info(LABELS.bind), hkdf, 256));
+  return { roomId, access: hex(access), key, bind };
+}
+
+// ---- opening passphrase (protocol.md §3) --------------------------------------
+
+const lockAad = (name, relays) => enc.encode(JSON.stringify([LABELS.lock, VERSION, name, relays]));
+
+async function passKey(pass, salt, iter, usage) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(String(pass).normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, usage);
+}
+
+async function lockSecret(ms, pass, name, relays, iter = LOCK_ITERATIONS) {
+  if (typeof pass !== 'string' || Array.from(pass).length < MIN_PASS_CHARS) throw new Error('short passphrase');
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const k = await passKey(pass, salt, iter, ['encrypt']);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: lockAad(name, relays) }, k, ms);
+  return { kdf: KDF, iter, salt: toB64url(salt), iv: toB64url(iv), ct: toB64url(ct) };
+}
+
+// Returns the Master Secret, or null for a wrong passphrase or a changed file.
+async function unlockSecret(config, pass) {
+  const l = config.lock;
+  try {
+    const k = await passKey(pass, fromB64url(l.salt), l.iter, ['decrypt']);
+    const ms = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64url(l.iv), additionalData: lockAad(config.name, config.relays) }, k, fromB64url(l.ct)));
+    return ms.length === 32 ? ms : null;
+  } catch {
+    return null;
+  }
+}
+
+function secretOf(config) {
+  return config.secret ? fromB64url(config.secret) : null;
+}
+
+// A random opening passphrase: 12 characters from 32 easy-to-read ones
+// (no 0/O, 1/l/I), 60 bits.
+const PASS_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+function randomPass(length = 12) {
+  const out = [];
+  while (out.length < length) {
+    const b = crypto.getRandomValues(new Uint8Array(1))[0];
+    if (b < 256 - (256 % PASS_CHARS.length)) out.push(PASS_CHARS[b % PASS_CHARS.length]);
+  }
+  return out.join('').replace(/(.{4})(?=.)/g, '$1-');
+}
+
+// makeConfig builds a new room's configuration: a fresh secret, locked if
+// pass is given.
+async function makeConfig({ name = '', relays, pass = null, iter = LOCK_ITERATIONS }) {
+  const ms = newSecret();
+  const c = pass ? { v: 1, name, relays, lock: await lockSecret(ms, pass, name, relays, iter) } : { v: 1, name, relays, secret: toB64url(ms) };
+  const r = checkConfig(c);
+  if (!r.ok) throw new Error(r.code);
+  return r.config;
+}
+
+// ---- frames sealed with the room key (protocol.md §4.1) -----------------------
+
+const frameAad = (roomId, type, from) => enc.encode(JSON.stringify([LABELS.frame, roomId, type, from]));
+
+async function sealFrame(key, roomId, type, from, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: frameAad(roomId, type, from) }, key, pad(enc.encode(text)));
+  return { iv: toB64(iv), ct: toB64(ct) };
+}
+
+async function openFrame(key, roomId, type, from, { iv, ct }) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(iv), additionalData: frameAad(roomId, type, from) }, key, fromB64(ct));
+  return dec.decode(unpad(new Uint8Array(pt)));
+}
+
+// ---- storage (protocol.md §8) -------------------------------------------------
+
+const PERSIST_WARNING = '当前环境不支持持久保存，关闭页面后本地聊天记录可能丢失。';
+
+function storageKey(roomId, name) {
+  if (!/^[0-9a-f]{64}$/.test(roomId) || !/^[a-z][a-z0-9_]{0,31}$/.test(name)) throw new Error('bad storage key');
+  return `pt_hr_v1_${roomId}_${name}`;
+}
+
+// createStorage(roomId, backend): every read and write goes through here.
+// backend is null for memory only (the V1 default) or a Storage-like object
+// (localStorage in a test). Any error from it (SecurityError when storage is
+// blocked, QuotaExceededError, corrupt data) switches to memory for good and
+// sets persistent to false.
+function createStorage(roomId, backend = null) {
+  const mem = new Map();
+  let store = backend;
+  const s = {
+    get persistent() { return !!store; },
+    reason: backend ? null : 'memory',
+    get(name) {
+      const k = storageKey(roomId, name);
+      if (store) {
+        try {
+          const raw = store.getItem(k);
+          if (raw === null) return mem.has(k) ? mem.get(k) : null;
+          return JSON.parse(raw);
+        } catch (e) { drop(e); }
+      }
+      return mem.has(k) ? mem.get(k) : null;
+    },
+    set(name, value) {
+      const k = storageKey(roomId, name);
+      mem.set(k, value);
+      if (store) { try { store.setItem(k, JSON.stringify(value)); } catch (e) { drop(e); } }
+    },
+    remove(name) {
+      const k = storageKey(roomId, name);
+      mem.delete(k);
+      if (store) { try { store.removeItem(k); } catch (e) { drop(e); } }
+    }
+  };
+  function drop(e) {
+    store = null;
+    s.reason = e?.name === 'QuotaExceededError' ? 'quota' : e?.name === 'SecurityError' ? 'security' : e instanceof SyntaxError ? 'corrupt' : 'unavailable';
+  }
+  return s;
+}
+
+// ---- environment check (spec §3.3) --------------------------------------------
+
+// Checks what this page actually uses, by using it. Returns { ok, missing }.
+async function checkEnvironment(g = globalThis, { pbkdf2 = false } = {}) {
+  const missing = [];
+  const c = g.crypto;
+  if (!c?.getRandomValues) missing.push('getRandomValues');
+  if (!c?.subtle) missing.push('subtle');
+  if (typeof g.WebSocket !== 'function') missing.push('WebSocket');
+  if (typeof g.TextEncoder !== 'function') missing.push('TextEncoder');
+  if (typeof g.BigInt !== 'function') missing.push('BigInt');
+  if (missing.length) return { ok: false, missing };
+  const s = c.subtle;
+  const probe = async (name, fn) => { try { await fn(); } catch { missing.push(name); } };
+  await probe('HKDF', async () => {
+    const k = await s.importKey('raw', new Uint8Array(32), 'HKDF', false, ['deriveBits']);
+    await s.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: new Uint8Array(1) }, k, 256);
+  });
+  await probe('AES-GCM', async () => {
+    const k = await s.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+    await s.encrypt({ name: 'AES-GCM', iv: new Uint8Array(12), additionalData: new Uint8Array(1) }, k, new Uint8Array(1));
+  });
+  await probe('ECDH', async () => { await s.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']); });
+  await probe('ECDSA', async () => { await s.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']); });
+  await probe('HMAC', async () => {
+    const k = await s.importKey('raw', new Uint8Array(32), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    await s.sign('HMAC', k, new Uint8Array(1));
+  });
+  if (pbkdf2) await probe('PBKDF2', async () => {
+    const k = await s.importKey('raw', new Uint8Array(8), 'PBKDF2', false, ['deriveBits']);
+    await s.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new Uint8Array(16), iterations: 1000 }, k, 256);
+  });
+  return { ok: !missing.length, missing };
+}
+
+const ENV_MESSAGE = '当前打开方式不支持安全聊天。请尝试使用系统浏览器打开；如果仍无法使用，请选择网页版本。';
+
+// ---- the HTML template (protocol.md §5) ----------------------------------------
+
+// The markers are built at run time so they appear in the template only where
+// the builder put them, never inside this script's own text.
+const MARK_CONNECT = '__PT_' + 'CONNECT_SRC__';
+const MARK_CONFIG = '__PT_' + 'ROOM_CONFIG__';
+
+const count = (s, part) => s.split(part).length - 1;
+
+// fillTemplate(template, config): one room's file. Only connect-src and the
+// configuration block differ between rooms; the scripts and styles, and so
+// their hashes, are the same in every file.
+function fillTemplate(template, config) {
+  const r = checkConfig(config);
+  if (!r.ok) throw new Error(r.code);
+  if (count(template, MARK_CONNECT) !== 1 || count(template, MARK_CONFIG) !== 1) throw new Error('bad template');
+  const origins = [...new Set(r.config.relays.map((x) => checkRelay(x).origin))].join(' ');
+  return template.replace(MARK_CONNECT, () => origins).replace(MARK_CONFIG, () => safeJson(r.config));
+}
+
+// ---- the #hr1= link (protocol.md §7) ----------------------------------------------
+
+function fragmentFor(config) {
+  const r = checkConfig(config);
+  if (!r.ok) throw new Error(r.code);
+  return FRAGMENT_PREFIX + toB64url(enc.encode(JSON.stringify(r.config)));
+}
+
+// Returns { ok, config } | { ok: false, code, message } | null (no hr1 fragment).
+function configFromHash(hash) {
+  if (typeof hash !== 'string' || !hash.startsWith(FRAGMENT_PREFIX)) return null;
+  const body = hash.slice(FRAGMENT_PREFIX.length);
+  if (body.length > MAX_CONFIG_BYTES * 2) return fail('size');
+  let text;
+  try { text = dec.decode(fromB64url(body)); } catch { return fail('json'); }
+  return parseConfigText(text);
+}
+
+// ---- delivery state (spec §5.1) -----------------------------------------------
+
+const STATUS = {
+  queued: '排队中',
+  sending: '发送中',
+  relayed: '已提交中继',
+  some: '部分成员已确认',
+  all: '全部目标成员已确认',
+  failed: '发送失败'
+};
+
+// One own message's delivery. targets: the member numbers it was sealed for
+// (everyone else present then, protocol.md §4.3). Receipts from anyone else,
+// repeated ones, and ones before the relay echo are counted correctly.
+class Delivery {
+  constructor() { this.state = 'queued'; this.targets = new Set(); this.acked = new Set(); this.reason = ''; }
+  sealed(targets) { this.targets = new Set(targets); this.state = 'sending'; }
+  relayed() { if (this.state === 'sending') this.state = this.targets.size ? this.level() : 'all'; }
+  ack(from) {
+    if (!this.targets.has(from) || this.state === 'failed') return false;
+    const fresh = !this.acked.has(from);
+    this.acked.add(from);
+    if (this.state !== 'queued' && this.state !== 'sending') this.state = this.level();
+    return fresh;
+  }
+  level() { return this.acked.size === 0 ? 'relayed' : this.acked.size >= this.targets.size ? 'all' : 'some'; }
+  failed(reason) { if (this.state === 'queued' || this.state === 'sending') { this.state = 'failed'; this.reason = reason; } }
+  label() {
+    if (this.state === 'some') return `${STATUS.some} ${this.acked.size}/${this.targets.size}`;
+    if (this.state === 'all' && !this.targets.size) return '已提交中继（房间里暂无其他成员）';
+    return STATUS[this.state];
+  }
+}
+
+return { VERSION, LABELS, MAX_NAME, MAX_RELAYS, MAX_RELAY_CHARS, MAX_CONFIG_BYTES, LOCK_ITERATIONS, MIN_ITERATIONS, MAX_ITERATIONS, MIN_PASS_CHARS, KDF, FRAGMENT_PREFIX, hex, toB64url, fromB64url, safeJson, checkRelay, relaySocketUrl, CONFIG_ERRORS, checkConfig, parseConfigText, newSecret, deriveHrRoom, lockSecret, unlockSecret, secretOf, randomPass, makeConfig, sealFrame, openFrame, PERSIST_WARNING, storageKey, createStorage, checkEnvironment, ENV_MESSAGE, MARK_CONNECT, MARK_CONFIG, fillTemplate, fragmentFor, configFromHash, STATUS, Delivery };
+})();
+__m["hr-room.js"] = (() => {
+// HTML Room client (docs/html-room/protocol.md). One module for both ways
+// in: the room file (hr-file.js, every script inline, CSP by hash) and the
+// #hr1= web entry (hr.js). Inside the room it is protocol v3.2 exactly as
+// app.js runs it: Group (group.js) for keys and messages, checkEnvelope and
+// checkKeys (state.js) for sender, age and replays. What differs: the keys
+// come from a Master Secret (hr-core.js), frames sealed with the room key
+// carry an AAD naming the room, the sender and the kind of frame, only
+// signed v3.2 messages are accepted, and own messages show their delivery
+// state step by step.
+//
+// The page is built with createElement and textContent only: no innerHTML,
+// no inline styles or handlers (the file's CSP allows neither).
+const { Group } = __m["group.js"];
+const { envelope, checkEnvelope, checkKeys, newSeen, checkMessage, badge, MAX_SKEW } = __m["state.js"];
+const { checkEnvironment, ENV_MESSAGE, parseConfigText, secretOf, unlockSecret, deriveHrRoom, relaySocketUrl, sealFrame, openFrame, Delivery, MAX_NAME } = __m["hr-core.js"];
+
+const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REPLACED = 4005, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007, CLOSE_CAPACITY = 4008;
+const CLOSE_RESTART = 1012;
+const PING = '{"type":"ping"}';
+const ACK_WAIT = 8000;       // a sent message should come back from the relay within this
+const KEYS_WAIT = 8000;      // how long a message waits for keys to be exchanged
+const HEARTBEAT = 25000;
+const SILENCE = 60000;
+const SEEN_EVERY = 1500, SEEN_MAX = 60;
+const HELD_MAX = 20, HELD_MS = 30000;
+
+const TEXT = {
+  fileOpen: '此文件包含完整房间密钥：任何拿到这个文件的人都能进入房间、看到之后的消息。请勿通过未加密的社交软件（微信、QQ、邮箱等）直接发送。',
+  fileLocked: '此文件受打开口令保护。口令请当面或电话告知，不要和文件通过同一个软件发送。',
+  web: '网页模式依赖当前网页提供方交付的客户端代码；如需减少对网页提供方的信任，请使用经过验证的离线客户端。',
+  memory: '本页面不保存聊天记录，关闭或刷新即清除。在线成员列表是尽力而为的信息。',
+  denied: '中继拒绝了这个房间的进入凭证：文件可能已被改动，或中继不是这个房间配置的那一个。',
+  full: '房间已满（最多 25 人）。',
+  locked: '房间已被房主锁定，暂时不能进入。',
+  busy: '加入过于频繁，请稍后再试。',
+  capacity: '中继当前连接数已满，请稍后再试。',
+  removed: '你已被房主移出房间。',
+  replaced: '这个房间在另一个标签页或设备上用同一身份重新连接了，本页已断开。',
+  oldRelay: '这个中继不支持 HTML Room（缺少 /hr/ 路径或协议版本过旧）。',
+  left: '你已离开房间。本页面没有保存任何内容。'
+};
+
+// ---- DOM helpers ---------------------------------------------------------------
+
+function el(tag, opts = {}, ...children) {
+  const e = document.createElement(tag);
+  if (opts.cls) e.className = opts.cls;
+  if (opts.text !== undefined) e.textContent = opts.text;
+  for (const [k, v] of Object.entries(opts.attrs ?? {})) {
+    if (/^on/i.test(k) || k === 'style') throw new Error('not allowed');
+    e.setAttribute(k, v);
+  }
+  for (const c of children) if (c) e.append(c);
+  return e;
+}
+
+let root = null;
+function screen(...children) {
+  root.replaceChildren(...children);
+}
+
+function shell() {
+  document.getElementById('pt-boot')?.remove();
+  root = document.getElementById('pt-app');
+  if (!root) {
+    root = el('main', { attrs: { id: 'pt-app' } });
+    document.body.append(root);
+  }
+}
+
+function errorScreen(title, detail, action) {
+  screen(el('section', { cls: 'card' },
+    el('h1', { text: title }),
+    detail ? el('p', { text: detail }) : null,
+    action ?? null));
+}
+
+// ---- boot ------------------------------------------------------------------------
+
+// source: { mode: 'file' | 'web', text?: string (file), parsed?: result (web), socketBase?: string (web) }
+async function boot(source) {
+  shell();
+  const parsed = source.parsed ?? parseConfigText(source.text);
+  const locked = parsed?.ok && !!parsed.config.lock;
+  const env = await checkEnvironment(globalThis, { pbkdf2: locked });
+  if (!env.ok) {
+    errorScreen('无法打开加密聊天室', ENV_MESSAGE, el('p', { cls: 'fine', text: `缺少：${env.missing.join('、')}` }));
+    return { error: 'env', missing: env.missing };
+  }
+  if (!parsed?.ok) {
+    errorScreen('无法打开这个房间', parsed?.message ?? '房间配置缺失。');
+    return { error: parsed?.code ?? 'missing' };
+  }
+  const config = parsed.config;
+  if (!locked) return enter(source, config, secretOf(config));
+  return unlockScreen(source, config);
+}
+
+function unlockScreen(source, config) {
+  const input = el('input', { attrs: { type: 'password', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', id: 'pt-pass', 'aria-label': '打开口令' } });
+  const note = el('p', { cls: 'warn', attrs: { role: 'alert' } });
+  note.hidden = true;
+  const button = el('button', { text: '解锁并进入', attrs: { type: 'submit' } });
+  const form = el('form', { cls: 'card', attrs: { id: 'pt-unlock' } },
+    el('h1', { text: roomTitle(config) }),
+    el('p', { text: '这个房间文件受打开口令保护。请输入房间创建者另行告诉你的口令。' }),
+    input, button, note,
+    el('p', { cls: 'fine', text: TEXT.fileLocked }));
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    button.disabled = true;
+    note.hidden = true;
+    button.textContent = '正在解锁……';
+    const ms = await unlockSecret(config, input.value);
+    if (!ms) {
+      button.disabled = false;
+      button.textContent = '解锁并进入';
+      note.textContent = '口令不正确，或文件已被改动。';
+      note.hidden = false;
+      input.select();
+      return;
+    }
+    input.value = '';
+    enter(source, config, ms);
+  });
+  screen(form);
+  input.focus();
+  return { locked: true };
+}
+
+const roomTitle = (config) => (config.name ? config.name.slice(0, MAX_NAME) : '未命名房间');
+
+async function enter(source, config, ms) {
+  const keys = await deriveHrRoom(ms);
+  ms.fill(0);
+  const sockets = source.mode === 'web'
+    ? [`${source.socketBase}hr/${keys.roomId}`]
+    : config.relays.map((r) => relaySocketUrl(r, keys.roomId));
+  const room = new Room({ source, config, keys, sockets });
+  room.start();
+  return { room };
+}
+
+// ---- the room ------------------------------------------------------------------------
+
+class Room {
+  constructor({ source, config, keys, sockets }) {
+    Object.assign(this, { source, config, sockets });
+    this.key = keys.key;
+    this.bind = keys.bind;
+    this.roomId = keys.roomId;
+    this.access = keys.access;
+    this.relay = 0;
+    this.failedRelays = new Set();
+    this.you = 0;
+    this.resume = null;
+    this.group = null;
+    this.present = null;
+    this.ws = null;
+    this.session = 0;
+    this.joinedOnce = false;
+    this.retries = 0;
+    this.seen = newSeen();
+    this.own = new Map();        // chain position → { plain, d: Delivery, row }
+    this.early = new Map();      // chain position → Set of members whose receipt came first
+    this.held = [];
+    this.seenQueue = [];
+    this.keysHello = false;
+    this.keysSentAt = 0;
+    this.lastHeard = 0;
+    this.askedKeysAt = 0;
+    this.lastBad = 0;
+    this.verified = false;
+  }
+
+  // ---- screen ----
+  start() {
+    const c = this.config;
+    const banner = this.source.mode === 'web' ? TEXT.web : c.lock ? TEXT.fileLocked : TEXT.fileOpen;
+    this.ui = {
+      title: el('h1', { text: roomTitle(c) }),
+      status: el('span', { cls: 'status', attrs: { id: 'pt-status', role: 'status' }, text: '正在准备密钥……' }),
+      members: el('ul', { cls: 'members', attrs: { id: 'pt-members', 'aria-label': '在线成员' } }),
+      safety: el('p', { cls: 'safety', attrs: { id: 'pt-safety' } }),
+      log: el('ol', { cls: 'log', attrs: { id: 'pt-log', 'aria-live': 'polite' } }),
+      input: el('textarea', { attrs: { id: 'pt-input', rows: '2', maxlength: '2000', placeholder: '输入消息，回车发送（Shift+回车换行）', 'aria-label': '消息' } }),
+      send: el('button', { text: '发送', attrs: { id: 'pt-send', type: 'submit' } }),
+      leave: el('button', { cls: 'quiet', text: '离开', attrs: { id: 'pt-leave', type: 'button' } })
+    };
+    this.ui.safety.hidden = true;
+    const form = el('form', { cls: 'compose', attrs: { id: 'pt-compose' } }, this.ui.input, this.ui.send);
+    form.addEventListener('submit', (e) => { e.preventDefault(); this.sendFromInput(); });
+    this.ui.input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); this.sendFromInput(); }
+    });
+    this.ui.leave.addEventListener('click', () => this.leave());
+    screen(el('section', { cls: 'room' },
+      el('header', {}, el('div', { cls: 'top' }, this.ui.title, this.ui.leave), this.ui.status),
+      el('p', { cls: this.source.mode === 'file' && !c.lock ? 'warn' : 'note', attrs: { id: 'pt-banner' }, text: banner }),
+      el('details', { cls: 'side' }, el('summary', { text: '成员与安全码' }), this.ui.members, this.ui.safety,
+        el('p', { cls: 'fine', text: TEXT.memory })),
+      this.ui.log,
+      form));
+    this.timers = [
+      setInterval(() => this.heartbeat(), HEARTBEAT),
+      setInterval(() => this.sweep(), 5000),
+      setInterval(() => this.scheduledRekey(), 30000)
+    ];
+    this.connect();
+  }
+
+  setStatus(text, ok = false) {
+    this.ui.status.textContent = text;
+    this.ui.status.classList.toggle('ok', ok);
+  }
+
+  system(text) {
+    this.ui.log.append(el('li', { cls: 'sys', text }));
+    this.scroll();
+  }
+
+  scroll() { this.ui.log.scrollTop = this.ui.log.scrollHeight; }
+
+  bubble(from, at, text, mine) {
+    const time = new Date(Number.isFinite(at) ? at : Date.now());
+    const meta = el('span', { cls: 'meta', text: `${mine ? '你' : badge(from)} · ${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}` });
+    const body = el('span', { cls: 'text', text });
+    const state = mine ? el('span', { cls: 'state' }) : null;
+    const row = el('li', { cls: mine ? 'msg mine' : 'msg' }, meta, body, state);
+    if (!mine) row.dataset.from = String(from);
+    this.ui.log.append(row);
+    this.scroll();
+    return row;
+  }
+
+  showDelivery(entry) {
+    const s = entry.row.querySelector('.state');
+    s.textContent = entry.d.label() + (entry.d.state === 'failed' && entry.d.reason ? `：${entry.d.reason}` : '');
+    entry.row.dataset.state = entry.d.state;
+  }
+
+  renderMembers() {
+    const list = this.present ?? [];
+    this.ui.members.replaceChildren(...list.map((n) => el('li', { text: n === this.you ? `${badge(n)}（你）` : badge(n) })));
+  }
+
+  async showSafety() {
+    const g = this.group, present = this.present;
+    const ready = g && present && present.length > 1 && present.every((n) => n === this.you || g.peers.get(n)?.recv);
+    if (!ready) { this.ui.safety.hidden = true; return; }
+    const code = await g.safetyCode(present);
+    if (g !== this.group) return;
+    const pq = g.quantumSafe(present) ? ' · 含抗量子 ML-KEM' : '';
+    this.ui.safety.textContent = `安全码 ${code}${pq}。通过电话或当面与其他成员核对：一致说明没有人被调包。`;
+    this.ui.safety.hidden = false;
+  }
+
+  // ---- connection ----
+  connect() {
+    clearTimeout(this.retryTimer);
+    const url = this.sockets[this.relay];
+    this.setStatus(this.joinedOnce ? '正在重新连接……' : '正在连接中继……');
+    let opened = false;
+    const protocols = ['pt2', `a${this.access}`, ...(this.resume ? [`r${this.resume}`] : [])];
+    let sock;
+    try { sock = new WebSocket(url, protocols); } catch { return this.connectFailed(url); }
+    this.ws = sock;
+    this.lastHeard = Date.now();
+    const session = this.session;
+    let queue = Promise.resolve();
+    sock.onopen = () => { opened = true; };
+    sock.onmessage = (e) => {
+      if (this.ws !== sock) return;
+      this.lastHeard = Date.now();
+      queue = queue.then(() => this.handle(e.data, sock, session)).catch(() => {});
+    };
+    sock.onclose = (e) => {
+      if (this.ws !== sock) return;
+      const code = e.code;
+      const stops = { [CLOSE_FULL]: TEXT.full, [CLOSE_BUSY]: TEXT.busy, [CLOSE_REMOVED]: TEXT.removed, [CLOSE_DENIED]: TEXT.denied, [CLOSE_CAPACITY]: TEXT.capacity, [CLOSE_REPLACED]: TEXT.replaced };
+      if (stops[code]) return this.stop(stops[code]);
+      if (code === CLOSE_LOCKED) {
+        if (!this.joinedOnce) return this.stop(TEXT.locked);
+        this.setStatus('房间已锁定，等待重新进入……');
+        return this.retry(10000);
+      }
+      if (code === CLOSE_RESTART) { this.system('中继正在重启，稍后自动重连。'); return this.retry(3000); }
+      if (!opened) return this.connectFailed(url);
+      if (code === 1008) this.system('发送过快，连接被中继断开，正在重连。');
+      else this.system('连接中断，正在重连……');
+      this.retry(Math.min(15000, 1000 * 2 ** this.retries++));
+    };
+  }
+
+  // The connection never opened: the relay is down, unreachable, or (for a
+  // self-hosted wss://) its certificate is not trusted, which the browser
+  // does not tell the page. Try the next relay, if there is one.
+  connectFailed(url) {
+    if (!this.failedRelays.has(url)) {
+      this.failedRelays.add(url);
+      const host = (() => { try { return new URL(url).host; } catch { return url; } })();
+      let hint = `无法连接中继 ${host}。`;
+      if (url.startsWith('wss://')) hint += `如果这是局域网或自建的中继、使用自签名证书，请先在浏览器新标签页打开 https://${host}/ 并选择信任该证书，然后回到本页面；也可以改用有有效证书的域名。`;
+      if (this.sockets.length > 1) hint += '正在尝试下一个中继。';
+      this.system(hint);
+    }
+    this.relay = (this.relay + 1) % this.sockets.length;
+    this.retry(Math.min(15000, 1000 * 2 ** this.retries++));
+  }
+
+  retry(delay) {
+    this.setStatus('连接已断开，等待重连……');
+    clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => this.connect(), delay * (0.75 + Math.random() * 0.5));
+  }
+
+  stop(text) {
+    this.setStatus(text);
+    this.system(text);
+    this.ws = null;
+    this.present = null;
+    this.renderMembers();
+    this.ui.safety.hidden = true;
+    for (const entry of this.own.values()) if (entry.d.state === 'queued' || entry.d.state === 'sending') { entry.d.failed('连接已结束'); this.showDelivery(entry); }
+  }
+
+  heartbeat() {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - this.lastHeard > SILENCE) {
+      this.system('很久没有收到中继的消息，正在重新连接。');
+      this.connect();
+      try { ws.close(); } catch {}
+      return;
+    }
+    try { ws.send(PING); } catch {}
+  }
+
+  current(sock, session) { return this.ws === sock && this.session === session; }
+
+  // ---- frames in ----
+  async handle(data, sock, session, again = false) {
+    const ok = () => this.current(sock, session);
+    if (!ok()) return;
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.type === 'hello') {
+      if (msg.hr !== 1 || msg.v !== 3) {
+        try { sock.close(CLOSE_LEFT); } catch {}
+        return this.stop(TEXT.oldRelay);
+      }
+      const before = this.you;
+      this.you = msg.you;
+      this.resume = typeof msg.resume === 'string' ? msg.resume : null;
+      this.retries = 0;
+      this.present = null;
+      this.setStatus('已连接，正在交换密钥……');
+      if (!this.joinedOnce) this.system(`已进入房间，你是 ${badge(this.you)}。消息端到端加密，中继只转发密文。`);
+      else if (before !== this.you) this.system(`已重新连接，你现在是 ${badge(this.you)}。`);
+      else this.system('已重新连接。');
+      if (!this.joinedOnce && typeof msg.now === 'number' && Math.abs(msg.now - Date.now()) > MAX_SKEW / 2) {
+        this.system(`本机时钟与中继相差约 ${Math.round(Math.abs(msg.now - Date.now()) / 60000)} 分钟：消息按本机时间检查，时钟偏差过大时可能被拒收。`);
+      }
+      this.joinedOnce = true;
+      if (!this.group || this.group.me !== this.you) {
+        this.group = await Group.create(this.key, this.bind, this.you);
+        this.early.clear();
+        this.seenQueue = [];
+      } else await this.group.rekey();
+      if (!ok()) return;
+      this.sendKeys(true);
+    } else if (msg.type === 'members' && Array.isArray(msg.members)) {
+      const list = msg.members.filter((n) => Number.isInteger(n));
+      const g = this.group;
+      const gone = g ? [...g.peers.keys()].filter((n) => !list.includes(n)) : [];
+      for (const n of gone) g.forget(n);
+      if (gone.length) await g.rekey();
+      if (!ok()) return;
+      const was = this.present;
+      this.present = list;
+      if (was) {
+        for (const n of list) if (!was.includes(n) && n !== this.you) this.system(`${badge(n)} 进入了房间。`);
+        for (const n of was) if (!list.includes(n) && n !== this.you) this.system(`${badge(n)} 离开了房间（或暂时断线）。`);
+      }
+      this.renderMembers();
+      this.sendKeys(false);
+      this.updateReady();
+    } else if (msg.type === 'key') {
+      const g = this.group;
+      if (!g || msg.from === this.you || !Number.isInteger(msg.from)) return;
+      try {
+        const plain = await openFrame(this.key, this.roomId, 'key', msg.from, msg);
+        const a = checkKeys(plain, msg, this.seen, Date.now());
+        if (!ok() || !a) return;
+        const peer = await g.receive(a, msg.from);
+        if (peer?.lost) this.askForKeys();
+      } catch { return this.bad(); }
+      if (!ok()) return;
+      for (const n of g.takeChanged()) this.system(`${badge(n)} 的签名密钥变了：可能换了设备或页面，请重新核对安全码。`);
+      const ready = this.held.filter((h) => h.from === msg.from);
+      this.held = this.held.filter((h) => h.from !== msg.from);
+      for (const h of ready) await this.handle(h.data, h.sock, h.session, true);
+      this.sendKeys(false);
+      this.updateReady();
+    } else if (msg.type === 'msg') {
+      await this.gotMessage(msg, data, sock, session, again);
+    } else if (msg.type === 'seen') {
+      if (msg.from === this.you || !Number.isInteger(msg.from)) return;
+      try {
+        const plain = await openFrame(this.key, this.roomId, 'seen', msg.from, msg);
+        const r = checkKeys(plain, msg, this.seen, Date.now(), 'seen');
+        if (ok() && r && r.v === 'hr1' && Array.isArray(r.l)) this.gotSeen(msg.from, r.l);
+      } catch { this.bad(); }
+    } else if (msg.type === 'wait') {
+      const ms = Math.min(60000, Math.max(500, Number(msg.ms) || 6000));
+      const p = this.pending;
+      if (p && p.sock === sock && sock.readyState === WebSocket.OPEN) {
+        // Sealed already (its place in the chain is taken): the same frame again.
+        clearTimeout(p.timer);
+        p.timer = setTimeout(() => this.resend(p), ms);
+        this.system(`发送太快，${Math.ceil(ms / 1000)} 秒后自动重发。`);
+      }
+    } else if (msg.type === 'lock') {
+      this.system(msg.locked ? '房主锁定了房间：新成员暂时不能进入。' : '房主解除了房间锁定。');
+    } else if (msg.type === 'removed' && Number.isInteger(msg.n)) {
+      this.system(`${badge(msg.n)} 被房主移出了房间。`);
+    }
+  }
+
+  async gotMessage(msg, data, sock, session, again) {
+    if (!Number.isInteger(msg.from) || typeof msg.h !== 'string') return this.bad();
+    if (msg.from === this.you) {
+      // This page's own message back from the relay: it is on its way to everyone.
+      const entry = this.own.get(msg.h);
+      if (!entry || !checkEnvelope(entry.plain, msg, this.seen, Date.now())) return;
+      if (this.pending?.h === msg.h) { clearTimeout(this.pending.timer); this.pending = null; }
+      entry.d.relayed();
+      for (const n of this.early.get(msg.h) ?? []) entry.d.ack(n);
+      this.early.delete(msg.h);
+      this.showDelivery(entry);
+      return;
+    }
+    const g = this.group;
+    let opened;
+    try {
+      if (!g) throw new Error('no key');
+      opened = await g.open(msg, msg.from);
+    } catch (e) {
+      if (!this.current(sock, session)) return;
+      if (!again && /no key|out of step/.test(e?.message)) {
+        this.held.push({ data, from: msg.from, sock, session, at: Date.now() });
+        if (this.held.length > HELD_MAX) { this.held.shift(); this.bad(); }
+        this.askForKeys();
+        return;
+      }
+      return this.bad();
+    }
+    if (!this.current(sock, session)) return;
+    // HTML Room pages are all 3.2: an unsigned message is never theirs.
+    if (!opened.signed) return this.bad();
+    const got = checkEnvelope(opened.text, msg, this.seen, Date.now());
+    if (!got || got.g || got.f || got.q !== undefined) return this.bad();
+    if (opened.missed) this.system(`${badge(msg.from)} 有 ${opened.missed} 条消息没有送到这里。`);
+    this.bubble(msg.from, msg.at, got.text, false);
+    this.queueSeen(msg.from, msg.h);
+  }
+
+  bad() {
+    if (Date.now() - this.lastBad > 10000) this.system('收到一条无法验证的消息，已丢弃。');
+    this.lastBad = Date.now();
+  }
+
+  sweep() {
+    const now = Date.now();
+    if (this.held.some((h) => now - h.at > HELD_MS)) this.bad();
+    this.held = this.held.filter((h) => now - h.at <= HELD_MS && h.sock === this.ws);
+  }
+
+  async scheduledRekey() {
+    const g = this.group;
+    if (g && this.ws?.readyState === WebSocket.OPEN && g.due()) { await g.rekey(); if (this.group === g) this.sendKeys(false); }
+  }
+
+  // ---- keys ----
+  askForKeys() {
+    if (Date.now() - this.askedKeysAt > 3000) { this.askedKeysAt = Date.now(); this.sendKeys(true); }
+  }
+
+  sendKeys(hello) {
+    if (hello) this.keysHello = true;
+    clearTimeout(this.keysTimer);
+    this.keysTimer = setTimeout(async () => {
+      this.keysSentAt = Date.now();
+      const g = this.group, sock = this.ws, session = this.session;
+      if (!g || !sock || sock.readyState !== WebSocket.OPEN || (!this.present && !this.keysHello)) return;
+      const to = g.owed(this.present ?? []);
+      if (!to.length && !this.keysHello) return;
+      const hi = this.keysHello;
+      this.keysHello = false;
+      const frames = [];
+      for (const plain of await g.announceAll(to, hi)) {
+        frames.push(JSON.stringify({ type: 'key', ...(await sealFrame(this.key, this.roomId, 'key', this.you, plain)) }));
+      }
+      if (session !== this.session || this.ws !== sock || this.group !== g || sock.readyState !== WebSocket.OPEN) return;
+      for (const f of frames) sock.send(f);
+      this.updateReady();
+    }, Math.max(150, this.keysSentAt + 1000 - Date.now()));
+  }
+
+  updateReady() {
+    const g = this.group, present = this.present;
+    if (!g || !present) return;
+    const others = present.filter((n) => n !== this.you);
+    const all = others.every((n) => g.peers.get(n)?.recv) && g.ready(present, true);
+    if (!others.length) this.setStatus('已连接 · 房间里暂时只有你', true);
+    else if (all) this.setStatus(`已连接 · ${present.length} 人在线 · 端到端加密已就绪`, true);
+    else this.setStatus(`已连接 · ${present.length} 人在线 · 正在交换密钥……`);
+    this.showSafety();
+  }
+
+  // ---- receipts (protocol.md §4.3) ----
+  queueSeen(from, h) {
+    this.seenQueue.push([from, h]);
+    if (!this.seenTimer) this.seenTimer = setTimeout(() => this.flushSeen(), SEEN_EVERY);
+  }
+
+  async flushSeen() {
+    this.seenTimer = null;
+    const sock = this.ws;
+    const list = this.seenQueue.splice(0, SEEN_MAX);
+    if (this.seenQueue.length) this.seenTimer = setTimeout(() => this.flushSeen(), SEEN_EVERY);
+    if (!list.length || !sock || sock.readyState !== WebSocket.OPEN) return;
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+    const plain = JSON.stringify({ kind: 'seen', v: 'hr1', id, from: this.you, t: Date.now(), l: list });
+    const frame = JSON.stringify({ type: 'seen', ...(await sealFrame(this.key, this.roomId, 'seen', this.you, plain)) });
+    if (this.ws === sock && sock.readyState === WebSocket.OPEN) sock.send(frame);
+  }
+
+  gotSeen(from, list) {
+    for (const item of list.slice(0, SEEN_MAX)) {
+      if (!Array.isArray(item) || item[0] !== this.you || typeof item[1] !== 'string') continue;
+      const entry = this.own.get(item[1]);
+      // Counted once the relay has echoed the message; before that, kept.
+      if (entry && entry.d.state !== 'sending' && entry.d.state !== 'queued') { if (entry.d.ack(from)) this.showDelivery(entry); continue; }
+      if (entry) entry.d.ack(from);
+      if (!this.early.has(item[1])) this.early.set(item[1], new Set());
+      this.early.get(item[1]).add(from);
+      while (this.early.size > 50) this.early.delete(this.early.keys().next().value);
+    }
+  }
+
+  // ---- sending ----
+  sendFromInput() {
+    const text = checkMessage(this.ui.input.value);
+    if (!text) {
+      if (this.ui.input.value.trim()) this.system('消息过长：最多 500 字。');
+      return;
+    }
+    this.ui.input.value = '';
+    this.send(text);
+  }
+
+  async send(text) {
+    const d = new Delivery();
+    const row = this.bubble(this.you, Date.now(), text, true);
+    const entry = { plain: null, d, row };
+    this.showDelivery(entry);
+    // Queued until connected and every member present holds this page's chain.
+    const until = Date.now() + KEYS_WAIT;
+    const ready = () => this.group && this.present && this.ws?.readyState === WebSocket.OPEN && this.group.ready(this.present, true);
+    while (!ready() && Date.now() < until && this.ws) await new Promise((r) => setTimeout(r, 100));
+    if (!ready()) {
+      d.failed(this.ws?.readyState === WebSocket.OPEN ? '与其他成员的密钥交换尚未完成，请稍后重发' : '尚未连接到中继');
+      return this.showDelivery(entry);
+    }
+    const g = this.group, sock = this.ws;
+    const plain = envelope(this.you, text);
+    const out = await g.seal(plain);
+    entry.plain = plain;
+    d.sealed(this.present.filter((n) => n !== this.you));
+    this.own.set(out.h, entry);
+    while (this.own.size > 50) this.own.delete(this.own.keys().next().value);
+    row.dataset.h = out.h;
+    if (g.due()) { await g.rekey(); this.sendKeys(false); }
+    const frame = JSON.stringify({ type: 'msg', iv: out.iv, ct: out.ct, h: out.h });
+    if (sock.readyState !== WebSocket.OPEN || this.ws !== sock) { d.failed('连接已断开'); return this.showDelivery(entry); }
+    sock.send(frame);
+    this.showDelivery(entry);
+    const p = { h: out.h, frame, sock, entry };
+    if (this.pending) { clearTimeout(this.pending.timer); }
+    this.pending = p;
+    p.timer = setTimeout(() => this.noEcho(p), ACK_WAIT);
+  }
+
+  resend(p) {
+    if (this.pending !== p) return;
+    if (this.ws !== p.sock || p.sock.readyState !== WebSocket.OPEN) { this.noEcho(p); return; }
+    p.sock.send(p.frame);
+    p.timer = setTimeout(() => this.noEcho(p), ACK_WAIT);
+  }
+
+  noEcho(p) {
+    if (this.pending === p) this.pending = null;
+    if (p.entry.d.state === 'sending') { p.entry.d.failed('中继没有回传这条消息'); this.showDelivery(p.entry); }
+  }
+
+  // ---- leaving ----
+  leave() {
+    this.session++;
+    clearTimeout(this.retryTimer);
+    clearTimeout(this.keysTimer);
+    clearTimeout(this.seenTimer);
+    for (const t of this.timers) clearInterval(t);
+    const ws = this.ws;
+    this.ws = null;
+    try { ws?.close(CLOSE_LEFT, 'leave'); } catch {}
+    // Dropping references is what a page can do; it cannot make the browser
+    // overwrite the memory.
+    this.key = this.bind = this.access = this.group = null;
+    this.own.clear(); this.early.clear(); this.held = []; this.seen.clear();
+    // The room file still holds its configuration, so it can be entered
+    // again; a web page forgets the link it was opened with.
+    if (this.source.mode === 'web') {
+      this.source.parsed = null;
+      return errorScreen('已离开房间', `${TEXT.left}要再次进入，请重新打开房间链接。`);
+    }
+    const again = el('button', { text: '重新进入', attrs: { type: 'button', id: 'pt-again' } });
+    again.addEventListener('click', () => boot(this.source));
+    errorScreen('已离开房间', TEXT.left, again);
+  }
+}
+
+return { errorScreen, boot };
+})();
+__m["hr-file.js"] = (() => {
+// The room file's entry (bundled inline by scripts/build-html-room.mjs). The
+// configuration is a script element of type application/json: read as text,
+// parsed with JSON.parse, checked in hr-core.js. It is never run.
+const { boot, errorScreen } = __m["hr-room.js"];
+
+const block = document.getElementById('pt-room-config');
+boot({ mode: 'file', text: block ? block.textContent : null }).catch(() => {
+  errorScreen('无法打开这个房间', '页面出现了意外错误。请用系统浏览器重新打开这个文件。');
+});
+
+return {  };
+})();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+:root {
+  --bg: #f4f2ee; --card: #ffffff; --ink: #1d1b18; --muted: #6b665e; --line: #e2ddd4;
+  --accent: #2f5d50; --accent-ink: #ffffff; --mine: #e5efe9; --warn-bg: #fff3df; --warn-ink: #7a4a00; --bad: #a33a2b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161514; --card: #201f1d; --ink: #ece8e1; --muted: #a39d93; --line: #34312d;
+    --accent: #7fb7a4; --accent-ink: #10201b; --mine: #243630; --warn-bg: #3a2c13; --warn-ink: #f3cf8f; --bad: #f0907f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+[hidden] { display: none !important; }
+#pt-boot, .card { max-width: 34rem; margin: 2rem auto; padding: 1.25rem 1.25rem 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+#pt-boot p { margin: 0 0 .75rem; }
+h1 { font-size: 1.25rem; margin: 0 0 .75rem; overflow-wrap: anywhere; }
+p { margin: 0 0 .75rem; }
+.fine { color: var(--muted); font-size: .85rem; }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: .6rem .75rem; font-size: .9rem; }
+.note { color: var(--muted); font-size: .85rem; border-left: 3px solid var(--line); padding-left: .6rem; }
+input, textarea {
+  width: 100%; font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: .6rem .7rem;
+}
+input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  font: inherit; cursor: pointer; border: 0; border-radius: 8px; padding: .6rem 1rem;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+}
+button:disabled { opacity: .55; cursor: progress; }
+button.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 400; padding: .35rem .8rem; }
+form.card input { margin-bottom: .75rem; }
+form.card button { width: 100%; margin-bottom: .75rem; }
+label { display: block; font-size: .9rem; margin: 0 0 .3rem; }
+.row { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; }
+.row input { margin: 0; flex: 1; }
+.row button { width: auto; margin: 0; flex: none; }
+.out { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; background: var(--bg); padding: .5rem; border-radius: 8px; }
+
+.room { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 48rem; margin: 0 auto; padding: .75rem 1rem; gap: .5rem; }
+.room header .top { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.room header h1 { margin: 0; }
+.status { color: var(--muted); font-size: .85rem; }
+.status.ok { color: var(--accent); }
+.room > .warn, .room > .note { margin: 0; }
+.side { font-size: .9rem; }
+.side summary { cursor: pointer; color: var(--muted); }
+.members { list-style: none; padding: 0; margin: .5rem 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.members li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: .1rem .6rem; }
+.safety { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; overflow-wrap: anywhere; }
+.log { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: .5rem; background: var(--card); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: .5rem; }
+.log li { max-width: 85%; }
+.log .sys { align-self: center; max-width: 100%; text-align: center; color: var(--muted); font-size: .8rem; }
+.msg { align-self: flex-start; background: var(--bg); border-radius: 12px; padding: .4rem .7rem; display: flex; flex-direction: column; }
+.msg.mine { align-self: flex-end; background: var(--mine); }
+.msg .meta { font-size: .75rem; color: var(--muted); }
+.msg .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg .state { font-size: .72rem; color: var(--muted); text-align: right; }
+.msg[data-state="all"] .state { color: var(--accent); }
+.msg[data-state="failed"] .state { color: var(--bad); }
+.compose { display: flex; gap: .5rem; align-items: flex-end; }
+.compose textarea { resize: none; flex: 1; }
+.compose button { flex: none; }

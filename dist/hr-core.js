@@ -46,7 +46,7 @@ const SALT_RE = b64urlOf(16);     // 22
 const IV_RE = b64urlOf(12);       // 16
 const CT_RE = b64urlOf(48);       // 64
 
-// ---- safe JSON for a <script type="application/json"> block --------------------
+// ---- safe JSON for the configuration block (type application/json) ---------
 
 // JSON with every character that could end or confuse the script block
 // written as an escape. The result parses to exactly the same value.

@@ -1,0 +1,14 @@
+{
+  "protocol": "hr1",
+  "script": "sha256-aEz2U7OZg8GUWP4h+zC9d+YITKT7eTrYkf6FPRkdtJE=",
+  "style": "sha256-uYWw4CqsQrzZ2AzIdNrpxho7syPttx/5chKJkOuwcxs=",
+  "modules": [
+    "crypto.js",
+    "vendor/mlkem.js",
+    "group.js",
+    "state.js",
+    "hr-core.js",
+    "hr-room.js",
+    "hr-file.js"
+  ]
+}
