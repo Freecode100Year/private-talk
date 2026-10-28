@@ -1,6 +1,6 @@
 {
   "protocol": "hr1",
-  "script": "sha256-aEz2U7OZg8GUWP4h+zC9d+YITKT7eTrYkf6FPRkdtJE=",
+  "script": "sha256-NUAFpVw6Lf+j3wKUuXIgE8NMzhwHb9SNBPlfuyAcW8Q=",
   "style": "sha256-uYWw4CqsQrzZ2AzIdNrpxho7syPttx/5chKJkOuwcxs=",
   "modules": [
     "crypto.js",

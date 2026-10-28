@@ -8,8 +8,8 @@
 // signed v3.2 messages are accepted, and own messages show their delivery
 // state step by step.
 //
-// The page is built with createElement and textContent only: no innerHTML,
-// no inline styles or handlers (the file's CSP allows neither).
+// The page is built with createElement and textContent only: no HTML is ever
+// parsed from a string, no inline styles or handlers (the CSP allows neither).
 import { Group } from './group.js';
 import { envelope, checkEnvelope, checkKeys, newSeen, checkMessage, badge, MAX_SKEW } from './state.js';
 import {

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; media-src 'none'; img-src 'none'; font-src 'none'; connect-src __PT_CONNECT_SRC__; style-src 'sha256-uYWw4CqsQrzZ2AzIdNrpxho7syPttx/5chKJkOuwcxs='; script-src 'sha256-aEz2U7OZg8GUWP4h+zC9d+YITKT7eTrYkf6FPRkdtJE='">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; media-src 'none'; img-src 'none'; font-src 'none'; connect-src __PT_CONNECT_SRC__; style-src 'sha256-uYWw4CqsQrzZ2AzIdNrpxho7syPttx/5chKJkOuwcxs='; script-src 'sha256-NUAFpVw6Lf+j3wKUuXIgE8NMzhwHb9SNBPlfuyAcW8Q='">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>隐匿对话 · 房间</title>
@@ -2120,7 +2120,7 @@ function storageKey(roomId, name) {
 
 // createStorage(roomId, backend): every read and write goes through here.
 // backend is null for memory only (the V1 default) or a Storage-like object
-// (localStorage in a test). Any error from it (SecurityError when storage is
+// (a test passes one in). Any error from it (SecurityError when storage is
 // blocked, QuotaExceededError, corrupt data) switches to memory for good and
 // sets persistent to false.
 function createStorage(roomId, backend = null) {
@@ -2280,8 +2280,8 @@ __m["hr-room.js"] = (() => {
 // signed v3.2 messages are accepted, and own messages show their delivery
 // state step by step.
 //
-// The page is built with createElement and textContent only: no innerHTML,
-// no inline styles or handlers (the file's CSP allows neither).
+// The page is built with createElement and textContent only: no HTML is ever
+// parsed from a string, no inline styles or handlers (the CSP allows neither).
 const { Group } = __m["group.js"];
 const { envelope, checkEnvelope, checkKeys, newSeen, checkMessage, badge, MAX_SKEW } = __m["state.js"];
 const { checkEnvironment, ENV_MESSAGE, parseConfigText, secretOf, unlockSecret, deriveHrRoom, relaySocketUrl, sealFrame, openFrame, Delivery, MAX_NAME } = __m["hr-core.js"];

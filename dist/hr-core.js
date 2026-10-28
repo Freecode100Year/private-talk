@@ -239,7 +239,7 @@ export function storageKey(roomId, name) {
 
 // createStorage(roomId, backend): every read and write goes through here.
 // backend is null for memory only (the V1 default) or a Storage-like object
-// (localStorage in a test). Any error from it (SecurityError when storage is
+// (a test passes one in). Any error from it (SecurityError when storage is
 // blocked, QuotaExceededError, corrupt data) switches to memory for good and
 // sets persistent to false.
 export function createStorage(roomId, backend = null) {
