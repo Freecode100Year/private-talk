@@ -15,6 +15,33 @@ for (let i = 0; i < N; i++) {
   p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
   await p.goto(`${BASE}/#${PASS}`);
   await p.waitForSelector('#sendButton:not([disabled])', { timeout: 30000 });
+  await p.evaluate(() => {
+    document.addEventListener('pointerdown', (e) => {
+      const seat = e.target.closest?.('.ww-seat');
+      if (!seat) return;
+      window.lastWolfDown = {
+        saved: seat.wolfAction?.stamp ?? null,
+        player: seat.wolfAction?.p ?? null,
+        actionable: seat.classList.contains('actionable')
+      };
+    }, true);
+    document.addEventListener('pointerup', (e) => {
+    const seat = e.target.closest?.('.ww-seat');
+    if (!seat) return;
+    setTimeout(() => {
+      window.lastWolfPointer = {
+        saved: seat.wolfPointerStamp ?? null,
+        current: seat.wolfAction?.stamp ?? null,
+        player: seat.wolfAction?.p ?? null,
+        actionable: seat.classList.contains('actionable'),
+        handled: !!seat.wolfPointerHandled,
+        connected: seat.isConnected,
+        dialog: !document.getElementById('wwConfirmDialog').hidden,
+        down: window.lastWolfDown
+      };
+    }, 0);
+    }, true);
+  });
   pages.push(p);
 }
 const J = pages[0];
@@ -77,6 +104,9 @@ let witchTapped = false;
 let voteTapped = false;
 const start = Date.now();
 let ended = false;
+// Ignore the countdown when looking for a state change, but keep the full
+// action progress text (for example, "已行动 0/5" → "已行动 1/5").
+const actionProgress = (line) => line.replace(/\(\d+s\)/g, '').trim();
 while (!ended && Date.now() - start < 12 * 60000) {
   for (let i = 0; i < N; i++) {
     const p = pages[i];
@@ -120,6 +150,7 @@ while (!ended && Date.now() - start < 12 * 60000) {
 
     // Touchscreen tap directly on the actionable avatar
     const sel = '.ww-seat.actionable .ww-seat-avatar';
+    await p.evaluate(() => { window.lastWolfPointer = null; window.lastWolfDown = null; });
     const h = await tap(p, sel);
     if (!h) continue;
     taps++;
@@ -128,8 +159,9 @@ while (!ended && Date.now() - start < 12 * 60000) {
     // Avatar tapped -> confirm dialog pops up
     await p.waitForSelector('#wwConfirmDialog:not([hidden])', { timeout: 4000 }).catch(() => {});
     const confirmVisible = await p.locator('#wwConfirmDialog').isVisible();
+    let confirmText = '';
     if (confirmVisible) {
-      const confirmText = await p.locator('#wwConfirmText').innerText();
+      confirmText = await p.locator('#wwConfirmText').innerText();
       if (/刀/.test(confirmText)) wolfKillTapped = true;
       if (/查验/.test(confirmText)) seerCheckTapped = true;
       if (/毒/.test(confirmText) || /救/.test(confirmText)) witchTapped = true;
@@ -144,14 +176,25 @@ while (!ended && Date.now() - start < 12 * 60000) {
     }
 
     // Up to 4 s for the page to show the action took (CI machines are slow).
-    await p.waitForFunction(({ n, l }) => document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length !== n
-      || document.getElementById('gameLine').textContent.slice(0, 10) !== l, { n: st.actCount, l: st.line.slice(0, 10) }, { timeout: 4000 }).catch(() => {});
+    await p.waitForFunction(({ n, l }) => {
+      const current = document.getElementById('gameLine').textContent.replace(/\(\d+s\)/g, '').trim();
+      return document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length !== n || current !== l;
+    }, { n: st.actCount, l: actionProgress(st.line) }, { timeout: 4000 }).catch(() => {});
     const after = await p.evaluate(() => ({
       actCount: document.querySelectorAll('.ww-seat.actionable .ww-seat-avatar').length,
-      line: document.getElementById('gameLine').textContent
+      line: document.getElementById('gameLine').textContent.replace(/\(\d+s\)/g, '').trim(),
+      actionable: document.querySelectorAll('.ww-seat.actionable').length,
+      confirmVisible: !document.getElementById('wwConfirmDialog').hidden,
+      pointer: window.lastWolfPointer
     }));
-    if (after.actCount === st.actCount && after.line.slice(0, 10) === st.line.slice(0, 10)) {
-      dead.push(`${i}: ${st.line.slice(0, 30)}`);
+    // Another player's action can invalidate the drawn target between our
+    // hit-test and the touch start (or while the finger is down). That is a
+    // stale gesture, not a lost tap. Count only touches that started while
+    // actionable and whose own stage stayed current through pointerup.
+    const gesture = after.pointer;
+    const staleGesture = gesture?.down && (!gesture.down.actionable || gesture.down.saved !== gesture.current);
+    if (!staleGesture && after.actCount === st.actCount && after.line === actionProgress(st.line)) {
+      dead.push(`${i}: ${st.line.slice(0, 55)} → ${after.line.slice(0, 55)}; target=${h.on}; confirm=${confirmText || 'none'}; submitted=${after.actionable === 0}; dialog=${after.confirmVisible}; pointer=${JSON.stringify(after.pointer)}`);
     }
   }
   ended = ended || /获胜！/.test(await J.locator('#messages').innerText());

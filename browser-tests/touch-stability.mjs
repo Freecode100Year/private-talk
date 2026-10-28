@@ -85,7 +85,7 @@ try {
   await magician.locator("#wwConfirmDialog:not([hidden])").waitFor();
   // Sample the drawn target and use real touch events without Playwright's
   // stability retries: this regression deliberately exercises rapid choices.
-  const touch = async (locator) => {
+  const touch = async (page, locator) => {
     const point = await locator.evaluate((node) => {
       const r = node.getBoundingClientRect(),
         x = r.x + r.width / 2,
@@ -94,7 +94,7 @@ try {
       return { x, y, hit: !!top && (top === node || node.contains(top)) };
     });
     assert.ok(point.hit, "touch lands on the drawn target");
-    await magician.touchscreen.tap(point.x, point.y);
+    await page.touchscreen.tap(point.x, point.y);
   };
   await magician.evaluate(() => {
     window.confirmTouchTimes = [];
@@ -119,15 +119,15 @@ try {
         { capture: true },
       );
   });
-  await touch(magician.locator("#wwConfirmOk"));
+  await touch(magician, magician.locator("#wwConfirmOk"));
   const firstPrompt = await magician.locator("#gameLine").innerText();
   assert.match(
     firstPrompt,
     /第二个人/,
     "first choice advances to the second choice",
   );
-  await touch(magician.locator(".ww-seat.actionable .ww-seat-avatar").nth(1));
-  await touch(magician.locator("#wwConfirmOk"));
+  await touch(magician, magician.locator(".ww-seat.actionable .ww-seat-avatar").nth(1));
+  await touch(magician, magician.locator("#wwConfirmOk"));
   const elapsed = await magician.evaluate(
     () => window.simulatedConfirmTime - window.confirmTouchTimes[0],
   );
@@ -144,6 +144,57 @@ try {
   console.log(
     `PASS held avatar survives render; second real touch accepted at simulated ${elapsed}ms`,
   );
+
+  // Two wolves act in the same stage. Keep one target held while the other
+  // submits; the resulting state update must preserve the still-current touch.
+  let wolves = [];
+  const until = Date.now() + 20000;
+  while (Date.now() < until && wolves.length < 2) {
+    wolves = [];
+    for (const page of pages) {
+      const state = await page.evaluate(() => ({
+        line: document.getElementById("gameLine").textContent,
+        targets: document.querySelectorAll(".ww-seat.actionable .ww-seat-avatar").length,
+      }));
+      if (/选择今晚要刀的人/.test(state.line) && state.targets) wolves.push(page);
+    }
+    if (wolves.length < 2) await pages[0].waitForTimeout(100);
+  }
+  assert.ok(wolves.length >= 2, "two wolves receive the same simultaneous action");
+  const [heldWolf, otherWolf] = wolves;
+  const heldTarget = await heldWolf
+    .locator(".ww-seat.actionable .ww-seat-avatar")
+    .first()
+    .elementHandle();
+  await heldTarget.scrollIntoViewIfNeeded();
+  const heldBox = await heldTarget.boundingBox();
+  assert.ok(heldBox);
+  const stableLine = (line) => line.replace(/\(\d+s\)/g, "").trim();
+  const heldBefore = stableLine(await heldWolf.locator("#gameLine").innerText());
+  const heldSession = await heldWolf.context().newCDPSession(heldWolf);
+  await heldSession.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: heldBox.x + heldBox.width / 2, y: heldBox.y + heldBox.height / 2 }],
+  });
+  await touch(otherWolf, otherWolf.locator(".ww-seat.actionable .ww-seat-avatar").first());
+  await otherWolf.locator("#wwConfirmDialog:not([hidden])").waitFor();
+  await touch(otherWolf, otherWolf.locator("#wwConfirmOk"));
+  await heldWolf.waitForFunction(
+    (before) => document.getElementById("gameLine").textContent.replace(/\(\d+s\)/g, "").trim() !== before,
+    heldBefore,
+    { timeout: 4000 },
+  );
+  assert.equal(await heldTarget.evaluate((node) => node.isConnected), true);
+  const afterOtherWolf = stableLine(await heldWolf.locator("#gameLine").innerText());
+  await heldSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await heldWolf.locator("#wwConfirmDialog:not([hidden])").waitFor();
+  await touch(heldWolf, heldWolf.locator("#wwConfirmOk"));
+  await heldWolf.waitForFunction(
+    (previous) => document.getElementById("gameLine").textContent.replace(/\(\d+s\)/g, "").trim() !== previous,
+    afterOtherWolf,
+    { timeout: 4000 },
+  );
+  console.log("PASS another wolf's action preserves the held, still-valid touch");
 } finally {
   await browser.close();
 }
