@@ -16,6 +16,7 @@ import {
 } from './rules.js';
 import { Lobby as Tables, readBody, tableOf } from './lobby.js';
 import { WolfJudge, EscapeJudge } from './judge.js';
+import { CardTable, isCardGame } from './card-table.js';
 import * as Wolf from '../dist/werewolf.js';
 import * as Escape from '../dist/escape.js';
 import { modeOf } from '../dist/modes.js';
@@ -142,6 +143,16 @@ export class Room extends DurableObject {
     }
     if (r.ref) {
       const ref = r.ref;
+      const cards = await this.cards();
+      if (cards.judge?.game) {
+        if (ref.k !== 'start') await this.cardOut(cards.handle(a.n, ref, Date.now()));
+        return;
+      }
+      const table = await this.ctx.storage.get('table');
+      if (isCardGame(modeOf(table?.info?.mode || tableOf(table?.info?.pass)?.mode)?.game)) {
+        await this.judgeMembers(this.peers().map(p => p.deserializeAttachment().n));
+        return;
+      }
       if (ref.k === 'start') {
         await this.judge();
         if (this.wolfSeats > 0) return;
@@ -178,10 +189,12 @@ export class Room extends DurableObject {
         // The lobby keeps its list in memory: if it restarted, this lists the table again
         await this.table(this.peers().length);
         // A judged werewolf game in progress is not switched away by one page
-        if (r.table.mode && !(await this.judge())?.on) {
+        if (r.table.mode && !(await this.judge())?.on && !(await this.escJudge())?.on && !(await this.cards()).on && a.n === this.host()) {
           const m = modeOf(r.table.mode);
-          if (m && m.public) {
+          if (m && m.public && m.id !== (t.info?.mode || tableOf(t.info?.pass)?.mode)) {
             t.info = t.info || {};
+            this.cardTable = new CardTable();
+            await this.ctx.storage.delete('cards');
             t.info.mode = m.id;
             t.info.game = m.game;
             t.info.seats = m.players[1];
@@ -200,10 +213,10 @@ export class Room extends DurableObject {
               await this.ctx.storage.deleteAlarm();
             }
             await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/mode', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, mode: m.id }) }).catch(() => {});
-            if (this.wolf) await this.judgeMembers(this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y));
+            await this.judgeMembers(this.peers().map((ws) => ws.deserializeAttachment().n).sort((x, y) => x - y));
           }
         }
-        if (r.table.playing !== undefined) {
+        if (r.table.playing !== undefined && !(await this.cards()).judge?.game) {
           await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: r.table.playing }) }).catch(() => {});
         }
       }
@@ -304,7 +317,29 @@ export class Room extends DurableObject {
     }
     if (t && out.length) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: !!this.wolf?.on }) }).catch(() => {});
   }
+  async cards() {
+    if (!this.cardTable) this.cardTable = new CardTable(await this.ctx.storage.get('cards') ?? null);
+    return this.cardTable;
+  }
+  async cardOut(out) {
+    const cards = await this.cards();
+    for (const { to, msg } of out) for (const ws of this.peers()) if (ws.deserializeAttachment().n === to) {
+      try { ws.send(JSON.stringify(msg)); } catch {}
+    }
+    if (cards.judge?.game) await this.ctx.storage.put('cards', cards.toJSON());
+    if (cards.deadline) await this.ctx.storage.setAlarm(cards.deadline + 50);
+    else if (cards.judge?.game) await this.ctx.storage.deleteAlarm();
+    const t = await this.ctx.storage.get('table');
+    if (t && cards.judge?.game) await this.env.LOBBY.get(this.env.LOBBY.idFromName('lobby')).fetch('https://lobby/playing', { method: 'POST', body: JSON.stringify({ roomId: t.roomId, on: cards.on }) }).catch(() => {});
+  }
   async judgeMembers(list) {
+    const cards = await this.cards();
+    const table = await this.ctx.storage.get('table');
+    const mode = modeOf(table?.info?.mode || tableOf(table?.info?.pass)?.mode);
+    if (isCardGame(mode?.game) || cards.on) {
+      await this.cardOut(cards.sync(mode, list.slice().sort((a, b) => a - b), Date.now(), !!((await this.judge())?.on || (await this.escJudge())?.on)));
+      if (cards.on || isCardGame(mode?.game)) return;
+    }
     const j = await this.judge();
     if (j?.on) {
       await this.judgeOut(j.members(list, Date.now()));
@@ -332,6 +367,8 @@ export class Room extends DurableObject {
     }
   }
   async alarm() {
+    const cards = await this.cards();
+    if (cards.on) { await this.cardOut(cards.tick(Date.now())); return; }
     this.wolfStart = 0;
     const j = await this.judge();
     if (j?.on) {
@@ -359,8 +396,8 @@ export class Room extends DurableObject {
     }
     // Everyone left (a public table or a private room): the table and the judge go too.
     if (!taken) {
-      await this.ctx.storage.delete(['table', 'judge', 'esc_judge']); await this.ctx.storage.deleteAlarm();
-      this.wolf = undefined; this.escape = undefined; this.wolfSeats = 0; this.wolfStart = 0;
+      await this.ctx.storage.delete(['table', 'judge', 'esc_judge', 'cards']); await this.ctx.storage.deleteAlarm();
+      this.cardTable = null; this.wolf = undefined; this.escape = undefined; this.wolfSeats = 0; this.wolfStart = 0;
     }
   }
 

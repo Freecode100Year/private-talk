@@ -136,5 +136,10 @@ ok(!!updatedTable && updatedTable.mode === 'tr' && updatedTable.game === 'tr', '
 for (const p of [P1, P2]) await p.context().close();
 await b.close();
 
+// This workflow runs switch on a fresh Node process after the general lobby
+// suite. Reuse its isolated public-table quota for card-game browser tests.
+await import('./card-table.mjs');
+await import('./touch-stability.mjs');
+
 console.log(fails ? `${fails} FAILED` : 'ALL PASSED');
 process.exit(fails ? 1 : 0);

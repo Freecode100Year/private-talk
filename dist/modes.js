@@ -54,6 +54,8 @@ const wwModes = WW_BOARDS.map((item) => {
 });
 
 const otherModes = [
+  { id: 'gd', game: 'gd', players: [4, 4], settings: {}, public: true, publicOnly: true },
+  { id: 'mj', game: 'mj', players: [4, 4], settings: {}, public: true, publicOnly: true },
   // 暗号潜伏：经典 (4–8)
   { id: 'spy', game: 'spy', players: [4, 8], settings: {}, public: true },
   // 骗子骰：经典 (2–8)、1 点万能 (2–8)
@@ -97,6 +99,7 @@ export function defaultModeFor(game, seats = 0) {
     const found = wwModes.find((m) => m.settings.board === targetBoard);
     return found || wwModes[0];
   }
+  if (game === 'gd' || game === 'mj') return modeOf(game);
   if (game === 'spy') return modeOf('spy');
   if (game === 'ld') return modeOf('ld');
   if (game === 'tr') return modeOf('tr');

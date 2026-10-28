@@ -31,7 +31,7 @@ export const OLD_PUBLIC = /^pub(spy|ld|tr|sm|ww)(\d{1,2})([a-z0-9]{16})$/;
 export const PUBLIC = /^pub(?:([a-z0-9]{1,12})-([a-z0-9]{16})|(spy|ld|tr|sm|ww)(\d{1,2})([a-z0-9]{16}))$/;
 
 // Players for each game that can be played at a public table.
-export const GAMES = { spy: [4, 8], ld: [2, 8], tr: [2, 8], sm: [3, 8], ww: [6, 12] };
+export const GAMES = { gd: [4, 4], mj: [4, 4], spy: [4, 8], ld: [2, 8], tr: [2, 8], sm: [3, 8], ww: [6, 12] };
 // Werewolf at a public table is judged by the server (src/judge.js).
 export const LANGS = ['zh-Hans', 'zh-Hant', 'en', 'es', 'fr', 'ru', 'ar', 'ko', 'hi', 'bn', 'ur', 'ht'];
 export const CREATES = 3;                 // new tables per address per ten minutes

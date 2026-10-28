@@ -8,6 +8,7 @@
     <meta name="color-scheme" content="dark" />
     <title>隐匿对话</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="card-table.css" />
   </head>
   <body>
     <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -224,6 +225,7 @@
           </div>
           <div class="chat-security"><svg><use href="#i-shield"/></svg><span data-t="chat.security">消息在浏览器里加密，服务器只转发密文、不保存历史。</span></div>
           <section class="game-panel" id="gamePanel" hidden aria-live="polite">
+            <div class="card-table-host" id="cardTableHost" hidden><div id="cardTable"></div></div>
             <div class="game-seats" id="gameSeats" aria-label="座位"></div>
             <div class="ww-table" id="wwTable" hidden>
               <div class="ww-top-bar">

@@ -31,11 +31,19 @@ test('dice come from the seed and the mix, checked against the commitments', asy
   assert.ok(d1.every((d) => d >= 1 && d <= 6));
   assert.deepEqual(await D.dice('abcdefabcdef', 1, 1, a.seed, R, 5), d1, 'the same for every page');
   const other = await D.mix('abcdefabcdef', 1, { 2: 'c'.repeat(64), 1: a.nonce });
-  assert.notDeepEqual(await D.dice('abcdefabcdef', 1, 1, a.seed, other, 5), d1, 'another nonce, other dice (almost surely)');
+  // Different mixes may legitimately produce the same sorted five-die hand.
+  assert.notEqual(other, R, 'changing a nonce changes the round mix');
   // Faces are close to uniform.
   const counts = [0, 0, 0, 0, 0, 0];
-  for (let i = 0; i < 300; i++) for (const d of await D.dice('abcdefabcdef', 1, 1, a.seed, `${R}${i}`, 5)) counts[d - 1]++;
+  for (let i = 0; i < 300; i++) for (const d of await D.dice('abcdefabcdef', 1, 1, 'a'.repeat(64), `mix${i}`, 5)) counts[d - 1]++;
   assert.ok(counts.every((c) => c > 180 && c < 320), counts.join());
+});
+
+test('dice match fixed SHA-256 vectors and use the round mix', async () => {
+  // Computed independently from the domain-separated SHA-256 input, rejecting
+  // bytes >= 252 before mapping to faces. No probabilistic inequality check.
+  assert.deepEqual(await D.dice('abcdefabcdef', 1, 1, 'a'.repeat(64), 'b'.repeat(64), 5), [1, 2, 2, 2, 3]);
+  assert.deepEqual(await D.dice('abcdefabcdef', 1, 1, 'a'.repeat(64), 'c'.repeat(64), 5), [2, 2, 3, 3, 4]);
 });
 
 // Plays rounds through apply with real secrets, as pages would.

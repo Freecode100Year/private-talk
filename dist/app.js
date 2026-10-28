@@ -1,3 +1,4 @@
+import { createCardTable } from './card-table.js';
 import {
   MAX_MEMBERS, MAX_TEXT_CHARS, SEND_GAP_SECONDS, SEND_BURST, MAX_TEXT_BYTES, MAX_SKEW, checkPassphrase, isShortPassphrase, checkMessage,
   passphraseFromHash, roomLink, badge, randomPassphrase, roomCode, envelope, newSeen, checkEnvelope, checkKeys, joinsAndLeaves
@@ -35,6 +36,7 @@ const BASE = location.pathname.replace(/[^/]*$/, '');
 const HOME = location.origin + BASE.replace(/\/$/, '');
 
 const $ = (id) => document.getElementById(id);
+const cardUI = createCardTable($('cardTable'), { t, send: a => sendJudge(a), me: () => you });
 const CLOSE_LEFT = 4000, CLOSE_FULL = 4001, CLOSE_LOCKED = 4002, CLOSE_BUSY = 4003, CLOSE_REMOVED = 4006, CLOSE_DENIED = 4007, CLOSE_CAPACITY = 4008;
 const CLOSE_RESTART = 1012; // the server is restarting (an update): come back shortly
 const PING = '{"type":"ping"}';
@@ -596,6 +598,18 @@ async function handle(data, sock, started, retry = false) {
     system(t(msg.locked ? 'sys.locked' : 'sys.unlocked', { who }));
   } else if (msg.type === 'denied') {
     system(t('sys.notHost', { b: host ? badge(host) : '' }));
+  } else if (msg.type === 'cards' && ['gd', 'mj'].includes(msg.game) && msg.state?.type === msg.game) {
+    const state = msg.state;
+    const fresh = game?.gid !== state.gid;
+    game = { ...state, cardState: state, dealer: Wolf.JUDGE, phase: ['end', 'over'].includes(state.phase) ? 'over' : state.phase };
+    busyGame = null;
+    clearTimeout(voteTimer); currentVote = null; renderVoteBar();
+    if (fresh) { closeSidebar(false); switchMobileTab('game'); }
+    renderGame();
+    clearInterval(gameTick);
+    gameTick = setInterval(renderGame, 1000);
+  } else if (msg.type === 'cards-error') {
+    cardUI.error();
   } else if (msg.type === 'ref') {
     judgeFrame(msg);
   } else if (msg.type === 'removed') {
@@ -873,6 +887,7 @@ let myDice = null;      // this page's round in 骗子骰: { gid, r, seed, nonce
 const myNotes = new Map(); // notes this page passed, by id: { to, text }
 function canStartGame(kind = 'spy') {
   const n = gameRoom().length;
+  if (kind === 'gd' || kind === 'mj') return !!publicTable && online && (!game || game.phase === 'over') && n === 4;
   const rules = { esc: Escape, tr: Pact, sm: Mission, ww: Wolf, ld: Dice }[kind];
   const [min, max] = rules ? [rules.MIN_PLAYERS, rules.MAX_PLAYERS] : [MIN_PLAYERS, MAX_PLAYERS];
   return online && group && relayV3 && (!game || game.phase === 'over') && !busyGame && n >= min && n <= max && group.quantumSafe(gameRoom());
@@ -1040,6 +1055,7 @@ function startPact() {
 function startMode(modeId) {
   const m = modeOf(modeId);
   if (!m) return;
+  if (m.game === 'gd' || m.game === 'mj') return;
   if (m.game === 'ww') {
     const selectedBoard = $('wwBoard')?.value;
     const b = (selectedBoard && Wolf.BOARDS[selectedBoard]?.cards.length === m.players[0]) ? selectedBoard : m.settings?.board;
@@ -1061,6 +1077,7 @@ function startMode(modeId) {
 // Takes in one game event from a message. Returns true for a description
 // (shown as a message too).
 async function gameEvent(g, from, fromJudge = false) {
+  if (game?.cardState) return null;
   // Only the server's own frames may come from the judge (member 0).
   if (from === Wolf.JUDGE && !fromJudge) return null;
   // One game at a time. The dealer of a running game tells the room about
@@ -1394,6 +1411,7 @@ let currentVote = null;
 let voteTimer = null;
 
 function proposeSwitchGame(modeId) {
+  if (game?.cardState && game.phase !== 'over') return;
   if (currentVote && currentVote.expires > Date.now()) return; // a vote is already on (shown in the vote bar)
   const last = lastProposeAt.get(you) || 0;
   if (Date.now() - last < 60000) {
@@ -1407,6 +1425,7 @@ function proposeSwitchGame(modeId) {
 }
 
 function proposeEndGame() {
+  if (game?.cardState && game.phase !== 'over') return;
   if (currentVote && currentVote.expires > Date.now()) return; // a vote is already on (shown in the vote bar)
   const last = lastProposeAt.get(you) || 0;
   if (Date.now() - last < 60000) {
@@ -1420,6 +1439,7 @@ function proposeEndGame() {
 }
 
 function handleVoteProposal(g, from) {
+  if (game?.cardState && game.phase !== 'over') return;
   // One vote at a time; each player may propose once a minute; only known modes
   if (currentVote && currentVote.expires > Date.now() && currentVote.from !== from) return;
   if (from !== you && Date.now() - (lastProposeAt.get(from) || 0) < 60000) return;
@@ -1447,6 +1467,7 @@ function handleVoteProposal(g, from) {
 }
 
 function handleVoteCast(g, from) {
+  if (game?.cardState && game.phase !== 'over') return;
   if (!currentVote || currentVote.id !== g.id) return;
   if (g.agree) {
     currentVote.agrees.add(from);
@@ -1555,6 +1576,7 @@ function renderReadyBar() {
 }
 
 function endGame() {
+  cardUI.clear();
   readyPlayers.clear();
   countdownDue = 0;
   currentVote = null;
@@ -1584,7 +1606,7 @@ function endGame() {
 }
 const GAME_NAMES = { spy: 'game.name.spy', esc: 'game.name.esc', tr: 'game.name.tr', sm: 'game.name.sm', ww: 'game.name.ww', ld: 'game.name.ld' };
 function isMyTurnToCoordinate(allowOver = false) {
-  if (!game || (!allowOver && game.phase === 'over')) return false;
+  if (!game || game.cardState || (!allowOver && game.phase === 'over')) return false;
   const here = gameRoom();
   if (here.includes(game.dealer)) return you === game.dealer;
   if (!dealerMissingAt) dealerMissingAt = Date.now();
@@ -1598,7 +1620,7 @@ function checkDealerStatus(now = Date.now()) {
     dealerMissingAt = 0;
     return;
   }
-  if (game.type === 'ww' && game.dealer === Wolf.JUDGE) {
+  if (game.cardState || (game.type === 'ww' && game.dealer === Wolf.JUDGE)) {
     dealerMissingAt = 0;
     return;
   }
@@ -2014,7 +2036,7 @@ function renderRoomModes() {
   list.className = 'banner-list';
 
   const items = [];
-  for (const m of MODES.filter((x) => x.game !== 'ww')) {
+  for (const m of MODES.filter((x) => x.game !== 'ww' && (!x.publicOnly || publicTable))) {
     items.push({ type: 'mode', mode: m });
   }
 
@@ -2180,6 +2202,17 @@ let panelGid = '';
 function renderGame() {
   publicStep();
   const panel = $('gamePanel');
+  $('cardTableHost').hidden = !game?.cardState;
+  if (game?.cardState) {
+    panel.hidden = false;
+    document.querySelector('.chat-shell')?.classList.remove('no-game');
+    for (const id of ['wwTable', 'wwSettlement', 'gameSeats', 'gameHead', 'gameLine', 'quickEmojis']) $(id).hidden = true;
+    document.querySelector('.game-actions').hidden = true;
+    cardUI.render(game.cardState);
+    return;
+  }
+  for (const id of ['gameSeats', 'gameHead', 'gameLine', 'quickEmojis']) $(id).hidden = false;
+  document.querySelector('.game-actions').hidden = false;
   const shell = document.querySelector('.chat-shell');
   if (shell) shell.classList.toggle('no-game', !game);
   if ($('gameStart')) { $('gameStart').disabled = !canStartGame(); $('gameStart').title = t('game.startHint', { min: MIN_PLAYERS, max: MAX_PLAYERS }); }
@@ -2468,21 +2501,8 @@ function renderWerewolfSeats(stage, c, sp, left) {
     seat.appendChild(wrap);
     seat.appendChild(nameBar);
 
-    if (isActionable) {
-      let lastActionTime = 0;
-      const handleAction = (e) => {
-        e.stopPropagation();
-        const now = Date.now();
-        if (now - lastActionTime < 400) return;
-        lastActionTime = now;
-        const o = actionableMap.get(p);
-        if (o) promptConfirmAction(p, o, stage, c);
-      };
-      seat.addEventListener('click', handleAction);
-      seat.addEventListener('pointerup', handleAction);
-      avatar.addEventListener('click', handleAction);
-      avatar.addEventListener('pointerup', handleAction);
-    }
+    seat.wolfAction = isActionable ? { p, o: actionableMap.get(p), stage, c,
+      stamp: `${game.gid}|${game.phase}|${game.step}|${myAct?.stage ?? 0}|${stage?.key}` } : null;
 
     const bubbleInfo = seatSpeechBubbles.get(p);
     if (bubbleInfo && Date.now() < bubbleInfo.until) {
@@ -2504,8 +2524,57 @@ function renderWerewolfSeats(stage, c, sp, left) {
     return seat;
   };
 
-  leftCol.replaceChildren(...leftPlayers.map((p, i) => createSeat(p, i, true)));
-  rightCol.replaceChildren(...rightPlayers.map((p, i) => createSeat(p, i, false)));
+  // Keep the actual touch targets attached during countdown/progress renders.
+  // Handlers read the latest action instead of retaining a previous phase.
+  const updateColumn = (column, members, isLeft) => {
+    const existing = new Map([...column.children].map(node => [node.dataset.player, node]));
+    members.forEach((p, i) => {
+      const fresh = createSeat(p, i, isLeft);
+      let seat = existing.get(String(p));
+      if (!seat) {
+        seat = fresh;
+        seat.addEventListener('pointerdown', () => { seat.wolfPointerStamp = seat.wolfAction?.stamp; });
+        const act = (e) => {
+          e.stopPropagation();
+          if (e.type === 'click' && seat.wolfPointerHandled) {
+            seat.wolfPointerHandled = false;
+            return;
+          }
+          const action = seat.wolfAction;
+          if (e.type === 'pointerup') {
+            seat.wolfPointerHandled = true;
+            if (seat.wolfPointerStamp !== action?.stamp) return;
+          }
+          if (!action) return;
+          promptConfirmAction(action.p, action.o, action.stage, action.c);
+          if (pendingWolfPick) pendingWolfPick.stamp = action.stamp;
+        };
+        seat.addEventListener('pointerup', act);
+        seat.addEventListener('click', act);
+      } else {
+        seat.className = fresh.className;
+        seat.wolfAction = fresh.wolfAction;
+        const wrap = seat.querySelector('.ww-seat-avatar-wrap');
+        const avatar = wrap.querySelector('.ww-seat-avatar');
+        for (const child of [...wrap.children]) if (child !== avatar) child.remove();
+        for (const child of [...fresh.querySelector('.ww-seat-avatar-wrap').children]) {
+          if (!child.classList.contains('ww-seat-avatar')) wrap.insertBefore(child, avatar);
+        }
+        const name = seat.querySelector('.ww-seat-name-bar');
+        const freshName = fresh.querySelector('.ww-seat-name-bar');
+        name.className = freshName.className;
+        name.replaceChildren(...freshName.childNodes);
+        seat.querySelectorAll('.ww-seat-bubble').forEach(node => node.remove());
+        const bubble = fresh.querySelector('.ww-seat-bubble');
+        if (bubble) seat.appendChild(bubble);
+      }
+      existing.delete(String(p));
+      if (column.children[i] !== seat) column.insertBefore(seat, column.children[i] || null);
+    });
+    for (const obsolete of existing.values()) obsolete.remove();
+  };
+  updateColumn(leftCol, leftPlayers, true);
+  updateColumn(rightCol, rightPlayers, false);
 }
 
 function promptConfirmAction(p, o, stage, c) {
@@ -3305,18 +3374,17 @@ $('wwMobileInput')?.addEventListener('keydown', (e) => {
     sendMobileChat();
   }
 });
-let lastConfirmOkTime = 0;
 const handleConfirmOk = (e) => {
   if (e) e.stopPropagation();
-  const now = Date.now();
-  if (now - lastConfirmOkTime < 400) return;
-  lastConfirmOkTime = now;
+  // Consuming the pending pick deduplicates pointerup + click while allowing a
+  // different confirmation immediately, even across a fast phase transition.
+  const pick = pendingWolfPick;
+  if (!pick) return;
+  pendingWolfPick = null;
   $('wwConfirmDialog').hidden = true;
-  if (pendingWolfPick) {
-    const p = pendingWolfPick;
-    pendingWolfPick = null;
-    wolfPick(p.c, p.stage, p.o, p.label);
-  }
+  const current = `${game?.gid}|${game?.phase}|${game?.step}|${myAct?.stage ?? 0}|${pick.stage?.key}`;
+  if (pick.stamp && pick.stamp !== current) return;
+  wolfPick(pick.c, pick.stage, pick.o, pick.label);
 };
 $('wwConfirmOk')?.addEventListener('click', handleConfirmOk);
 $('wwConfirmOk')?.addEventListener('pointerup', handleConfirmOk);
@@ -3725,7 +3793,7 @@ function publicStep() {
   }
 
   // Werewolf on public table is judged and dealt by server
-  if (publicTable.game === 'ww') {
+  if (['ww', 'gd', 'mj'].includes(publicTable.game)) {
     renderReadyBar();
     return;
   }

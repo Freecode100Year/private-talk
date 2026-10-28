@@ -1,3 +1,4 @@
+import { cardTexts } from './card-table-text.js';
 // Interface text. Simplified and Traditional Chinese, English and Spanish are
 // below; the other languages are in lang/. The page follows the browser's
 // language list; anything else gets English. The switch in the header changes
@@ -3110,6 +3111,8 @@ const es = {
 };
 
 export const TEXT = { 'zh-Hans': zhHans, 'zh-Hant': zhHant, en, es, bn, ru, ar, ht, ko, ur, fr, hi };
+
+for (const [code, text] of Object.entries(cardTexts)) Object.assign(TEXT[code], text);
 
 let current = detect(typeof navigator === 'undefined' ? [] : navigator.languages ?? [navigator.language]);
 
