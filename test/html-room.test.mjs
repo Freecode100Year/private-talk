@@ -448,3 +448,25 @@ test('receipts: forged, repeated, early, late, out of order, from strangers', as
   late.sealed([2]); late.relayed();
   assert.equal(late.label(), '已提交中继');
 });
+
+// ---- checking a room file you were sent ----------------------------------------------------
+
+test('verify-room-file accepts a released room file and refuses altered ones', async () => {
+  const { verifyRoomFile } = await import('../scripts/verify-room-file.mjs');
+  const template = readFileSync(new URL('../dist/hr-template.html', import.meta.url), 'utf8');
+  const config = await Core.makeConfig({ name: '核对', relays: [relay] });
+  const html = Core.fillTemplate(template, config);
+  const ok = verifyRoomFile(html);
+  assert.ok(ok.ok, ok.problems.join('; '));
+  assert.equal(ok.config.name, '核对');
+  const altered = {
+    'script changed': html.replace("'use strict';", "'use strict';fetch('https://x');"),
+    'extra script': html.replace('</body>', '<script src="https://evil.example/x.js"></script></body>'),
+    'wider connect-src': html.replace(/connect-src [^;]*;/, 'connect-src wss: https:;'),
+    'CSP loosened': html.replace("script-src 'sha256-", "script-src 'unsafe-inline' 'sha256-"),
+    'relay swapped': html.replace(Core.safeJson(config), Core.safeJson({ ...config, relays: ['wss://evil.example'] })),
+    'added markup': html.replace('<div id="pt-boot">', '<a href="https://evil.example">更新</a><div id="pt-boot">'),
+    'style changed': html.replace('[hidden]', '[hidden],x')
+  };
+  for (const [label, bad] of Object.entries(altered)) assert.equal(verifyRoomFile(bad).ok, false, label);
+});

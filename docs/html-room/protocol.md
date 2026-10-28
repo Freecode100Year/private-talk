@@ -79,7 +79,7 @@ bind    4e6f220de834d897a88da6b31bf17a2ae52f29ae2664b2edf653af4de933c3c0
 <script id="pt-room-config" type="application/json">…</script>
 ```
 
-序列化：`JSON.stringify(config)` 之后把 `<`、`>`、`/`、U+2028、U+2029 依次替换为 `<`、`>`、`/`、` `、` `（`&` 也替换为 `&`，防止被当作字符引用的组成部分）。结果仍是合法 JSON，解析后与原值完全相同，且不可能出现 `</script` 或 `<!--`。
+序列化：`JSON.stringify(config)` 之后把 `<`、`>`、`/`、U+2028、U+2029 依次替换为 `\u003C`、`\u003E`、`\u002F`、`\u2028`、`\u2029`（`&` 也替换为 `\u0026`，防止被当作字符引用的组成部分）。结果仍是合法 JSON，解析后与原值完全相同，且不可能出现 `</script` 或 `<!--`。
 
 客户端读取：`JSON.parse(document.getElementById('pt-room-config').textContent)`，再按 §2.2 校验。客户端不使用 `eval`、`new Function`、`innerHTML`、`insertAdjacentHTML` 或 `document.write`。
 
