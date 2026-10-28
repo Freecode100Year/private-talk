@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
   MAX_MEMBERS, ROOM_ID, PONG, CLOSE_BUSY, CLOSE_CAPACITY, CLOSE_LEFT, CLOSE_REMOVED, CLOSE_DENIED, PLAIN_HEADERS, BYE_HEADERS, JOINS_PER_MINUTE, FILE_FRAME,
-  PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches
+  PROTOCOL, WIRE_VERSION, COVER, inside, emptyBook, admit, depart, awayNumbers, checkFrame, token, hostOf, parseProtocols, accessMatches,
+  relayPath, originAllowed, roomName, hrDrops
 } from '../src/rules.js';
 
 import { Lobby, readBody, BODY_MAX } from '../src/lobby.js';
@@ -303,14 +304,20 @@ const wss = new WebSocketServer({
   handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
 });
 
-function enter(ws, roomId, ip, resume) {
+// kind is 'ws' or 'hr' (rules.js relayPath). An HTML Room lives in the map
+// under its own name and has no roomId for the lobby or the judges: it can
+// never be a public table.
+function enter(ws, id, ip, resume, kind = 'ws') {
   if (wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
   if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'busy');
-  const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
+  const hr = kind === 'hr';
+  const name = roomName(kind, id);
+  const roomId = hr ? null : id;
+  const room = rooms.get(name) ?? { peers: new Set(), book: emptyBook() };
   const inUse = new Map([...room.peers].map((p) => [p.state.n, p.state.resume]));
   const r = admit(room.book, inUse, resume);
   if (r.refuse) return ws.close(r.refuse, 'refused');
-  rooms.set(roomId, room);
+  rooms.set(name, room);
   room.book = r.book;
   let seq = r.seq, sent = r.sent ?? 0;
   if (r.replace) {
@@ -324,9 +331,11 @@ function enter(ws, roomId, ip, resume) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true, lobby: true });
+  send(ws, hr
+    ? { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: false, lobby: false, hr: 1 }
+    : { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true, lobby: true });
   members(room);
-  lobby.people(roomId, room.peers.size);
+  if (roomId) lobby.people(roomId, room.peers.size);
   judgeMembers(room, roomId);
 
   ws.on('pong', () => { ws.alive = true; });
@@ -337,6 +346,8 @@ function enter(ws, roomId, ip, resume) {
     if (r.close) return ws.close(...r.close);
     if (r.pong) return send(ws, PONG);
     if (r.wait) return send(ws, { type: 'wait', ms: r.wait });
+    // HTML Room: no public tables, judges or pictures (rules.js).
+    if (hr && hrDrops(r)) return;
     if ('lock' in r || 'remove' in r) {
       if (n !== hostIn(room)) return send(ws, { type: 'denied' });
       if ('lock' in r) {
@@ -414,14 +425,14 @@ function enter(ws, roomId, ip, resume) {
   });
   ws.on('close', (code) => {
     if (!room.peers.delete(ws)) return; // replaced by a newer connection
-    lobby.people(roomId, room.peers.size);
+    if (roomId) lobby.people(roomId, room.peers.size);
     if (room.peers.size === 0) {
       clearTimeout(room.judgeTimer);
       clearTimeout(room.cardTimer);
       clearTimeout(room.judgeStart);
       room.judge = null;
       room.escapeJudge = null;
-      rooms.delete(roomId);
+      rooms.delete(name);
       return;
     } // the room is gone
     room.book = depart(room.book, n, ws.state.resume, code === CLOSE_LEFT, Date.now(), ws.state.sent);
@@ -434,7 +445,7 @@ function enter(ws, roomId, ip, resume) {
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://x');
   const path = inside(url.pathname, ENTRY_PATH);
-  const m = typeof path === 'string' && path.match(/^\/ws\/([0-9a-f]+)$/);
+  const route = typeof path === 'string' && relayPath(path);
   const reject = (status) => {
     const headers = Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     socket.end(`HTTP/1.1 ${status}\r\n${headers}Connection: close\r\n\r\n`);
@@ -443,16 +454,17 @@ server.on('upgrade', (req, socket, head) => {
     const headers = Object.entries(COVER.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     return socket.end(`HTTP/1.1 404 Not Found\r\n${headers}Content-Length: ${COVER.body.length}\r\nConnection: close\r\n\r\n${COVER.body}`);
   }
-  if (!m || !ROOM_ID.test(m[1])) return reject('400 Bad Request');
+  if (!route || !ROOM_ID.test(route.roomId)) return reject('400 Bad Request');
   // Stops other web pages from connecting through a visitor's browser.
-  // Programs outside a browser can send any Origin they like.
-  if (!sameOrigin(req)) return reject('403 Forbidden');
-  // Only a page that knows the passphrase can show the access value.
+  // Programs outside a browser can send any Origin they like. /hr/ also
+  // takes "null", the Origin of a page opened from a file (rules.js).
+  if (!originAllowed(route.kind, req.headers.origin, sameOrigin(req))) return reject('403 Forbidden');
+  // Only a page that knows the passphrase (or the room file) can show the access value.
   const proto = parseProtocols(req.headers['sec-websocket-protocol']);
-  accessMatches(m[1], proto.access).then((ok) => {
+  accessMatches(route.roomId, proto.access).then((ok) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (!proto.ok || !ok) return ws.close(CLOSE_DENIED, 'no access');
-      enter(ws, m[1], clientIP(req), proto.resume);
+      enter(ws, route.roomId, clientIP(req), proto.resume, route.kind);
     });
   });
 });
