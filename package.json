@@ -13,19 +13,12 @@
     "verify-site": "node scripts/verify-site.mjs",
     "deploy:freedom8964": "node scripts/deploy-freedom8964.mjs",
     "lan": "node server/lan.mjs",
-    "help": "node scripts/build-help.mjs",
-    "html-room:generate": "node scripts/build-html-room.mjs",
-    "html-room:check": "node scripts/check-html-room.mjs",
-    "test:html-room": "node --test test/html-room.test.mjs test/html-room-relay.test.mjs",
-    "test:html-room:browser": "node browser-tests/html-room.mjs",
-    "test:html-room:preview": "node browser-tests/html-room-preview.mjs"
+    "help": "node scripts/build-help.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "esbuild": "0.28.2",
-    "playwright": "1.64.1",
     "wrangler": "^4.149.0"
   },
   "engines": {

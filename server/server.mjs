@@ -1,4 +1,3 @@
-import { htmlRoomOrigin, checkHtmlRoomFrame } from '../src/html-room.js';
 // 隐匿对话 relay for Docker: the same page and the same rules as the
 // Cloudflare Worker, in one Node process. Rooms live in memory only and
 // disappear with their last member; nothing is logged or written to disk.
@@ -304,7 +303,7 @@ const wss = new WebSocketServer({
   handleProtocols: (protocols) => (protocols.has(PROTOCOL) ? PROTOCOL : false)
 });
 
-function enter(ws, roomId, ip, resume, htmlRoom = false) {
+function enter(ws, roomId, ip, resume) {
   if (wss.clients.size > MAX_CONNECTIONS) return ws.close(CLOSE_CAPACITY, 'capacity');
   if (!allowJoin(ip)) return ws.close(CLOSE_BUSY, 'busy');
   const room = rooms.get(roomId) ?? { peers: new Set(), book: emptyBook() };
@@ -325,7 +324,7 @@ function enter(ws, roomId, ip, resume, htmlRoom = false) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: !htmlRoom, lobby: !htmlRoom, ...(htmlRoom ? {hr:1} : {}) });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: true, lobby: true });
   members(room);
   lobby.people(roomId, room.peers.size);
   judgeMembers(room, roomId);
@@ -333,7 +332,7 @@ function enter(ws, roomId, ip, resume, htmlRoom = false) {
   ws.on('pong', () => { ws.alive = true; });
   ws.on('message', (data, isBinary) => {
     ws.alive = true;
-    const r = (htmlRoom ? checkHtmlRoomFrame : checkFrame)(isBinary ? null : data.toString(), ws.state);
+    const r = checkFrame(isBinary ? null : data.toString(), ws.state);
     if (!r) return;
     if (r.close) return ws.close(...r.close);
     if (r.pong) return send(ws, PONG);
@@ -435,7 +434,7 @@ function enter(ws, roomId, ip, resume, htmlRoom = false) {
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://x');
   const path = inside(url.pathname, ENTRY_PATH);
-  const m = typeof path === 'string' && path.match(/^\/(ws|hr)\/([0-9a-f]+)$/);
+  const m = typeof path === 'string' && path.match(/^\/ws\/([0-9a-f]+)$/);
   const reject = (status) => {
     const headers = Object.entries(PLAIN_HEADERS).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     socket.end(`HTTP/1.1 ${status}\r\n${headers}Connection: close\r\n\r\n`);
@@ -444,18 +443,16 @@ server.on('upgrade', (req, socket, head) => {
     const headers = Object.entries(COVER.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
     return socket.end(`HTTP/1.1 404 Not Found\r\n${headers}Content-Length: ${COVER.body.length}\r\nConnection: close\r\n\r\n${COVER.body}`);
   }
-  if (!m || !ROOM_ID.test(m[2])) return reject('400 Bad Request');
-  const htmlRoom = m[1] === 'hr';
+  if (!m || !ROOM_ID.test(m[1])) return reject('400 Bad Request');
   // Stops other web pages from connecting through a visitor's browser.
   // Programs outside a browser can send any Origin they like.
-  if (htmlRoom ? !htmlRoomOrigin(req.headers.origin, originOf(req)) : !sameOrigin(req)) return reject('403 Forbidden');
+  if (!sameOrigin(req)) return reject('403 Forbidden');
   // Only a page that knows the passphrase can show the access value.
   const proto = parseProtocols(req.headers['sec-websocket-protocol']);
-  accessMatches(m[2], proto.access).then((ok) => {
-    if (htmlRoom && (!proto.ok || !ok)) return reject('403 Forbidden');
+  accessMatches(m[1], proto.access).then((ok) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (!proto.ok || !ok) return ws.close(CLOSE_DENIED, 'no access');
-      enter(ws, htmlRoom ? `hr:${m[2]}` : m[2], clientIP(req), proto.resume, htmlRoom);
+      enter(ws, m[1], clientIP(req), proto.resume);
     });
   });
 });

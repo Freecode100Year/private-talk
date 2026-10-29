@@ -551,8 +551,6 @@ export default {
   'lobby.quickSub': 'jouer avec des inconnus · table publique',
   'lobby.private': '🔒 Salon privé',
   'lobby.privateSub': 'uniquement ceux qui connaissent la phrase secrète',
-  'htmlRoom.title': '🗂 Salon de discussion HTML',
-  'htmlRoom.sub': 'Créer un fichier de discussion chiffré à partager',
   'lobby.title': '🪑 Tables publiques en attente de joueurs',
   'lobby.hint': 'Seules les tables publiques sont listées ici ; les salons privés ne le sont jamais.',
   'lobby.loading': 'Recherche de tables en attente…',

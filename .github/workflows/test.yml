@@ -24,8 +24,6 @@ jobs:
       - run: npm test
       - name: Help page is up to date
         run: node scripts/build-help.mjs --check
-      - name: HTML Room template is up to date (fixed script hash)
-        run: node scripts/build-html-room.mjs template --check
       - name: Server starts and serves the page
         shell: bash
         run: |
@@ -82,9 +80,6 @@ jobs:
           PORT=8096 node server/server.mjs &
           for i in $(seq 1 20); do curl -fs http://127.0.0.1:8096/ >/dev/null && break; sleep 0.5; done
           echo "== switch"; node browser-tests/switch.mjs http://127.0.0.1:8096
-          # HTML Room: room files opened from file://, the #hr1= web entry (starts its own relay).
-          echo "== htmlroom"; node browser-tests/htmlroom.mjs
-          node browser-tests/html-room-preview.mjs
 
   # The Cloudflare version in its own runtime (workerd, via wrangler dev; no
   # account needed): two clients chat through the Worker and Durable Object.
@@ -101,9 +96,6 @@ jobs:
           npx wrangler dev --port 8799 --ip 127.0.0.1 > wrangler.log 2>&1 &
           for i in $(seq 1 60); do curl -fs http://127.0.0.1:8799/ >/dev/null && break; sleep 1; done
           node server/smoke.mjs http://127.0.0.1:8799 || { cat wrangler.log; exit 1; }
-      - name: HTML Room path /hr/ on the Worker (Origin null, isolation, /ws/ regression)
-        env: { WRANGLER_SEND_METRICS: "false", CI: "true", HR_WORKER_TEST: "1" }
-        run: node --test test/hr-worker.test.mjs
 
   # The Docker deployment as users run it: compose + Caddy (with its own
   # local CA for a .internal name), ./pt setup, status, and an upgrade that

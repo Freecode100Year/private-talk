@@ -2,7 +2,7 @@
   "name": "private-talk",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/hr/*", "/ws/*", "/bye", "/lobby"] },
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/ws/*", "/bye", "/lobby"] },
   "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }, { "name": "LOBBY", "class_name": "Lobby" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }, { "tag": "v2", "new_sqlite_classes": ["Lobby"] }],
   "ratelimits": [{ "name": "JOIN_LIMIT", "namespace_id": "8964", "simple": { "limit": 60, "period": 60 } }],

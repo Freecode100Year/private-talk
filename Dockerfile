@@ -6,7 +6,7 @@ ENV NODE_ENV=production PORT=8080
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY dist ./dist
-COPY src/html-room.js src/rules.js src/lobby.js src/judge.js src/card-table.js src/guandan.js src/mahjong.js ./src/
+COPY src/rules.js src/lobby.js src/judge.js src/card-table.js src/guandan.js src/mahjong.js ./src/
 COPY server ./server
 # Where the LAN mode keeps its certificates (docker-compose.lan.yml).
 RUN mkdir /certs && chown node:node /certs
