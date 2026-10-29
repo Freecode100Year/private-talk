@@ -551,6 +551,8 @@ export default {
   'lobby.quickSub': '낯선 사람과 플레이 · 공개 테이블',
   'lobby.private': '🔒 비공개 방',
   'lobby.privateSub': '암호를 아는 사람만 입장',
+  'htmlRoom.title': '🗂 HTML 채팅방',
+  'htmlRoom.sub': '공유할 수 있는 암호화 채팅 파일 만들기',
   'lobby.title': '🪑 플레이어를 기다리는 공개 테이블',
   'lobby.hint': '여기에는 공개 테이블만 표시되며, 비공개 방은 절대 표시되지 않습니다.',
   'lobby.loading': '대기 중인 테이블을 찾는 중…',

@@ -551,6 +551,8 @@ export default {
   'lobby.quickSub': 'jwe ak moun ou pa konnen · tab piblik',
   'lobby.private': '🔒 Chanm prive',
   'lobby.privateSub': 'sèlman moun ki konnen fraz sekrè a',
+  'htmlRoom.title': '🗂 Chanm chat HTML',
+  'htmlRoom.sub': 'Kreye yon fichye chat chifre pou pataje',
   'lobby.title': '🪑 Tab piblik k ap tann jwè',
   'lobby.hint': 'Se sèlman tab piblik ki parèt isit la; chanm prive pa janm parèt.',
   'lobby.loading': 'N ap chèche tab k ap tann…',
