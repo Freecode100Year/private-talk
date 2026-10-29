@@ -1,7 +1,7 @@
-import { checkFrame, MAX_FRAME } from './rules.js';
+import { checkFrame, MAX_FRAME, originAllowed } from './rules.js';
 // Header bearer remains relay-visible. Never log request headers.
 export function htmlRoomOrigin(origin, expected) {
-  return origin === 'null' || origin === expected;
+  return originAllowed('hr',origin,origin===expected);
 }
 export function checkHtmlRoomFrame(raw, state, now = Date.now()) {
   if (typeof raw !== 'string' || raw.length > MAX_FRAME) return {close:[1009,'bad frame']};

@@ -325,7 +325,7 @@ function enter(ws, roomId, ip, resume, htmlRoom = false) {
   ws.state = { n, seq, resume: token(), window: 0, count: 0, sent };
   ws.alive = true;
   room.peers.add(ws);
-  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: !htmlRoom, lobby: !htmlRoom });
+  send(ws, { type: 'hello', you: n, now: Date.now(), resume: ws.state.resume, v: WIRE_VERSION, seen: true, files: !htmlRoom, lobby: !htmlRoom, ...(htmlRoom ? {hr:1} : {}) });
   members(room);
   lobby.people(roomId, room.peers.size);
   judgeMembers(room, roomId);

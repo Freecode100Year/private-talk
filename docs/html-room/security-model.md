@@ -11,3 +11,7 @@ Meta CSP: default-src none; exact executable-script/style hashes, exact relay co
 Optional #hr1= entry can expose master to the hosting page's code; it is not equivalent to a verified offline file. No third-party code. Relay can deny, reorder, drop and misrepresent presence; safety code verification via independent channel matters. Shared master holders can introduce their own identities. No claim of anonymity against traffic analysis, protection on compromised devices, or independently audited ML-KEM.
 
 Local file scripts/WebCrypto/WSS vary in iOS and WeChat/QQ previews. Real-device testing is mandatory before compatibility claims. Absent hardware must be marked unverified. Remote relay is still necessary. Do not deploy production as part of this task.
+
+## 整合后的网页入口
+
+`/hr.html` 是由服务端提供代码的生成器/入口，安全性依赖该站点代码。只使用本站脚本样式，connect-src self，无第三方分析；网页可读取 `#hr1=`，读取后会清除地址栏。已有会话不因新片段自动切房，须在新窗口打开。网页只为本站中继链接提供入房，其他中继可生成离线文件，但不提供可用的本站跳转。下载使用内存 Blob URL，仅用于文件下载，离开或重新生成后释放；没有开放 img-src blob。文件仍保持固定脚本/样式 hash CSP，不包含内联 style 属性。对整个网页或 HTML 的替换仍无法由其自身 CSP 防御。

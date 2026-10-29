@@ -1,8 +1,9 @@
 import { unlock, validate, hex } from './crypto.js';
 import { Session } from './session.js';
+export function boot(config) {
 const el=id=>document.getElementById(id), status=text=>{el('status').textContent=text;};
 let attempts=0,busy=false,nextUnlock=0;
-let config=JSON.parse(el('pt-room-config').textContent),session;
+let session;
 const rows=new Map();
 function emit(kind,value){
  if(kind==='notice'||kind==='fatal')status(value);
@@ -43,3 +44,5 @@ el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Dat
 el('chat').addEventListener('submit',e=>{e.preventDefault();if(session?.queue(el('text').value))el('text').value='';else status('消息为空、过长或队列已满。');});
 
 addEventListener('pagehide',()=>session?.halt());
+
+}

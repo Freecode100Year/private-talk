@@ -1,3 +1,5 @@
+> 历史记录：本文描述合并前的 RC1，不代表当前整合版。当前状态见 [merge-report.md](merge-report.md)。
+
 # HTML Room V1 发布候选交付
 
 仓库本地克隆：`/root/private-talk-html-room`；分支：`feature/html-room-chat`。未推送、未合并、未部署生产。原 `/root/private-talk` 未提交修改未覆盖。
@@ -46,7 +48,7 @@ node scripts/build-html-room.mjs out/new-template.html
 
 CSP hash（base64）：`Bhs7S4yKij5fo/WCr6fK5hBfXe3st41Ni/ppjjt3Q3Q=`。
 样式 hash：`tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88=`。
-完整 HTML 哈希和逐产物 CSP 见 release-integrity.json。产物重新生成会改变随机房间配置及完整 HTML hash，但不改变脚本 hash。
+完整 HTML 哈希和逐产物 CSP 见 rc1-integrity.json。产物重新生成会改变随机房间配置及完整 HTML hash，但不改变脚本 hash。
 
 CSP 检查通过：default-src none；脚本/样式仅明确 hash；connect-src 精确匹配白名单中继；无外部脚本/分析/图片、无内联 style 属性、无泛域名 scheme 或 blob 图片权限。meta CSP 不支持 frame-ancestors，不能保护被整体篡改的 HTML；须独立验证文件来源。
 

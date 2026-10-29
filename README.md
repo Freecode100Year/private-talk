@@ -4,9 +4,9 @@
 
 生成文件后，把同一份文件交给参与者。在支持本地 HTML 脚本、Web Crypto 和 WebSocket 的浏览器中打开，点击进入，即可连接同一个房间；聊天仍需要可访问的中继服务。
 
-本分支 `feature/html-room-chat` 是 **HTML Room V1 发布候选**，只新增文本聊天，不改造桌游。原网页聊天、公开大厅、游戏和 `/ws/` 路由保留。**尚未部署生产，iOS、微信、QQ 的本地文件预览尚无真机验证。**
+本分支 `feature/html-room-chat` 是 **HTML Room V1 整合开发版（Claude + Codex）**，只新增文本聊天，不改造桌游。原网页聊天、公开大厅、游戏和 `/ws/` 路由保留。**尚未部署生产，iOS、微信、QQ 的本地文件预览尚无真机验证。**
 
-[下载 RC1 与交付包](https://github.com/Freecode100Year/private-talk/releases/tag/html-room-v1-rc1) · [完整交付报告](docs/html-room/release-candidate.md) · [协议](docs/html-room/protocol.md) · [安全模型](docs/html-room/security-model.md)
+[原 RC1 与交付包（整合前）](https://github.com/Freecode100Year/private-talk/releases/tag/html-room-v1-rc1) · [完整交付报告](docs/html-room/release-candidate.md) · [协议](docs/html-room/protocol.md) · [安全模型](docs/html-room/security-model.md)
 
 ## 先了解文件的含义
 
@@ -42,6 +42,12 @@ git clone -b feature/html-room-chat html-room-chat-full.bundle private-talk
 ```
 
 **Release 中的 `html-room-template.html` 是无秘密模板，不能直接用来聊天。** 创建房间需要下面的生成器与中继地址。RC1 固定在其发布提交，分支 README 等后续更新不会自动改变该版本的附件。
+
+## 网页生成器与备用入口
+
+运行本分支中继后访问 `/hr.html`，明确填写中继源，可选填写或随机生成高熵口令，点击创建并下载房间文件。本站中继还可生成 `#hr1=` 网页链接。网页生成与进入使用同一套协议和签名回执；浏览器信任由托管站点下发的代码。手机真机仍未验证。
+
+开发时先运行 `node scripts/build-html-room.mjs template`；CI 使用 `template --check` 验证网页资源与模板可复现。[整合决策及本次验证](docs/html-room/merge-report.md)。
 
 ## 本机体验：生成文件并双向聊天
 
@@ -114,9 +120,11 @@ WSS 握手失败可能来自网络、Origin、鉴权或证书信任问题。建�
 | iOS / Android 微信、QQ 内置文件预览 | 无真机，未验证；可能不执行 HTML 脚本 |
 | Android 浏览器、macOS Safari、Firefox、Edge | 未验证 |
 
-目前未实现可选的托管 `#hr1=` 备用入口。未来即使提供，网页入口代码也能读取 Fragment，其安全性不等同于经过验证的离线文件。
+本分支已整合 `/hr.html` 网页生成器和 `#hr1=` 备用入口。网页入口代码能读取 Fragment，其安全性不等同于经过验证的离线文件；入口仅连接本站中继，读取后清除地址栏片段。
 
 ## 测试与可复现检查
+
+本次整合启用 Worker 后 **234/234 测试通过，无失败或跳过**；Node 和 Worker 各通过 11 项真实文件检查及 9 项网页/文件互通检查。详见[整合报告](docs/html-room/merge-report.md)。以下 RC1 统计作为合并前基线保留。
 
 RC1 的原始基线是 **197 项测试通过**；交付最终为 **211 项通过，失败与跳过均为 0**，其中新增 HTML Room 测试 14 项。Node 与本地 Worker 的真实文件 Chromium E2E 各通过 11 项检查；Worker 路由策略另通过 2 项。
 
@@ -132,10 +140,10 @@ npm run test:html-room:browser
 可执行内联脚本 SHA-256：
 
 ```text
-061b3b4b8c8a8a3e5fa3f582afa7cae6105f5dedecb78d4d8bfa698e3b774374
+2b6e8795dda3fda5f1ea5254646a250f677bc690b79823fde3152e9bccb7ca21
 ```
 
-不同房间的配置不同，但可执行脚本字节保持一致。上述 hash 对应本分支当前 HTML Room 实现及固定的 esbuild 0.28.2；[完整性清单](docs/html-room/release-integrity.json)包含 RC1 的样式与示例产物哈希。新生成房间的随机配置会改变完整 HTML 哈希。
+不同房间的配置不同，但可执行脚本字节保持一致。上述 hash 对应当前整合版实现；见 [完整性清单](docs/html-room/release-integrity.json)，构建固定使用 esbuild 0.28.2；[完整性清单](docs/html-room/release-integrity.json)包含 当前样式与示例产物哈希。新生成房间的随机配置会改变完整 HTML 哈希。
 
 | RC1 示例产物 | 大小 |
 |---|---:|
@@ -145,7 +153,7 @@ npm run test:html-room:browser
 
 真实文件大小会随中继地址变化。生成的房间文件默认以 0600 权限写入 `out/`，该目录被 Git 忽略；不要把实际房间密钥、口令或测试私钥提交到仓库。
 
-更多记录：[源码审计](docs/html-room/architecture-audit.md) · [逐项测试结果](docs/html-room/node-test-results.txt) · [修改文件清单](docs/html-room/changed-files.txt) · [发布候选交付报告](docs/html-room/release-candidate.md)。
+更多记录：[源码审计](docs/html-room/architecture-audit.md) · [逐项测试结果](docs/html-room/node-test-results.txt) · [原 RC1 修改文件清单](docs/html-room/changed-files.txt) · [发布候选交付报告](docs/html-room/release-candidate.md)。
 
 ## 原网页聊天与桌游
 
