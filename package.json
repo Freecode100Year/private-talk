@@ -17,7 +17,8 @@
     "html-room:generate": "node scripts/build-html-room.mjs",
     "html-room:check": "node scripts/check-html-room.mjs",
     "test:html-room": "node --test test/html-room.test.mjs test/html-room-relay.test.mjs",
-    "test:html-room:browser": "node browser-tests/html-room.mjs"
+    "test:html-room:browser": "node browser-tests/html-room.mjs",
+    "test:html-room:preview": "node browser-tests/html-room-preview.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

@@ -84,6 +84,7 @@ jobs:
           echo "== switch"; node browser-tests/switch.mjs http://127.0.0.1:8096
           # HTML Room: room files opened from file://, the #hr1= web entry (starts its own relay).
           echo "== htmlroom"; node browser-tests/htmlroom.mjs
+          node browser-tests/html-room-preview.mjs
 
   # The Cloudflare version in its own runtime (workerd, via wrangler dev; no
   # account needed): two clients chat through the Worker and Durable Object.

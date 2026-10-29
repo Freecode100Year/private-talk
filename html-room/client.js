@@ -2,6 +2,7 @@ import { unlock, validate, hex } from './crypto.js';
 import { Session } from './session.js';
 export function boot(config) {
 const el=id=>document.getElementById(id), status=text=>{el('status').textContent=text;};
+el('preview-help').hidden=true;
 let attempts=0,busy=false,nextUnlock=0;
 let session;
 const rows=new Map();
@@ -27,7 +28,7 @@ function connect(){
 }
 if(!globalThis.crypto?.subtle || !globalThis.WebSocket || !globalThis.TextEncoder){status('此预览环境不支持所需脚本或加密 API，请使用支持的浏览器打开；iOS、微信和 QQ 本地预览需实测。');el('enter').disabled=true;}
 else if(config.version){
- try{validate(config);status(config.encrypted?'请输入口令解锁；解锁前不会连接中继。':'无口令文件：点击进入房间。');}catch{status('配置无效，请重新生成文件。');el('enter').disabled=true;}
+ try{validate(config);status(config.encrypted?'请输入口令解锁；解锁前不会连接中继。':'无口令文件：点击进入房间。');el('password').disabled=false;el('enter').disabled=false;}catch{status('配置无效，请重新生成文件。');el('enter').disabled=true;}
 }else{status('无秘密模板：请使用生成器创建房间文件。');el('enter').disabled=true;}
 el('unlock').addEventListener('submit',async e=>{e.preventDefault();if(busy||Date.now()<nextUnlock)return;busy=true;el('enter').disabled=true;try{
  const derived=await unlock(config,el('password').value);el('password').value='';session=new Session(derived,config,{emit});el('unlock').hidden=true;el('chat').hidden=false;connect();

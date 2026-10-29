@@ -34,7 +34,9 @@
 
 合并过程一次浏览器断言暴露同页 Fragment 导航不会重新初始化的问题，已加 hashchange 处理并通过同页跳转回归；该失败未被删除或当作通过。
 
-## 当前构建值
+## 整合时构建值（历史记录）
+
+以下是主线整合时的值。后续 iOS 预览修复更新了模板和内联脚本；当前值以 [release-integrity.json](release-integrity.json) 为准。
 
 固定内联可执行脚本 SHA-256：`2b6e8795dda3fda5f1ea5254646a250f677bc690b79823fde3152e9bccb7ca21`。
 CSP base64：`K26Hld2j/aXx6lJUZGolD2d7xpC3mCP94xUum8y3yiE=`。
