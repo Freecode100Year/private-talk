@@ -49,6 +49,32 @@ export function parseProtocols(header) {
     resume: RESUME.test(resume ?? '') ? resume : null
   };
 }
+// Two WebSocket paths reach the same kind of room (docs/html-room/protocol.md §6):
+//   /ws/<roomId>  the web page, same origin only, as always
+//   /hr/<roomId>  HTML Room: also a page opened from a file, whose browser
+//                 says "Origin: null". Such rooms live under their own names
+//                 (HR_PREFIX), so the two never meet, and never take part in
+//                 public tables, judges or pictures.
+// The Origin check only stops other web sites from using a visitor's browser
+// to connect; on both paths what lets someone in is the access value.
+export const HR_PREFIX = 'hr:';
+export function relayPath(pathname) {
+  const m = /^\/(ws|hr)\/([0-9a-f]+)$/.exec(pathname);
+  return m ? { kind: m[1], roomId: m[2] } : null;
+}
+export function originAllowed(kind, origin, same) {
+  if (same) return true;
+  return kind === 'hr' && origin === 'null';
+}
+export function roomName(kind, roomId) {
+  return kind === 'hr' ? HR_PREFIX + roomId : roomId;
+}
+// Frames an HTML Room connection may not use: they are dropped, not counted
+// as bad (a confused page should not be thrown out for them).
+export function hrDrops(r) {
+  return !!(r && (r.table || r.ref || r.file));
+}
+
 export async function accessMatches(roomId, access) {
   if (!ROOM_ID.test(roomId) || !ACCESS.test(access)) return false;
   const bytes = new Uint8Array(access.match(/../g).map((h) => parseInt(h, 16)));

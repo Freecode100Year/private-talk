@@ -29,7 +29,7 @@ mkdir -p "$APP/src"
 cp -r "$ROOT/dist" "$ROOT/server" "$ROOT/docs" "$APP/"
 mkdir -p "$APP/deploy" && cp "$ROOT"/deploy/private-talk-lan.service "$ROOT"/deploy/private-talk.service "$ROOT"/deploy/Caddyfile.vps "$ROOT"/deploy/nginx.conf "$APP/deploy/"
 cp "$ROOT/docker-compose.lan.yml" "$APP/"
-cp "$ROOT/src/rules.js" "$ROOT/src/lobby.js" "$ROOT/src/judge.js" "$ROOT/src/card-table.js" "$ROOT/src/guandan.js" "$ROOT/src/mahjong.js" "$APP/src/"
+cp "$ROOT/src/html-room.js" "$ROOT/src/rules.js" "$ROOT/src/lobby.js" "$ROOT/src/judge.js" "$ROOT/src/card-table.js" "$ROOT/src/guandan.js" "$ROOT/src/mahjong.js" "$APP/src/"
 cp "$ROOT/package.json" "$ROOT/package-lock.json" "$ROOT/LICENSE" "$ROOT/README.md" "$APP/"
 (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null && rm package-lock.json)
 

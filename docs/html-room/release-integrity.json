@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "stage": "claude-codex-integration",
+  "esbuild": "0.28.2",
+  "artifacts": {
+    "html-room-template.html": {
+      "bytes": 44073,
+      "sha256": "772a9f7953981fef4efdbc8e3e5c94ebab4aae3d532e21375600cead96be08fb",
+      "csp": "default-src 'none'; script-src 'sha256-K26Hld2j/aXx6lJUZGolD2d7xpC3mCP94xUum8y3yiE='; style-src 'sha256-tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88='; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    "html-room-example.html": {
+      "bytes": 44307,
+      "sha256": "65c789410ed4e6accf8adea697531ce2e0e4bd3d97a071fe5eab2ddc1450e698",
+      "csp": "default-src 'none'; script-src 'sha256-K26Hld2j/aXx6lJUZGolD2d7xpC3mCP94xUum8y3yiE='; style-src 'sha256-tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88='; connect-src wss://relay.example; base-uri 'none'; form-action 'none'"
+    },
+    "html-room-wrapped-example.html": {
+      "bytes": 44477,
+      "sha256": "7ed253b4afffa58088624d34805be860b9d85b59717b0be4fa92e47ef7b166bf",
+      "csp": "default-src 'none'; script-src 'sha256-K26Hld2j/aXx6lJUZGolD2d7xpC3mCP94xUum8y3yiE='; style-src 'sha256-tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88='; connect-src wss://relay.example; base-uri 'none'; form-action 'none'"
+    }
+  },
+  "scriptHashBase64": "K26Hld2j/aXx6lJUZGolD2d7xpC3mCP94xUum8y3yiE=",
+  "scriptHashHex": "2b6e8795dda3fda5f1ea5254646a250f677bc690b79823fde3152e9bccb7ca21",
+  "styleHashBase64": "tjnnYoX05TfNl+NsaNK4PRoAh8mTsDFSpuWgGDuoa88="
+}

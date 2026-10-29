@@ -1,134 +1,171 @@
-# 隐匿对话
+# Private Talk · HTML Room V1
 
-项目主页：https://freecode100year.github.io/private-talk/
+**一个独立 HTML 文件，对应一个端对端加密聊天房间。**
 
-[English](README.en.md)
+生成文件后，把同一份文件交给参与者。在支持本地 HTML 脚本、Web Crypto 和 WebSocket 的浏览器中打开，点击进入，即可连接同一个房间；聊天仍需要可访问的中继服务。
 
-**iPhone / iPad**：[添加本项目的 iOS 捷径「隐匿对话」](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)
+主分支 `main` 已整合 `feature/html-room-chat`，提供 **HTML Room V1 整合开发版（Claude + Codex）**，只新增文本聊天，不改造桌游。原网页聊天、公开大厅、游戏和 `/ws/` 路由保留。**尚未部署生产，iOS、微信、QQ 的本地文件预览尚无真机验证。**
 
-**安卓**：[联网版 APK（0.9 MB，网页内置）](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.20.0/PrivateTalk-online-v2.20.0.apk) · [离线版 APK（58 MB，arm64，免互联网，一部手机开热点当服务器）](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v17/PrivateTalk-offline-arm64-v17.apk)（说明与校验值：[联网版](https://github.com/Freecode100Year/private-talk/releases/tag/android-online-v2.20.0)、[离线版](https://github.com/Freecode100Year/private-talk/releases/tag/android-offline-v17)）
+[原 RC1 与交付包（整合前）](https://github.com/Freecode100Year/private-talk/releases/tag/html-room-v1-rc1) · [完整交付报告](docs/html-room/release-candidate.md) · [协议](docs/html-room/protocol.md) · [安全模型](docs/html-room/security-model.md)
 
-![隐匿对话 Private Talk：只给知道暗号的人，聊完不留痕](docs/images/banner.jpg)
+## 先了解文件的含义
 
-**只给知道暗号的人。聊完，轻装离开。**
+> **默认无口令：此文件包含完整房间密钥，请勿通过未加密的社交软件直接发送。**
+>
+> 任何拿到文件的人都可能加入房间。口令模式可以包装文件中的密钥，但持有文件的人仍可离线猜测口令；建议使用高熵密码，并通过独立渠道传递。它不能彻底解决文件泄密。
 
-- **隐匿**：不要账号、不要手机号、不要昵称。消息在浏览器里加密，服务器只转发看不懂的密文，不保存消息，程序不写日志。
-- **简单**：打开网址、输入暗号，就在同一个房间。不用装 App，手机电脑都能用。
-- **不审查**：没有敏感词过滤、没有内容审核、没有举报和封号，也没有后门。服务器看不懂消息，也不按内容做任何判断；限制只有人数、发送频率和长度，用来防止被刷爆。
-- **随处可部署**：Cloudflare 免费一键部署、一行 Docker、断网的局域网、不能上互联网的企业内网，甚至一部安卓手机。
+HTML Room 提供：
 
-在线使用：<https://chat.freedom8964.com>（Cloudflare）、<https://chat.nya.je>（独立 VPS，备用）　·　[iOS 捷径](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)　·　[说明书](docs/manual/README.md)　·　[隐私设计](docs/privacy.md)
+- 无注册、随机会话身份，默认无 Cookie、localStorage 或 IndexedDB。
+- 中文文本聊天、基础在线状态、安全码、断线重连和有上限的内存消息队列。
+- 两种文件模式：默认包含房间密钥；可选使用 PBKDF2 与 AES-256-GCM 口令包装。
+- 复用 v3.2 链密钥、ECDSA 签名、ECDH 与 ML-KEM 混合协议，以及消息填充。
+- 区分“已提交中继”和接收方的签名认证回执。“客户端确认”不等于对方本人已阅读。
+- 独立 `/hr/<roomId>` 中继路由，拒绝游戏与大厅操作帧。
 
-## 新增公开牌桌（2.23）
+消息与身份默认只存在于本次页面内存中。关闭或刷新页面会丢失本地历史；重新打开文件仍可进入该房间，不会恢复旧消息。
 
-公开桌新增 **掼蛋** 与 **麻将·血战入门**，均为四人玩法：在首页“快速找一桌”选择对应游戏，四人到齐后自动开始。牌桌支持手机点选与确认、超时合法行动及原座位短线重连。玩法仅在公开桌提供，不改变私密房间的游戏安全边界。
+## 获取项目
 
-- 掼蛋：两副牌、对家搭档、红桃级牌配牌、升级、进贡还贡。具体变体见 [规则](docs/guandan-rules.md)。
-- 麻将：万筒条 108 张，定缺、碰杠胡、胡牌后继续；不换三张、不计杠分、不查叫/查花猪，胡牌基础 1 分，明确属于入门简化规则。见 [规则](docs/mahjong-rules.md)。
-- 服务器负责发牌和裁决，能看到牌局；每个玩家只收到自己的手牌与公开信息，旁观者没有手牌。聊天继续走独立加密通道，但公开桌暗号公开，任何人可以加入。对局状态仅服务于当前房间，不建立账号或长期战绩。
-
-## 30 秒上手
-
-1. 打开 `https://chat.freedom8964.com/#你们的暗号`。
-2. 把这个网址发给朋友。
-3. 打开同一个网址的人进入同一个房间，最多 25 人。
-
-暗号可以用任何语言的文字和数字，不要符号。直接打开首页会随机生成一个无法猜中的暗号。人到齐后可以锁定房间，聊完关掉网页即可。详见 [用户使用手册](docs/manual/user.md)。
-
-## 隐匿
-
-| 谁 | 能看到 | 看不到 |
-| :--- | :--- | :--- |
-| 服务器运营方 | 你的 IP、上线时间、哪些连接在同一个房间 | 消息内容、暗号、你是谁 |
-| 网络旁观者（运营商、Wi-Fi 管理者） | 你连了这个网站 | 内容、暗号、房间 |
-| 房间里的人 | 消息，以及你的编号（1️⃣～🔟，之后 #11～#25） | 你是谁、你的 IP |
-
-- **端对端加密**：密钥由暗号在浏览器里算出（PBKDF2 31 万次 → HKDF → AES-256-GCM）；加密前把消息补齐到固定几档长度，密文看不出一句话多长。2.4 起有**前向保密**：每人进房时生成临时密钥，每条消息一把一次性钥匙，有人离开全体换钥匙，事后拿到暗号也解不开当时录下的密文；2.8 起每对成员之间还叠加了抗量子的 ML-KEM-768（防「现在录下、以后用量子计算机解」）；每条消息带发送者的签名，别人冒用不了你的编号；侧栏显示 20 位安全码，通过电话或当面核对一致就说明没人被调包。默认严格模式：房间里有旧版本时暂停收发，不会悄悄降级。2.14 起可以**发图片**：在浏览器里压缩并去掉拍摄地点（GPS）等信息，用一次性密钥加密，密钥随有前向保密的消息走，服务器只见密文。2.10 起房间里可以玩游戏：「🕵️ 暗号潜伏」（4–8 人的推理游戏）、「🔐 密电逃脱」（2.11 起，2–8 人合作解密码锁）、「🤝 密约交易所」（2.12 起，2–8 人的囚徒困境，可递只有对方能看的纸条）、「🎯 秘密任务」（2.13 起，3–8 人，暗中引导别人说出你的词）、「🎲 骗子骰」（2.20 起，2–8 人吹牛骰子，谁也偷看不到别人的骰子）和「🐺 狼人杀」（2.15 起，6–12 人，程序自动当法官，人人都玩；2.16 起 23 种板子、19 种身份、警长竞选；2.17 起每个游戏和板子都有「📖 游戏规则」详细说明）；2.20 起首页可以「快速找一桌」，和陌生人在公开桌玩（公开桌任何人都能进、服务器能看到，私密房间永远不会被列出）；暗号潜伏没有庄家（所有人的页面轮流加密洗牌发牌，开局的人也不知道谁是潜伏者），发牌、选票、线索和纸条同样加密。2.9 起自己的消息会显示送达回执（“已送达 2/3”“✓ 全部送达”），回执同样加密。网站附带签名的文件清单，任何人都能用 `scripts/verify-site.mjs` 核对线上网页没被改过。暗号写在链接 `#` 后面，浏览器不会发给服务器，进入房间后立刻从地址栏抹掉。
-- **没有暗号进不来**：服务器只认由暗号算出的进入凭证，只知道房间地址的人不能占座、锁房或发消息。
-- **不留存**：没有账号、没有消息历史，程序不写日志。所有人离开后房间消失，同一个暗号以后打开是一个新的空房间。
-- **不留痕**：不用 Cookie 和本地存储，页面禁止缓存，关闭时让浏览器清除本站数据。没有外部资源，没有统计。
-- **防篡改**：发送人、时间、消息编号都封在密文里，服务器单独无法改动发送人；按每台设备自己的时间拒绝 10 分钟以前的旧消息。
-- **房主管理**：最早进入的人是房主，人到齐后锁定房间、可以移出成员；房主离开自动由下一位接任。
-
-**做不到的**（请务必知道）：
-
-- 知道暗号的人都能进来，也能听到以后的对话。暗号越短越容易被猜中，重要的谈话用随机暗号。邀请链接不会过期。房间里有旧版本的成员时会退回没有前向保密的旧方式（页面会提示）。
-- 服务器能看到 IP。要隐藏 IP，请配合可信的 VPN。
-- 不能证明房间里的人是谁；对方可以截图、复制；输入法、被监控的设备超出网页能保护的范围。「清屏」只清你自己的屏幕。
-- 网页代码由服务器下发：部署者账号被盗，代码可能被替换。可以用签名清单核对，但只针对某一个人的替换核对不出来；最稳妥是用安卓 App 或离线包。
-
-完整说明见 [隐私与安全设计](docs/privacy.md)。
-
-## 截图
-
-以下截图由 `browser-tests/screens.mjs` 用真浏览器自动玩一局后截取（手机尺寸，房间是临时新建的，成员只有编号）。
-
-| 狼人杀 · 狼人点头像确认 | 预言家查验 | 女巫用药 | 竞选警长 |
-|---|---|---|---|
-| <img src="docs/screenshots/werewolf-night-wolf.webp" width="200"> | <img src="docs/screenshots/werewolf-night-seer.webp" width="200"> | <img src="docs/screenshots/werewolf-night-witch.webp" width="200"> | <img src="docs/screenshots/werewolf-sheriff.webp" width="200"> |
-| **按住身份牌：技能说明和私下信息** | **白天轮流发言** | **投票头像打勾** | **对局复盘摊牌** |
-| <img src="docs/screenshots/werewolf-card.webp" width="200"> | <img src="docs/screenshots/werewolf-day.webp" width="200"> | <img src="docs/screenshots/werewolf-vote.webp" width="200"> | <img src="docs/screenshots/werewolf-end.webp" width="200"> |
-| **暗号潜伏** | **密电逃脱** | **密约交易所（纸条）** | **秘密任务** |
-| <img src="docs/screenshots/undercover.webp" width="200"> | <img src="docs/screenshots/escape.webp" width="200"> | <img src="docs/screenshots/pact.webp" width="200"> | <img src="docs/screenshots/mission.webp" width="200"> |
-| **发图片（已去掉 EXIF）** | **电脑版房间** | **首页快速选玩法** | **狼人杀选板子** |
-| <img src="docs/screenshots/picture.webp" width="200"> | <img src="docs/screenshots/room-desktop.webp" width="300"> | <img src="docs/screenshots/modes-lobby.webp" width="200"> | <img src="docs/screenshots/werewolf-boards.webp" width="200"> |
-| **房间选游戏区** | | | |
-| <img src="docs/screenshots/room-modes.webp" width="200"> | | | |
-
-## 部署
-
-任何人都可以免费部署自己的一份（[MIT 许可](LICENSE)），不需要我们同意。**大多数人从下面三种里选一种**，每种都有完整的安装、确认成功、升级、回退和卸载步骤：
-
-| 你的情况 | 推荐做法 | 升级 | 说明书 |
-| :--- | :--- | :--- | :--- |
-| 没有服务器 | Cloudflare 一键部署（免费额度） | GitHub 里点 Actions → upgrade | [Cloudflare](docs/manual/cloudflare.md) |
-| 有境外 VPS 和域名 | Docker + 自动 HTTPS：`./pt setup 你的域名` | `./pt upgrade`，失败自动回退 | [VPS](docs/manual/vps.md) |
-| 断网的局域网、活动现场、企业内网 | 离线安装包（自带 Node.js），解压运行 `start-lan` | 新包拖到 `update` 上，不用联网 | [局域网](docs/manual/lan.md) · [企业内网](docs/manual/enterprise.md) |
-
-**Cloudflare 一键部署**
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Freecode100Year/private-talk)
-
-登录 Cloudflare，按提示确认，几分钟后得到 `https://private-talk.<你的子域>.workers.dev`。
-
-**VPS（Docker）**
+需要 Node.js 22 或更高版本；交付测试使用 Node.js 24.20.0。
 
 ```sh
-curl -fsSL https://github.com/Freecode100Year/private-talk/releases/latest/download/private-talk-compose.tar.gz | tar -xz
-cd private-talk-docker && ./pt setup chat.example.com      # 先把域名指向服务器，开放 80、443
+git clone --branch main --single-branch https://github.com/Freecode100Year/private-talk.git
+cd private-talk
+npm ci --ignore-scripts
 ```
 
-**局域网 / 内网**：从 [Releases](https://github.com/Freecode100Year/private-talk/releases/latest) 下载自己系统的离线包（Windows、Linux、macOS），U 盘拷进去解压，Windows 双击 `start-lan.cmd`，其他系统 `./start-lan.sh`。
+也可以下载 RC1 的完整 bundle，在已有 Git 的电脑上恢复，无须预先拥有基线：
 
-<details>
-<summary>其他方式（参考配置，按需使用）</summary>
+```sh
+git clone -b feature/html-room-chat html-room-chat-full.bundle private-talk
+```
 
-| 情况 | 做法 | 说明书 |
-| :--- | :--- | :--- |
-| 家里的电脑、NAS、树莓派，不想开端口 | Docker + Cloudflare Tunnel | [家用设备](docs/manual/home.md) |
-| 用 Tailscale | 私人内网，或免域名的公网网址 | [Tailscale](docs/manual/tailscale.md) |
-| 不想管服务器 | Render、Koyeb、Railway、Zeabur、Fly.io | [云平台](docs/manual/cloud.md) |
-| 只有一部安卓手机 | Termux，开热点大家连上来 | [安卓手机](docs/manual/android.md) |
-| 已装 Node.js 22+ 的电脑 | `npm ci --omit=dev && npm run lan` | [局域网](docs/manual/lan.md) |
+**Release 中的 `html-room-template.html` 是无秘密模板，不能直接用来聊天。** 创建房间需要下面的生成器与中继地址。RC1 固定在其发布提交，分支 README 等后续更新不会自动改变该版本的附件。
 
-上面三种主推方式每次发布都在 CI 里自动验证（Cloudflare 运行时、Docker + Caddy、各系统离线包含更新与回退）；其他方式是经过测试的配置，但不在每次发布时实测各平台。
+## 网页生成器与备用入口
 
-</details>
+运行本分支中继后访问 `/hr.html`，明确填写中继源，可选填写或随机生成高熵口令，点击创建并下载房间文件。本站中继还可生成 `#hr1=` 网页链接。网页生成与进入使用同一套协议和签名回执；浏览器信任由托管站点下发的代码。手机真机仍未验证。
 
-**所有部署都要知道**：
+开发时先运行 `node scripts/build-html-room.mjs template`；CI 使用 `template --check` 验证网页资源与模板可复现。[整合决策及本次验证](docs/html-room/merge-report.md)。
 
-- 必须 HTTPS，浏览器才允许网页加密。上面每种方式都已带好 HTTPS；局域网模式自动生成只能用于内网地址的证书。
-- 用 http:// 打开时页面会提示无法使用。
-- Node.js / Docker 版只能运行一个实例（房间在内存里）；升级或重启会断开当时的聊天，页面会自动重连，但房间和消息不会恢复。
-- 部署账号开启两步验证：它是这个网站的钥匙。
-- 自己部署时可以设 `ENTRY_PATH` 开启**隐身入口**：网站只在秘密路径下打开，其他地址都回答普通的 404，扫描的人看不出这里是什么（见 [VPS 说明](docs/vps.md#隐身入口可选)）。
+## 本机体验：生成文件并双向聊天
 
-出了问题看 [故障排查](docs/manual/troubleshooting.md)。环境变量、目录结构和开发命令见 [参考](docs/reference.md)。
+先在一个终端启动本分支的 Node 中继：
 
-## 界面语言
+```sh
+HOST=127.0.0.1 PORT=8080 npm start
+```
 
-自动跟随浏览器（简体中文、繁體中文、English、Español、বাংলা、Русский、العربية、Kreyòl Ayisyen、한국어、اردو、Français、हिन्दी），右上角可以切换。网站右上角的「使用说明」在内网断网时也能打开。
+在另一个终端生成一个房间文件：
+
+```sh
+node scripts/build-html-room.mjs out/local-room.html ws://127.0.0.1:8080 ws://127.0.0.1:8080
+node scripts/check-html-room.mjs out/local-room.html
+```
+
+用两个独立浏览器窗口或浏览器上下文打开 **同一份** `out/local-room.html`，分别点击进入，等待加密连接建立后发送消息。通过电话或其他独立渠道核对双方显示的安全码。
+
+最后一个参数是生成时的中继白名单，必须明确填写。生成器不会覆盖已有文件。不要为每位参与者分别运行生成器：每次生成都会创建新的随机密钥，得到不同房间。
+
+`127.0.0.1` 只指当前设备；此例不能让另一部手机连接你的电脑。远程使用请配置参与者都能访问的 WSS 中继。
+
+## 远程使用与口令模式
+
+先运行或部署本分支的中继代码，确保公开地址支持 `/hr/<roomId>`，并使用受信任的有效 TLS 证书。**不要假设旧版本中继或现有公开站点已经支持 HTML Room。**
+
+无口令文件：
+
+```sh
+node scripts/build-html-room.mjs out/my-room.html wss://chat.example.com wss://chat.example.com
+node scripts/check-html-room.mjs out/my-room.html
+```
+
+把示例域名替换为实际中继地址。生成器只接受精确的 WS/WSS 源，不接受用户名、密码、路径、查询参数或 Fragment；远程地址必须使用 `wss://`，明文 `ws://` 仅允许本机测试地址。本版本生成的文件连接源根路径下的 `/hr/`，不支持带秘密路径的 `ENTRY_PATH` 部署入口。
+
+口令文件从标准输入读取一行口令，避免将口令写进命令行参数。以下为 Bash 交互示例，不把口令写入文件：
+
+```bash
+read -r -s -p '输入高熵房间口令：' room_password
+printf '\n'
+printf '%s\n' "$room_password" | HR_PASSWORD_STDIN=1 node scripts/build-html-room.mjs out/protected-room.html wss://chat.example.com wss://chat.example.com
+unset room_password
+node scripts/check-html-room.mjs out/protected-room.html
+```
+
+口令文件解锁成功之前不会进行敏感入房操作。页面提供错误口令处理与本机尝试节流；节流不能阻止持有文件的人离线猜测。
+
+Node 中继入口是 `server/server.mjs`；Cloudflare Worker 入口是 `src/worker.js`，路由配置见 `wrangler.jsonc`。现有[部署手册](docs/manual/README.md)可用于了解服务器基础设置，但 HTML Room 路由、证书与代理配置仍需部署方单独验证。
+
+## 安全边界与兼容性
+
+| 项目 | 当前边界 |
+|---|---|
+| 中继能看到什么 | IP、连接时间、房间关系、帧大小，以及用于鉴权的 access；不能据此直接派生聊天密钥 |
+| 鉴权材料 | `Sec-WebSocket-Protocol` 是中继可见的敏感 bearer 材料，代理、诊断和监控必须整头脱敏；它可以被重放，不能当作 E2EE 秘密 |
+| 接收确认 | 中继回传仅表示提交；接收方经认证的链签名 seen 才算客户端确认 |
+| 文件完整性 | 固定脚本哈希与 meta CSP 可限制资源执行；不能防御整个 HTML 被替换，也不能证明配置未被篡改 |
+| 密码与设备 | 弱口令可离线猜测；无法防御被控制的设备、恶意输入法、参与者截图或复制 |
+| 中继行为 | 中继仍可丢弃、延迟消息或伪报在线成员；不保证消息必达或网络匿名性 |
+| 密码学审计 | 复用项目协议；ML-KEM 实现未经独立外部审计，不作额外安全保证 |
+
+文件没有第三方脚本或分析代码。meta CSP 使用固定脚本、样式哈希和精确中继源，没有内联 style 属性；meta 不支持 `frame-ancestors`。请从可信渠道获取文件并独立核对完整性。
+
+WSS 握手失败可能来自网络、Origin、鉴权或证书信任问题。建议使用有效证书；先访问对应 HTTPS 地址检查信任，也不能保证所有浏览器允许 WSS。**不要关闭证书校验。**
+
+| 环境 | 验证状态 |
+|---|---|
+| Linux Chromium 156.0.8078.4，真实 `file://` | Node 中继和本地 Worker 均通过双向聊天 E2E |
+| iOS Safari 本地文件 | 无真机，未验证 |
+| iOS / Android 微信、QQ 内置文件预览 | 无真机，未验证；可能不执行 HTML 脚本 |
+| Android 浏览器、macOS Safari、Firefox、Edge | 未验证 |
+
+本分支已整合 `/hr.html` 网页生成器和 `#hr1=` 备用入口。网页入口代码能读取 Fragment，其安全性不等同于经过验证的离线文件；入口仅连接本站中继，读取后清除地址栏片段。
+
+## 测试与可复现检查
+
+本次整合启用 Worker 后 **234/234 测试通过，无失败或跳过**；Node 和 Worker 各通过 11 项真实文件检查及 9 项网页/文件互通检查。详见[整合报告](docs/html-room/merge-report.md)。以下 RC1 统计作为合并前基线保留。
+
+RC1 的原始基线是 **197 项测试通过**；交付最终为 **211 项通过，失败与跳过均为 0**，其中新增 HTML Room 测试 14 项。Node 与本地 Worker 的真实文件 Chromium E2E 各通过 11 项检查；Worker 路由策略另通过 2 项。
+
+```sh
+npm test
+npm run test:html-room
+npx playwright install chromium
+npm run test:html-room:browser
+```
+
+浏览器测试需要 OpenSSL，用于生成临时自签名证书并验证浏览器拒绝握手时的中文诊断。测试使用临时随机房间、两个独立浏览器上下文和本地中继；聊天页面额外 HTTP 请求、控制台错误与浏览器存储均为 0。预期的证书拒绝单独验证。
+
+可执行内联脚本 SHA-256：
+
+```text
+2b6e8795dda3fda5f1ea5254646a250f677bc690b79823fde3152e9bccb7ca21
+```
+
+不同房间的配置不同，但可执行脚本字节保持一致。上述 hash 对应当前整合版实现；见 [完整性清单](docs/html-room/release-integrity.json)，构建固定使用 esbuild 0.28.2；[完整性清单](docs/html-room/release-integrity.json)包含 当前样式与示例产物哈希。新生成房间的随机配置会改变完整 HTML 哈希。
+
+| RC1 示例产物 | 大小 |
+|---|---:|
+| 无秘密模板 | 43,885 字节 |
+| 无口令文件，使用占位中继源 | 44,119 字节 |
+| 口令包装文件，使用占位中继源 | 44,289 字节 |
+
+真实文件大小会随中继地址变化。生成的房间文件默认以 0600 权限写入 `out/`，该目录被 Git 忽略；不要把实际房间密钥、口令或测试私钥提交到仓库。
+
+更多记录：[源码审计](docs/html-room/architecture-audit.md) · [逐项测试结果](docs/html-room/node-test-results.txt) · [原 RC1 修改文件清单](docs/html-room/changed-files.txt) · [发布候选交付报告](docs/html-room/release-candidate.md)。
+
+## 原网页聊天与桌游
+
+原功能仍保留在代码中，HTML Room V1 只提供聊天。原产品介绍见[主分支 README](https://github.com/Freecode100Year/private-talk/blob/main/README.md)；[English README](README.en.md)介绍的是原网页产品，尚未改写为 HTML Room 文档。
+
+以下为原产品入口，不代表已部署本分支的 `/hr/` 中继，也不代表 HTML Room 的移动端兼容性已验证：
+
+- [项目主页](https://freecode100year.github.io/private-talk/) · [原用户手册](docs/manual/user.md)。
+- [iOS 捷径「隐匿对话」](https://www.icloud.com/shortcuts/196e890920d14049a2de8c813d5244d0)。
+- [安卓联网版 APK](https://github.com/Freecode100Year/private-talk/releases/download/android-online-v2.20.0/PrivateTalk-online-v2.20.0.apk) · [联网版发布说明](https://github.com/Freecode100Year/private-talk/releases/tag/android-online-v2.20.0)。
+- [安卓离线版 APK](https://github.com/Freecode100Year/private-talk/releases/download/android-offline-v17/PrivateTalk-offline-arm64-v17.apk) · [离线版发布说明](https://github.com/Freecode100Year/private-talk/releases/tag/android-offline-v17)。
 
 ## 许可
 
-[MIT](LICENSE)。任何人都可以自由使用、部署、修改和再分发，只需保留许可声明。
+[MIT](LICENSE)。使用、修改和再分发时请保留许可声明。
